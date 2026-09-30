@@ -158,3 +158,10 @@ build/xhci-completion-test: tests/xhci-completion.c $(XHCI_SOURCE)/xhci_completi
 .PHONY: test-xhci-completion
 test-xhci-completion: build/xhci-completion-test
 	build/xhci-completion-test
+
+build/xhci-cancel-test: tests/xhci-cancel.c $(XHCI_SOURCE)/xhci_cancel.c $(XHCI_SOURCE)/xhci_ring.c | build
+	clang -std=gnu11 -Wall -Wextra -Werror -Wno-unused-parameter -Wno-ignored-attributes -fsanitize=address,undefined -fno-sanitize-recover=all \
+	 -I$(XHCI_SOURCE) -idirafter $(AROS_VM_SDK)/AROS/Developer/include $< -o $@
+.PHONY: test-xhci-cancel
+test-xhci-cancel: build/xhci-cancel-test
+	build/xhci-cancel-test

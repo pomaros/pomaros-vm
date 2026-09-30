@@ -1843,3 +1843,41 @@ coordination. Command timeout must retain state and prevent endpoint reuse.
 RT-ISO stop/flush call sites need their own completion ownership treatment.
 Existing immediate AbortIO paths remain unchanged and unsafe; no live USB traffic
 has been attempted. Full stage-six goal remains open; SMP untouched.
+
+## Annulation xHCI : transaction de commandes avant libération
+
+- `xhciRetireCancelledRequest` ajoute la séquence exécutée en contexte tâche :
+  Stop Endpoint (Running/Stopped), ou Reset Endpoint (Halted), puis lecture du
+  contexte de sortie après acquittement. État Stopped obligatoire ; l'adresse
+  de dequeue et DCS viennent du contrôleur, pas du dernier événement USB.
+- Le dequeue doit désigner le segment connu, y compris son Link final. Les
+  adresses hors segment, les bits de stream, les indices invalides et les
+  débordements d'adresse sont refusés. La commande Set TR Dequeue utilise
+  `dmaa_DMA`, déjà traduit, sans le retraduire comme une adresse CPU.
+- Le retrait prépare les No-Ops, attend Set TR Dequeue si le transfert annulé
+  est courant, puis valide le commit des corrélations. Un refus ou timeout
+  retourne FALSE : conserver requête/buffers/anneau et mettre l'endpoint en
+  quarantaine. Un endpoint Error reste également en quarantaine ; aucune
+  récupération automatique de cet état n'est revendiquée.
+- Le code ne libère ni buffer ni requête et ne sonne pas la porte de reprise.
+  Son appelant doit conserver leurs références et exclure publication,
+  récupération, déconnexion et libération par completion pendant les attentes.
+  Les interruptions restent actives pendant les commandes.
+- `make test-xhci-cancel` compile les vrais fichiers `xhci_cancel.c` et
+  `xhci_ring.c` sous ASan/UBSan. 4 032 cas couvrent positions, cycles, wraps,
+  contextes 32/64 octets, états Running/Stopped/Halted, plages contrôle/data.
+  Injections supplémentaires : timeout/refus Stop et Set Dequeue, état final
+  incorrect, dequeue hors segment, flags stream, propriétaire perdu avant
+  commit, entrées invalides. Aucun de ces échecs n'autorise une libération.
+- Référence : [xHCI 1.2b, sections 4.6.8–4.6.10](https://cdrdv2-public.intel.com/625472/625472_xHCI_Rev1_2b.pdf).
+  Revue 242 des primitives précédentes approuvée ; ses remarques sur le
+  contexte de sortie et la vérification de Stopped sont intégrées ici.
+- **Pas encore raccordé à AbortIO** : les chemins existants de NAK/flush/ISO
+  et de déconnexion doivent être convertis avec la même propriété exclusive.
+  Prochaine étape : état d'annulation conservé dans la requête et verrou de
+  durée de vie par endpoint ; les completions concurrentes enregistrent leur
+  résultat sans libérer pendant la transaction. Aucune preuve de transfert
+  USB VZ ni de clavier/souris n'est ajoutée par ce test hôte.
+
+- Compilation AArch64 `kernel-usb-pcixhci` PASS. Core `c74aa4aa8d`,
+  identités exactes et périmètre : `artifacts/xhci-cancel-command.json`.
