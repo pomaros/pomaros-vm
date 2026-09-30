@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 John Knipper
 #include <assert.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -16,7 +17,7 @@
 #define XHCICHIP_H
 #define XHCI_EVENT_RING_TRBS 8
 #define RINGENDCFLAG (1U << 15)
-struct PCIController { void *hc_PCIDriverObject; void *hc_Device; };
+struct PCIController { void *hc_PCIDriverObject; void *hc_Device; struct List hc_TDQueue,hc_PeriodicTDQueue; };
 struct pcisusbXHCIRing {
     struct xhci_trb ring[XHCI_EVENT_RING_TRBS];
     struct IORequest **ringio;
@@ -25,7 +26,8 @@ struct pcisusbXHCIRing {
 struct xhciControlTRBs { UWORD setup,dataFirst,dataLast,status; };
 static unsigned depth,writes,translations;
 static void xhciRingLock(void) { ++depth; }
-static void xhciRingUnlock(void) { assert(depth);--depth; }
+static void maybe_complete(void);
+static void xhciRingUnlock(void) { assert(depth);--depth;if(!depth)maybe_complete(); }
 static APTR translate(APTR p) { assert(depth);++translations;return (APTR)((IPTR)p+0x100000000ULL); }
 static void cache(APTR p,ULONG bytes,ULONG flags)
 { (void)p;(void)flags;assert(depth && bytes==sizeof(struct xhci_trb));++writes; }
@@ -40,7 +42,13 @@ static void cache(APTR p,ULONG bytes,ULONG flags)
 
 /* Exercise preparation ordering in the actual control scheduler wrapper. */
 #define XHCICHIP_SCHEDULE_H
+struct pciusbXHCIDevice { ULONG dc_SlotID; };
+struct PTDNode { ULONG ptd_Flags; };
+#define PTDF_ACTIVE 1
+#define PTDF_BUFFER_VALID 2
 struct pciusbXHCIIODevPrivate {
+    struct pciusbXHCIDevice *dpDevice;
+    ULONG dpEPID,dpCC;
     UWORD dpSTRB,dpTxSTRB,dpTxETRB,dpSttTRB;
     APTR dpBounceBuf,dpBounceData;
     ULONG dpBounceLen;
@@ -59,6 +67,40 @@ static APTR xhciPrepareDMABuffer(struct PCIController *hc,struct IOUsbHWReq *io,
 }
 static void xhciDiscardPreparedDMABuffer(APTR cpu,ULONG bytes,UWORD direction,APTR bounce)
 { (void)bytes;(void)direction;assert(cpu && !bounce && !depth && !writes);++discards; }
+static unsigned doorbells,auto_complete,completion_pending,completions;
+static struct IOUsbHWReq *published_io;
+static struct List *published_list;
+static void init_list(struct List *l)
+{ memset(l,0,sizeof(*l));l->lh_Head=(struct Node *)&l->lh_Tail;l->lh_TailPred=(struct Node *)&l->lh_Head; }
+static void track(struct List *l,struct Node *n)
+{
+    assert(depth);published_io=(struct IOUsbHWReq *)n;published_list=l;
+    n->ln_Succ=(struct Node *)&l->lh_Tail;n->ln_Pred=l->lh_TailPred;
+    l->lh_TailPred->ln_Succ=n;l->lh_TailPred=n;
+}
+#undef AddTail
+#define AddTail(l,n) track(l,n)
+static void xhciRingDoorbell(struct PCIController *hc,ULONG slot,ULONG epid)
+{
+    assert(depth && published_io && published_list->lh_Head==(struct Node *)published_io);
+    struct pciusbXHCIIODevPrivate *priv=published_io->iouh_DriverPrivate1;
+    assert(priv && priv->dpDevice->dc_SlotID==slot && priv->dpEPID==epid);
+    assert(priv->dpBounceLen==published_io->iouh_Length && priv->dpCC==TRB_CC_INVALID);
+    assert(!published_io->iouh_Req.io_Error && !published_io->iouh_Actual);
+    UWORD cmd=published_io->iouh_Req.io_Command;
+    assert(published_list==((cmd==UHCMD_INTXFER || cmd==UHCMD_ISOXFER)?&hc->hc_PeriodicTDQueue:&hc->hc_TDQueue));
+    if(cmd==UHCMD_ISOXFER && published_io->iouh_DriverPrivate2)
+        assert(((struct PTDNode *)published_io->iouh_DriverPrivate2)->ptd_Flags==PTDF_ACTIVE);
+    ++doorbells;completion_pending=auto_complete;
+}
+static void maybe_complete(void)
+{
+    if(!completion_pending)return;
+    completion_pending=0;++completions;
+    struct Node *n=&published_io->iouh_Req.io_Message.mn_Node;
+    n->ln_Pred->ln_Succ=n->ln_Succ;n->ln_Succ->ln_Pred=n->ln_Pred;
+    free(published_io->iouh_DriverPrivate1);free(published_io);published_io=NULL;
+}
 #include "xhci_control.c"
 
 static void init(struct pcisusbXHCIRing *r, struct IORequest **owners,unsigned next,unsigned end)
@@ -181,6 +223,9 @@ int main(void)
         ++controls;
     }
     struct IOUsbHWReq usb={0};struct pciusbXHCIIODevPrivate priv;
+    struct pciusbXHCIDevice device={.dc_SlotID=2};
+    usb.iouh_Req.io_Command=UHCMD_CONTROLXFER;usb.iouh_DriverPrivate1=&priv;
+    init_list(&hc.hc_TDQueue);init_list(&hc.hc_PeriodicTDQueue);
     UBYTE payload[32];usb.iouh_Data=payload;usb.iouh_Length=32;
     UBYTE setupbytes[8]={0x80,6,0x34,0x12,0x78,0x56,32,0};
     memcpy(&usb.iouh_SetupData,setupbytes,8);
@@ -195,10 +240,45 @@ int main(void)
         assert(discards==(failure==1 || failure==2));
         usb.iouh_Data=payload;
     }
+    for(unsigned failure=0;failure<4;++failure) {
+        init(&r,owners,0,failure==2?1:0);before=r;
+        prep_fail=failure==0;prep_short=failure==1;prepares=discards=0;
+        memset(&priv,0x5a,sizeof(priv));struct pciusbXHCIIODevPrivate saved=priv;
+        if(failure==3)usb.iouh_Data=NULL;
+        unsigned oldDoorbells=doorbells;
+        assert(xhciQueuePayloadTRBs(&hc,&usb,&priv,&r,TRBF_FLAG_TRTYPE_NORMAL,TRUE)==-1);
+        assert(!writes && !depth && memcmp(&r,&before,sizeof(r))==0 && doorbells==oldDoorbells);
+        assert(memcmp(&saved,&priv,sizeof(priv))==0);
+        assert(discards==(failure==1 || failure==2));
+        usb.iouh_Data=payload;
+    }
     init(&r,owners,0,0);prep_fail=prep_short=prepares=discards=0;
+    priv.dpDevice=&device;priv.dpEPID=1;
     assert(xhciQueueControlStages(&hc,&usb,&priv,&r,TRBF_FLAG_DS_DIR));
     assert(prepares==1 && !discards && priv.dpBounceLen==32);
     assert(AROS_LE2QUAD(r.ring[priv.dpSTRB].dbp.addr64)==0x0020567812340680ULL);
+    /* Complete and free at the first outer unlock. Publication helpers must
+     * have tracked metadata/list/doorbell before that point and touch no freed
+     * request afterwards. ASan checks both control and payload return paths. */
+    for(unsigned kind=0;kind<4;++kind) {
+        struct IOUsbHWReq *fast=calloc(1,sizeof(*fast));assert(fast);
+        struct pciusbXHCIIODevPrivate *fp=calloc(1,sizeof(*fp));assert(fp);
+        const UWORD cmds[]={UHCMD_CONTROLXFER,UHCMD_BULKXFER,UHCMD_INTXFER,UHCMD_ISOXFER};
+        fast->iouh_Req.io_Command=cmds[kind];fast->iouh_Data=payload;fast->iouh_Length=32;
+        fast->iouh_Req.io_Error=UHIOERR_HOSTERROR;fast->iouh_Actual=123;
+        fast->iouh_DriverPrivate1=fp;fp->dpDevice=&device;fp->dpEPID=1;fp->dpCC=99;
+        struct PTDNode ptd={.ptd_Flags=PTDF_BUFFER_VALID};
+        if(kind==3)fast->iouh_DriverPrivate2=&ptd;
+        init_list(&hc.hc_TDQueue);init_list(&hc.hc_PeriodicTDQueue);
+        init(&r,owners,0,0);auto_complete=1;unsigned prior=doorbells,done=completions;
+        if(!kind)assert(xhciQueueControlStages(&hc,fast,fp,&r,0));
+        else assert(xhciQueuePayloadTRBs(&hc,fast,fp,&r,TRBF_FLAG_TRTYPE_NORMAL,TRUE)>=0);
+        assert(!depth && doorbells==prior+1 && completions==done+1 && !published_io);
+        assert(hc.hc_TDQueue.lh_Head==(struct Node *)&hc.hc_TDQueue.lh_Tail);
+        assert(hc.hc_PeriodicTDQueue.lh_Head==(struct Node *)&hc.hc_PeriodicTDQueue.lh_Tail);
+    }
+    auto_complete=0;
+    puts("xhci-publication result=PASS metadata,list,doorbell-before-unmask,immediate-free,control-bulk-int-iso");
     printf("xhci-control result=PASS cases=%u prepare-failure,short-prepare,capacity-failure,null-data,setup-bytes\n",controls);
     printf("xhci-ring result=PASS cases=%u actual-queue,wrap,nonidentity,all-or-none,zero,overflow\n",cases);
 }

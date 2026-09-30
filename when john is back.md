@@ -1711,3 +1711,47 @@ outrun list publication; they also dereference private state to ring the doorbel
 after interrupts can resume. Then address task-context cancellation, acknowledged
 stop/retirement and failed-stop retention before switching to owned PCI payloads.
 The whole stage-six objective remains open. SMP untouched.
+
+
+## Protected publication before completion IRQs (core 2a0f7a82df)
+
+Control and payload submission now share protected publication in
+xhci_control.c. Allocation/cache preparation happens outside the ring lock;
+after successful whole-transfer admission, the outer lock covers correlation
+indices, buffer ownership, completion-code reset, active-list insertion, ISO
+PTD active/buffer-valid flags, and the hardware doorbell. Only then are guest
+interrupts re-enabled. The doorbell operation is MMIO with a barrier/readback,
+not a command wait. Async, interrupt and ISO schedulers no longer add the IO to
+the active list or dereference its private state to ring the doorbell after the
+submission helper returns. The header explicitly transfers ownership on success:
+the IO/private state may already have been freed by completion when it returns.
+
+This also clears stale io_Error/iouh_Actual when a retry is actually published.
+Payload submission rejects short cache preparation before writing descriptors,
+as control already did. Failed preparation/admission performs no list insertion
+or doorbell and balances only the unpublished buffer's cache ownership.
+
+`make test-xhci-ring` PASS under ASan/UBSan: existing 1024 control + 1152 payload
+admission cases, failure injection for both preparation wrappers, and immediate
+completion of control/bulk/interrupt/ISO publication. The actual helper source
+runs; mocked AddTail/doorbell assert the correct active list, indices/length,
+completion state and ISO flags are ready while the outer lock is held. At the
+first outer unlock the model removes/frees IO and private state; ASan verifies
+the helpers do not access them on return. This is a publication-level ISO model,
+not an RT-ISO scheduler or hardware qualification.
+
+`make test-xhci-request` PASS with actual async and interrupt scheduler source:
+previous rollback/retry tests plus a submission mock that completes and frees
+both records before returning success. Control, bulk and interrupt success paths
+return without use-after-free, double insertion or a second doorbell. No real
+controller concurrency is claimed by these synchronous injection tests.
+Guest driver incremental cross-build PASS. Exact hashes:
+artifacts/xhci-publication.json. Review238 approved the preceding rejection fix.
+
+Next: move active AbortIO/NAK/flush cancellation into task context, stop the
+endpoint and retire references with acknowledged commands before releasing DMA;
+retain memory on failed stop/reset. Audit iteration over pending queues against
+concurrent removal as part of request-state work. Then integrate explicitly
+owned PCI payloads without double translation, validate segment address rules
+and controller register bounds/interrupt admission, and test real VZ USB input.
+No USB transfers attempted yet. SMP unchanged; stage-six goal remains active.

@@ -26,6 +26,7 @@ struct pciusbXHCIIODevPrivate {
 struct PCIUnit { struct IOUsbHWReq *hu_DevBusyReq[32]; ULONG hu_NakTimeoutFrame[32]; };
 struct PCIController { struct PCIUnit *hc_Unit; struct List hc_TDQueue,hc_IntXFerQueue,hc_PeriodicTDQueue; ULONG hc_FrameCounter; };
 static unsigned depth,replies,removes,requeues,publishes,doorbells,frees;
+static unsigned fast_complete;
 static unsigned result_mode; /* 0: capacity rejection, 1: prepared failure, 2: published */
 static void disable(void) { ++depth; }
 static void enable(void) { assert(depth);--depth; }
@@ -68,14 +69,27 @@ static UWORD xhciDevEPKey(const struct IOUsbHWReq *io) { return io->iouh_Endpoin
 static ULONG xhciBuildDataTRBFlags(struct IOUsbHWReq *io,ULONG type) { (void)io;return type; }
 static void xhciFinishRequest(struct PCIController *hc,struct PCIUnit *unit,struct IOUsbHWReq *io)
 { (void)hc;(void)unit;(void)io;assert(!"active completion outside test scope"); }
-static BOOL submit(struct IOUsbHWReq *io)
-{ if(result_mode==1)io->iouh_Req.io_Error=UHIOERR_HOSTERROR;if(result_mode==2){++publishes;return TRUE;}return FALSE; }
+static BOOL submit(struct PCIController *hc,struct IOUsbHWReq *io)
+{
+ if(result_mode==1)io->iouh_Req.io_Error=UHIOERR_HOSTERROR;
+ if(result_mode==2) {
+  ++publishes;++doorbells;
+  add_tail(io->iouh_Req.io_Command==UHCMD_INTXFER?&hc->hc_PeriodicTDQueue:&hc->hc_TDQueue,&io->iouh_Req.io_Message.mn_Node);
+  if(fast_complete) {
+   remove_node(&io->iouh_Req.io_Message.mn_Node);
+   hc->hc_Unit->hu_DevBusyReq[io->iouh_Endpoint]=NULL;
+   hc->hc_Unit->hu_NakTimeoutFrame[io->iouh_Endpoint]=0;
+   free_mem(io->iouh_DriverPrivate1,sizeof(struct pciusbXHCIIODevPrivate));
+   ++replies;free(io);
+  }
+  return TRUE;
+ }
+ return FALSE;
+}
 static BOOL xhciQueueControlStages(struct PCIController *hc,struct IOUsbHWReq *io,struct pciusbXHCIIODevPrivate *p,volatile struct pcisusbXHCIRing *r,ULONG f)
-{ (void)hc;(void)p;(void)r;(void)f;return submit(io); }
+{ (void)hc;(void)p;(void)r;(void)f;return submit(hc,io); }
 static WORD xhciQueuePayloadTRBs(struct PCIController *hc,struct IOUsbHWReq *io,struct pciusbXHCIIODevPrivate *p,volatile struct pcisusbXHCIRing *r,ULONG f,BOOL last)
-{ (void)hc;(void)p;(void)r;(void)f;(void)last;return submit(io)?0:-1; }
-static void xhciRingDoorbell(struct PCIController *hc,ULONG slot,ULONG epid)
-{ (void)hc;(void)slot;(void)epid;++doorbells; }
+{ (void)hc;(void)p;(void)r;(void)f;(void)last;return submit(hc,io)?0:-1; }
 #include "xhci_request.c"
 #include "xhci_async.c"
 #undef base
@@ -135,6 +149,25 @@ int main(void)
   remove_node(&io.iouh_Req.io_Message.mn_Node);io.iouh_DriverPrivate1=NULL;
   unit.hu_DevBusyReq[1]=NULL;unit.hu_NakTimeoutFrame[1]=0;
  }
+ /* A completion task may reap the current IO before the submission helper
+  * returns. Exercise the real scheduler success paths with both records freed. */
+ for(unsigned kind=0;kind<3;++kind) {
+  struct IOUsbHWReq *fast=calloc(1,sizeof(*fast));assert(fast);
+  struct pciusbXHCIIODevPrivate *fp=calloc(1,sizeof(*fp));assert(fp);
+  fp->dpDevice=&device;fp->dpEPID=1;fast->iouh_DriverPrivate1=fp;
+  fast->iouh_Endpoint=1;fast->iouh_SetupData.bRequest=6;
+  const UWORD commands[]={UHCMD_CONTROLXFER,UHCMD_BULKXFER,UHCMD_INTXFER};
+  fast->iouh_Req.io_Command=commands[kind];
+  init_list(&pending);init_list(&hc.hc_IntXFerQueue);
+  init_list(&hc.hc_TDQueue);init_list(&hc.hc_PeriodicTDQueue);
+  add_tail(kind==2?&hc.hc_IntXFerQueue:&pending,&fast->iouh_Req.io_Message.mn_Node);
+  result_mode=2;fast_complete=1;replies=removes=requeues=publishes=doorbells=frees=0;
+  if(kind==2)xhciScheduleIntTDs(&hc);
+  else xhciScheduleAsyncTDs(&hc,&pending,commands[kind]);
+  assert(!depth && replies==1 && publishes==1 && doorbells==1 && frees==1 && removes==2);
+  assert(!unit.hu_DevBusyReq[1]);
+ }
+ fast_complete=0;
  struct pciusbXHCIIODevPrivate priv={.dpDevice=&device,.dpEPID=MAX_DEVENDPOINTS};
  volatile struct pcisusbXHCIRing *out=(APTR)1;
  replies=removes=0;
@@ -145,5 +178,5 @@ int main(void)
  assert(unit.hu_DevBusyReq[1]==&other && unit.hu_NakTimeoutFrame[1]==123);
  xhciRollbackUnsubmitted(&unit,&io,&priv,USB_DEVEP_CNT);
  assert(!depth);
- puts("xhci-request result=PASS actual-async-and-interrupt-schedulers,capacity-retry,one-reply,prepare-failure,missing-ring,owner-isolation");
+ puts("xhci-request result=PASS actual-async-and-interrupt-schedulers,capacity-retry,one-reply,prepare-failure,missing-ring,owner-isolation,immediate-completion-free");
 }
