@@ -1673,3 +1673,41 @@ ownership, and queue/metadata publication ordering, then deferred AbortIO/NAK
 retirement and failed-stop retention. Control capacity is now covered, but this
 is not a proof of those asynchronous lifetime properties or USB delivery.
 No VM USB transfer attempted. SMP untouched; goal/task71 remain active.
+
+
+## Unpublished request rollback (core b1b8a9533a)
+
+xhciActivateEndpointTransfer is now a software-reservation operation only:
+validate the private device/endpoint/ring and key before acquiring ownership,
+return HOSTERROR on failure, never Remove or ReplyMsg. Its callers have already
+removed the pending request and own its eventual reply or retry. This removes
+the double-remove/double-reply path on a missing ring in async scheduling.
+
+xhciRollbackUnsubmitted clears only the failing request's busy/NAK reservation
+and invalidates its TRB indices. It leaves a different owner's state untouched.
+Async, interrupt and ISO rejection paths use it, so ring-capacity rejection can
+be retried instead of leaving hu_DevBusyReq pointing at the requeued IO forever.
+The helper is explicitly NOT an abort of published DMA. Async terminal errors
+also detach/free private request metadata before the single ReplyMsg. Interrupt
+and ISO keep their current retry policies; broader error-policy work remains.
+
+`make test-xhci-request` PASS under ASan/UBSan. It includes the actual request,
+async scheduler and interrupt scheduler source, with OS list/message services
+and submission outcomes mocked. For control and bulk: capacity rejection then
+successful retry of the same request; preparation failure; missing ring; missing
+prepared device; correct remove/requeue/submit/doorbell/reply/free counts. For
+interrupt: capacity or missing-ring rejection followed by successful retry,
+with no premature reply. Invalid endpoint and another owner's busy/NAK state
+are checked. Mocks poison removed node links and reject a second Remove;
+terminal async cases require exactly one reply and private free. This is not
+concurrent IRQ injection or an ISO/RT-ISO runtime test.
+Guest kernel-usb-pcixhci rebuild PASS. Exact identities:
+artifacts/xhci-request-rollback.json. No USB device traffic attempted.
+
+Next: move active-list insertion, metadata and doorbell into the protected
+publication section after allocation. Existing schedulers still insert on the
+active list after the queue helper returns, allowing an early completion to
+outrun list publication; they also dereference private state to ring the doorbell
+after interrupts can resume. Then address task-context cancellation, acknowledged
+stop/retirement and failed-stop retention before switching to owned PCI payloads.
+The whole stage-six objective remains open. SMP untouched.
