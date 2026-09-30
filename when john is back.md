@@ -1315,3 +1315,42 @@ were not changed, and a timeout can still omit later text while a descriptor
 is pending. Keep independent snapshots/supervision during prolonged tests.
 Next return to sustained IO and VZ graphics/input rather than treat this finite
 sample as completion of stage six. Review227 approved; SMP remains bsek's work.
+
+## VZ GPU admission and real display-info command
+
+Re-read aros-next/docs/AARCH64.md: the VM uses virtio display/input and optional
+vsock host services; shared drivers should remain separate from Apple-specific
+hardware. No existing virtio GPU driver was found in the core checkout. The
+existing virtio PCI mapping/reset/negotiation and owned DMA queue allocator are
+reused by a GPU controlq test; no second transport was written. Wire layout is
+from Virtio1.2 section5.7, https://docs.oasis-open.org/virtio/virtio/v1.2/virtio-v1.2.html.
+
+Launcher --gpu permits an explicit 1024x768 graphics device with --headless,
+without window or USB input creation. Ordinary windowed startup retains its
+existing graphics/input configuration. run-vz --require-gpu exposes the device
+and requires a separate display-query proof. The PCI probe recognizes1050,
+resets, negotiates VERSION_1, allocates controlq and a512-byte DMA message area,
+submits GET_DISPLAY_INFO, checks used id/index/exact response size/type and
+scanout0 enabled1024x768. It acknowledges reset before releasing buffers/maps
+and restoring PCI command; failed reset retains DMA. This control command is
+polled; it does not yet qualify GPU IRQs, rendering or a graphics HIDD.
+
+First `vz-gpu-query` exited at launcher argument validation (the old parser
+rejected a second option); corrected option validation accepts unique known
+options. `artifacts/vz-gpu-query-2` PASS with GPU query and installed block driver
+MSI/read proofs together. Product1050 enumerated, response408bytes accepted.
+Old no-query guest `artifacts/vz-gpu-query-negative` correctly FAIL timeout even
+though ordinary boot/device proofs pass. `vz-gpu-launcher-filesystem-regression`
+PASS both VMs without GPU. Swift build, guest Werror build, full make test,
+console-timeout and real queue sanitizer tests, Python syntax and diff checks
+PASS. Core unchanged at d49ffc2e5c.
+
+Input disk `2f0c7a4fb715dfad09b96443a7715ea17f79d67387f8883902bc8b32a3ad3f36`;
+bundle `6efdb7805dcd7f40d672bab2b7ae4a6edeec55d186ad9c52efca7e8d053c1ead`;
+PCIPROBE `42f0835712bcbd8cf2912cc5024b7e3cdb36c25cb8b14168a40dda53ec4b4c63`;
+launcher `d8b6c74c3a05312b4616fe55043496c415dd02391ea177339aa7dffb951f7d2f`.
+Next implement resource/backing/transfer/scanout commands and rendered-pixel
+verification, then connect an AROS graphics HIDD (existing gfx/efifbgfx provide
+reusable bitmap/rendering behavior). A display query is not a desktop.
+Review228 approved the console diagnosis/fix. VZ input and stage-six services,
+independent complete rebuild and sustained IO remain. SMP untouched.

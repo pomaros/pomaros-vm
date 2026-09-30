@@ -45,12 +45,14 @@ final class Application: NSObject, NSApplicationDelegate, VZVirtualMachineDelega
         fileHandleForWriting: .standardOutput)
       console.ports[0] = port
       config.consoleDevices = [console]
-      if !headless {
+      if !headless || CommandLine.arguments.contains("--gpu") {
         let graphics = VZVirtioGraphicsDeviceConfiguration()
         graphics.scanouts = [
           VZVirtioGraphicsScanoutConfiguration(widthInPixels: 1024, heightInPixels: 768)
         ]
         config.graphicsDevices = [graphics]
+      }
+      if !headless {
         config.keyboards = [VZUSBKeyboardConfiguration()]
         config.pointingDevices = [VZUSBScreenCoordinatePointingDeviceConfiguration()]
       }
@@ -102,10 +104,10 @@ final class Application: NSObject, NSApplicationDelegate, VZVirtualMachineDelega
   }
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 }
-if !(CommandLine.arguments.count == 3
-  || (CommandLine.arguments.count == 4 && CommandLine.arguments[3] == "--headless"))
-{
-  fputs("usage: macaros-vm DISK_IMAGE STATE_DIRECTORY [--headless]\n", stderr)
+let options = Array(CommandLine.arguments.dropFirst(3))
+if CommandLine.arguments.count < 3 || options.count != Set(options).count
+  || options.contains(where: { $0 != "--headless" && $0 != "--gpu" }) {
+  fputs("usage: macaros-vm DISK_IMAGE STATE_DIRECTORY [--headless] [--gpu]\n", stderr)
   exit(2)
 }
 if #available(macOS 13.0, *) {

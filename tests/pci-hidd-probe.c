@@ -29,6 +29,7 @@ static int check_mappings,check_resident;
 static unsigned resident_checked,dma_checked,dma_failed,block_checked;
 int test_block_queue(OOP_Object *,struct Library *,int);
 int test_virtio_device(void);
+int test_gpu_query(OOP_Object *,struct Library *);
 static OOP_Object *driver;
 static struct PCIECAMConfig host;
 static OOP_MethodID read_base;
@@ -259,6 +260,10 @@ AROS_UFH3(static IPTR, count_device,
             if(config_read(device,4,2)==command) ++resident_checked;
             if(product==0x1042 || product==0x1001) {
                 if(test_block_queue(device,OOPBase,msi_frame!=0)) ++block_checked;else ++dma_failed;
+            }
+            if(product==0x1050) {
+                if(test_gpu_query(device,OOPBase)) mark("[VM] virtio GPU display query PASS\n");
+                else ++dma_failed;
             }
             if(product==0x1044) {
                 if(entropy_dma(device)) ++dma_checked;else ++dma_failed;

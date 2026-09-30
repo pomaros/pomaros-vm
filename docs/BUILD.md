@@ -354,3 +354,13 @@ completion and subsequent writes, 16-bit wrap, and invalid-descriptor rejection.
 The TX deadline is one architectural-counter second per drain attempt. A timeout
 cannot authorize descriptor reuse or permanently poison an otherwise valid
 queue. Initialization/control-queue deadlines are separate from this TX test.
+
+For the first VZ GPU transport gate, add `--require-gpu` to `tools/run-vz.py`
+with `--require-pci-hidd`. The launcher accepts `--gpu` alongside `--headless`
+to expose a 1024x768 virtio GPU without creating a window or USB input devices.
+The PCI probe uses the existing driver's MapPCI/reset/feature negotiation and
+owned DMA allocation, submits GET_DISPLAY_INFO on controlq, and validates the
+complete response and enabled mode. Reset must be acknowledged before DMA is
+freed. This is a polled control command, not rendered pixels, GPU IRQs, a HIDD
+or a desktop. The wire layout follows
+[Virtio 1.2 §5.7](https://docs.oasis-open.org/virtio/virtio/v1.2/virtio-v1.2.html).
