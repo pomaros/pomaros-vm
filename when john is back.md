@@ -269,3 +269,30 @@ noms linéaire, sans recherche répétée), VM `dc94ce6`. Dernière image testé
 `2d49c21169523e302af54cc234ff3d02f1b650816527011576c71ba0223c0b4f`.
 Le corpus synthétique nommé final (21 nœuds) passe ASan/UBSan après ce dernier
 changement. La validation matérielle physique et le SMP n’ont pas été élargis.
+
+## Contrat MMIO explicite et nettoyage du build VM
+
+Les remarques de revue 199 sont traitées dans le core `49955f33f1` : quatre
+bornes GIC sont transmises dans les tags protégés du démarrage, validées
+comme groupe complet, puis comparées aux deux fenêtres du FDT avant tout
+accès GIC. Une erreur du moteur timer imprime son statut avant refus.
+Les tests ASan/UBSan couvrent émission/capacité, absence, doublon et chevauchement.
+Le négatif `artifacts/vz-missing-contract` réutilise l’ancien stage-two avec
+le noyau corrigé : refus explicite « GIC mapping contract » avant initialisation.
+
+Une limite du build copié a aussi été découverte : son target.cfg contenait
+encore -ffixed-x18 pour des fichiers noyau, malgré l’ABI du dispatcher corrigée.
+Le helper normalise désormais cette configuration du build VM isolé ; le code
+noyau reconstruit utilise effectivement x18 (désassemblage de coldstart_proof.o).
+Cela ne prouve pas une reconstruction complète : les modules du bundle et
+objets non reconstruits restent issus de la base native. Le build propre de
+tous les composants reste nécessaire et ouvert.
+
+Le correctif partagé `03cbb52a0e` de claude-next est fusionné comme
+`5491c7c324` : reprise d’une tâche selon son tc_IDNestCnt avant readiness.
+Après cette fusion, timer, x18 et démarrage VZ/HVF PASS :
+`artifacts/vz-contract-idnest`, `artifacts/hvf-contract-idnest`. Disque VZ SHA256
+`5785137abb6f52dfdcedb7af783c340675f67f50d6f1df420514264686a2a9a8`.
+Pas de preuve spécifique Disable/Wait ajoutée ici ; elle reste avec le
+propriétaire du correctif. Prochaine étape concrète : hooks IRQ des pilotes
+puis virtio GPU/entrées. Le chantier SMP n’a pas été touché.

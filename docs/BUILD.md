@@ -107,3 +107,16 @@ GIC/libfdt objects and compilation rules from its source template. As with the
 bootstrap rules, refresh it after pulling build changes. VZ startup qualification requires GIC readiness and the three-wait timer
 proof. Use the matching EFI loader and kernel; the generated FDT includes
 named timer interrupts.
+
+The isolated build helper also removes inherited `-ffixed-x18` from generated
+`target.cfg` before compiling. This corrects the native configuration copied
+with the original APFS build. It does not retroactively rebuild seed bundle
+modules or every previously compiled object: replacing all such artifacts is
+part of the clean full guest build. Newly rebuilt VM code must not reserve x18.
+
+Stage two passes four scalar GIC window bounds in protected boot tags. The
+kernel requires all four, with no duplicates, and matches both FDT register
+windows exactly before GIC MMIO access. Old stage-two binaries without these
+tags fail the VM IRQ contract; package matching stage two and kernel binaries.
+`make test` checks tag emission, capacity, incomplete records, duplicates and
+overlap under ASan/UBSan.

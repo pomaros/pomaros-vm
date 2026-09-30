@@ -18,6 +18,18 @@ if ! grep -q -- '-DAROS_VM_GUEST=1' "$build/arch/aarch64-apple/kernel/mmakefile"
     echo 'Regenerate the isolated kernel makefile for the VM profile; see docs/BUILD.md.' >&2
     exit 1
 fi
+# An APFS clone can retain native compiler flags in generated configuration.
+# Normalize only this explicitly selected VM build, before any make target.
+python3 - "$build/bin/apple-aarch64/gen/config/target.cfg" <<'PYCONFIG'
+from pathlib import Path
+import sys
+p = Path(sys.argv[1])
+s = p.read_bytes()
+updated = s.replace(b"-ffixed-x18", b"")
+if updated != s:
+    p.write_bytes(updated)
+    print("Removed inherited native x18 reservation from isolated VM configuration.")
+PYCONFIG
 # Refresh generated public headers in this isolated build, never the native build.
 cp "$core"/arch/aarch64-apple/include/aros/apple/*.h "$build/bin/apple-aarch64/gen/include/aros/apple/"
 cd "$build"
