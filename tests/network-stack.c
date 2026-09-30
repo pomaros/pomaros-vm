@@ -13,6 +13,37 @@
 
 struct Library *SocketBase;
 static void mark(const char *s) { while(*s)RawPutChar(*s++); }
+/* Explicit host endpoint and per-run challenge: four IPv4 bytes, two port
+ * bytes in network order, 32 random bytes. No public service is contacted. */
+static int test_socket_exchange(void)
+{
+    UBYTE request[39],reply[33];
+    BPTR file=Open((CONST_STRPTR)"SYS:NETECHO.REQ",MODE_OLDFILE);
+    if(!file)return 1; /* optional; runner separately requires the marker */
+    LONG count=Read(file,request,sizeof(request));Close(file);
+    if(count!=38)return 0;
+    struct sockaddr_in peer={0};
+    peer.sin_len=sizeof(peer);peer.sin_family=AF_INET;
+    memcpy(&peer.sin_addr,request,4);memcpy(&peer.sin_port,request+4,2);
+    LONG fd=socket(AF_INET,SOCK_DGRAM,0);int okay=0;
+    if(fd<0)return 0;
+    /* Connected UDP also filters replies by source address and port. */
+    if(connect(fd,(struct sockaddr *)&peer,sizeof(peer)))goto done;
+    for(unsigned attempt=0;attempt<3 && !okay;++attempt) {
+        LONG sent=send(fd,request+6,32,0);
+        bug("[VM] UDP send=%ld errno=%ld\n",(long)sent,(long)Errno());
+        if(sent!=32)break;
+        fd_set reads;FD_ZERO(&reads);FD_SET(fd,&reads);
+        struct timeval timeout={0};timeout.tv_sec=2;
+        if(WaitSelect(fd+1,&reads,NULL,NULL,&timeout,NULL)>0 &&
+           recv(fd,reply,sizeof(reply),0)==32 && !memcmp(reply,request+6,32))
+            okay=1;
+    }
+done:
+    CloseSocket(fd);
+    mark(okay?"[VM] AROSTCP host UDP exchange PASS\n":"[VM] AROSTCP host UDP exchange FAIL\n");
+    return okay;
+}
 /* A real stack and DHCP client must configure vn0. No synthetic address,
  * hardcoded NAT subnet, or raw transport result satisfies this check. */
 int test_network_stack(void)
@@ -56,7 +87,8 @@ int test_network_stack(void)
     }
     CloseSocket(fd);
 done:
-    CloseLibrary(SocketBase);SocketBase=NULL;
     mark(okay?"[VM] AROSTCP DHCP address PASS\n":"[VM] AROSTCP DHCP address FAIL\n");
+    if(okay)okay=test_socket_exchange();
+    CloseLibrary(SocketBase);SocketBase=NULL;
     return okay;
 }

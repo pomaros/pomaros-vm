@@ -19,6 +19,7 @@ p.add_argument('--require-network-packets',action='store_true')
 p.add_argument('--require-network-irq',action='store_true')
 p.add_argument('--require-sana-device',action='store_true')
 p.add_argument('--require-network-stack',action='store_true')
+p.add_argument('--require-network-echo',action='store_true')
 p.add_argument('--no-input-events',action='store_true',help='negative control: withhold host input events')
 p.add_argument('--require-input',action='store_true')
 p.add_argument('--require-usb-desktop',action='store_true')
@@ -38,6 +39,7 @@ p.add_argument('--disk',type=Path,required=True)
 p.add_argument('--output',type=Path,required=True)
 p.add_argument('--timeout',type=float,default=45)
 a=p.parse_args()
+if a.require_network_echo: a.require_network_stack=True
 if a.require_network_stack:
     a.require_sana_device=True
 if a.require_sana_device:
@@ -92,6 +94,7 @@ if a.require_network_packets: markers += ['[VM] virtio network DHCP exchange PAS
 if a.require_network_irq: markers += ['[VM] virtio network interrupt delivery PASS']
 if a.require_sana_device: markers += ['[VM] SANA query configure abort reopen PASS']
 if a.require_network_stack: markers += ['[VM] AROSTCP socket library PASS','[VM] AROSTCP DHCP address PASS']
+if a.require_network_echo: markers += ['[VM] AROSTCP host UDP exchange PASS']
 if a.require_input: markers += ['[VM] input observer ready','[VM] window keyboard and pointer PASS']
 if a.require_usb_desktop: markers += ['[VM] desktop two HID bindings PASS']
 if a.require_pci_hidd:
@@ -137,6 +140,8 @@ with log.open('w') as out:
                 reason='sana-device-not-run';break
             if a.require_network_stack and '[B2Q] AROS startup contract PASS' in text and '[VM] AROSTCP DHCP address PASS' not in text:
                 reason='network-stack-not-run';break
+            if a.require_network_echo and '[B2Q] AROS startup contract PASS' in text and '[VM] AROSTCP host UDP exchange PASS' not in text:
+                reason='network-echo-not-run';break
             if a.require_usb_desktop and '[KI] desktop stable' in text and '[VM] desktop two HID bindings PASS' not in text:
                 reason='desktop-without-hid-bindings';break
             if a.require_desktop_session is not None and '[B2Q] AROS startup contract PASS' in text and '[KI] hold complete' not in text:
@@ -177,6 +182,7 @@ boot=subprocess.run(['mtype','-i',str(disk),'::BOOT.LOG'],capture_output=True)
 (a.output/'firmware.log').write_bytes(boot.stdout)
 verdict={'result':'PASS' if passed else 'FAIL','reason':reason,
          'sana_device_verified':passed and a.require_sana_device,
+         'network_host_udp_verified':passed and a.require_network_echo,
          'network_stack_address_verified':passed and a.require_network_stack,
          'network_config_verified':passed and a.require_network_config,'network_packets_verified':passed and a.require_network_packets,'network_irq_verified':passed and a.require_network_irq,'input_events_withheld':a.no_input_events,'desktop_session_seconds':a.require_desktop_session,'desktop_session_verified':passed and a.require_desktop_session is not None,
          'backend':'Virtualization.framework','graphics':a.require_gpu or a.desktop_startup,'usb_input_exposed':a.usb_input,'xhci_mapping_required':a.usb_input and a.require_pci_hidd,'input_verified':passed and a.require_input,'usb_hid_bindings_verified':passed and a.require_usb_desktop,'xhci_driver_required':a.require_xhci_driver,'xhci_enumeration_required':a.require_xhci_enumeration,'usb_child_descriptors_verified':passed and a.require_xhci_enumeration,'usb_transfers_verified':False,'desktop_startup':a.desktop_startup,'desktop_pixels_verified':False,'gpu_query_required':a.require_gpu,'gpu_scanout_required':a.require_gpu_scanout,'pixels_verified':pixels_verified,'storage_phase':a.storage_phase,'filesystem_phase':a.filesystem_phase,

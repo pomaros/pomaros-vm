@@ -18,6 +18,7 @@ p.add_argument('--pci-hidd', action='store_true')
 p.add_argument('--virtio-device', action='store_true')
 p.add_argument('--virtionet-device', action='store_true')
 p.add_argument('--network-stack', action='store_true')
+p.add_argument('--network-echo-request', type=Path)
 p.add_argument('--startup-sequence', type=Path)
 p.add_argument('--desktop-session', help='1..3600 seconds or forever; omitted for boot proof')
 p.add_argument('--input-probe',action='store_true')
@@ -30,6 +31,10 @@ p.add_argument('--profile', choices=['headless', 'wanderer'], default='headless'
 p.add_argument('--toolchain', type=Path, default=Path.home() / 'aros-crosstools')
 p.add_argument('--efi', type=Path, default=root / 'build/uefi/BOOTAA64.EFI')
 a = p.parse_args()
+if a.network_echo_request:
+    if len(a.network_echo_request.read_bytes()) != 38:
+        p.error('network echo request must be 38 bytes')
+    a.network_stack=True
 if a.network_stack:
     a.virtionet_device=True
 if a.input_probe and (not a.usb_desktop or a.desktop_session is None):
@@ -122,6 +127,8 @@ if a.network_stack:
     for name,content in configs.items():
         config_file=output/('net-'+name);config_file.write_text(content)
         pci_files.append(('System/Network/AROSTCP/db/'+name,config_file))
+if a.network_echo_request:
+    pci_files.append(('NETECHO.REQ',a.network_echo_request))
 if a.xhci_driver:
     pci_files += [(rel,sdk/'AROS'/rel) for rel in ['Libs/poseidon.library','Devs/USBHardware/pcixhci.device']]
     request = output/'XHCITEST.REQ'

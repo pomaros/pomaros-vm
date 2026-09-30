@@ -2472,3 +2472,29 @@ John précise le réseau local : Apartmenthaus Berlin Mitte, sans mot de passe.
 Aucune association Wi-Fi modifiée ; VZ utilise le NAT de la connexion hôte.
 Prochaine frontière : échanges par sockets puis services de fichiers et
 presse-papiers, avec un ou deux essais ciblés par modification.
+
+## Contrôle des sockets : échec localisé après émission UDP
+
+Ajout de tools/network-echo-server.py : écoute IPv4 sur une adresse hôte
+explicite, port éphémère, défi aléatoire 32 octets et durée bornée (180 s).
+Il écrit NETECHO.REQ (IPv4/port réseau/défi, 38 octets) ; le paquet accepte
+--network-echo-request et run-vz --require-network-echo exige la réponse
+exacte reçue par une socket connectée AROS. La sonde attend au maximum
+trois fois deux secondes. Aucun service Internet ni changement de pare-feu.
+
+Deux essais : vz-network-echo FAIL 9,00 s ; vz-network-echo-trace FAIL 9,19 s.
+Le second utilise la trace temporaire core eda3f68988 : ARP de la passerelle
+résolu, send=32 errno=0, trames UDP vers le Mac émises. Vérification hôte
+des octets capturés : checksums IPv4 et UDP corrects. Aucune réponse UDP
+n'est observée et le serveur ne reçoit pas le défi. La cause du défaut de
+livraison hôte/retour n'est pas prouvée. Pare-feu macOS actif ; aucune règle
+modifiée. Capture BPF inaccessible sans privilèges. On ne classe donc pas
+le réseau applicatif comme opérationnel.
+
+La trace temporaire est retirée dans core a98a972a77 et le pilote reconstruit.
+La preuve diagnostique reste dans les artefacts ignorés avec les identités
+des binaires. Pas de troisième répétition aveugle. Continuer le diagnostic
+hôte ciblé et le canal virtio-vsock prévu par aros-next/docs/AARCH64.md pour
+les services Mac/VM : fichiers et presse-papiers ne doivent pas dépendre
+du Wi-Fi local. Le transport réseau pour le bare metal reste un objectif
+distinct, pas une propriété démontrée par vsock.
