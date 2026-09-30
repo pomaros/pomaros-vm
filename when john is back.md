@@ -598,3 +598,37 @@ Ce n’est pas encore l’enregistrement du pont avec HIDD_PCI_AddHardwareDriver
 Il reste à donner aux pilotes leurs mappings admis, réserver le BDF de console
 et enregistrer le pont pour l’énumération complète, puis apporter DMA/IRQ et
 virtio GPU/entrées/stockage. SMP intact, étape 6 toujours ouverte.
+
+
+## Enregistrement dans le sous-système PCI — 30 septembre
+
+PCIPROBE passe maintenant par HW_AddDriver sur l’objet PCI standard, puis par
+HIDD_PCI_EnumDevices. Le nombre exact de fonctions virtio non réservées doit
+correspondre à la lecture directe d’ECAM ; aucune console ne doit apparaître.
+HW_RemoveDriver doit réussir et une seconde énumération doit être vide avant
+le déchargement du programme et de son callback. Core `80c098ec78` conserve
+le code d’un probe qui échoue jusqu’à l’arrêt du boot, au cas où un callback
+serait encore enregistré.
+
+Le test accorde temporairement l’accès EL0 au premier Mio ECAM, via
+KrnSetProtection, et remet MAP_Supervisor après retrait. Il admet explicitement
+le bus racine plat (0) uniquement. Aucun mapping BAR ni DMA n’est accordé.
+Les opérations du scanner et des classes de périphériques tournent désormais
+en EL0 normal. oop.library est ouvert par son nom et les HIDD par DEVS:Drivers,
+sans chemin SYS fixé. Les avertissements PCI sur l’absence d’INTLine sont
+attendus : aucune interruption de périphérique n’est prétendue opérationnelle.
+
+PASS `hvf-pci-register-assigns` et `vz-pci-register-repeat`, mêmes entrées
+bundle `ba73ec2a75866240f11c9da0b447ac6156af5daeceff3a4fe5ad027e226fa0a6`,
+disque VZ `5c73dee04f07a6f282248f63f31045b45c5abbff66f1c25a472a2dc761dc08c5`.
+L’essai précédent `vz-pci-register` est FAIL timeout : sortie perdue au milieu
+de la ligne dispatch masks, avant PCIPROBE. Le même disque passe à la répétition
+bornée ; cela ne résout pas le silence virtio intermittent. HVF dispose de la
+capture QMP indépendante ; VZ n’a pas encore de capture PC exploitable.
+
+`--require-pci-hidd` exige désormais aussi le marqueur d’énumération/retrait.
+La contre-épreuve avec l’ancien disque qui charge seulement la classe doit
+échouer malgré son startup PASS. Prochaine étape : transformer le raccordement
+qualifié en initialisation persistante et apporter les fenêtres BAR, puis
+DMA/IRQ/virtio GPU et entrées. Cette preuve temporaire ne constitue pas encore
+le pilote utilisable au bureau. Revue #211 approuvée ; SMP inchangé.

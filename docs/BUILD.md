@@ -196,4 +196,7 @@ To qualify real shared-library loading and OOP configuration methods, add
 four libraries in SYS, all recorded in provenance. Run VZ or QEMU with
 `--require-pci-hidd`; otherwise a normal headless startup does not assert this
 extra proof. The command disposes its driver instance before unloading, while
-libraries remain resident. It does not register hardware in the PCI subsystem.
+libraries remain resident. It additionally registers and removes the flat root bridge through the PCI
+subsystem, comparing its enumeration against direct ECAM discovery. The probe
+grants EL0 access to the first ECAM bus temporarily and restores supervisor
+permissions after removal. It does not leave a persistent bridge or enable DMA.
