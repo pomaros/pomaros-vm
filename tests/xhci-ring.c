@@ -49,7 +49,8 @@ struct PTDNode { ULONG ptd_Flags; };
 #define PTDF_BUFFER_VALID 2
 struct pciusbXHCIIODevPrivate {
     struct pciusbXHCIDevice *dpDevice;
-    ULONG dpEPID,dpCC;
+    ULONG dpEPID,dpCC,dpRemaining;
+    BOOL dpCompletionRetired;
     UWORD dpSTRB,dpTxSTRB,dpTxETRB,dpSttTRB;
     APTR dpBounceBuf,dpBounceData;
     ULONG dpBounceLen;
@@ -87,6 +88,7 @@ static void xhciRingDoorbell(struct PCIController *hc,ULONG slot,ULONG epid)
     struct pciusbXHCIIODevPrivate *priv=published_io->iouh_DriverPrivate1;
     assert(priv && priv->dpDevice->dc_SlotID==slot && priv->dpEPID==epid);
     assert(priv->dpBounceLen==published_io->iouh_Length && priv->dpCC==TRB_CC_INVALID);
+    assert(!priv->dpRemaining && !priv->dpCompletionRetired);
     assert(!published_io->iouh_Req.io_Error && !published_io->iouh_Actual);
     UWORD cmd=published_io->iouh_Req.io_Command;
     assert(published_list==((cmd==UHCMD_INTXFER || cmd==UHCMD_ISOXFER)?&hc->hc_PeriodicTDQueue:&hc->hc_TDQueue));
@@ -267,7 +269,7 @@ int main(void)
         const UWORD cmds[]={UHCMD_CONTROLXFER,UHCMD_BULKXFER,UHCMD_INTXFER,UHCMD_ISOXFER};
         fast->iouh_Req.io_Command=cmds[kind];fast->iouh_Data=payload;fast->iouh_Length=32;
         fast->iouh_Req.io_Error=UHIOERR_HOSTERROR;fast->iouh_Actual=123;
-        fast->iouh_DriverPrivate1=fp;fp->dpDevice=&device;fp->dpEPID=1;fp->dpCC=99;
+        fast->iouh_DriverPrivate1=fp;fp->dpDevice=&device;fp->dpEPID=1;fp->dpCC=99;fp->dpRemaining=999;fp->dpCompletionRetired=TRUE;
         struct PTDNode ptd={.ptd_Flags=PTDF_BUFFER_VALID};
         if(kind==3)fast->iouh_DriverPrivate2=&ptd;
         init_list(&hc.hc_TDQueue);init_list(&hc.hc_PeriodicTDQueue);

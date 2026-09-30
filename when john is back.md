@@ -1881,3 +1881,39 @@ has been attempted. Full stage-six goal remains open; SMP untouched.
 
 - Compilation AArch64 `kernel-usb-pcixhci` PASS. Core `c74aa4aa8d`,
   identités exactes et périmètre : `artifacts/xhci-cancel-command.json`.
+
+## Fins de transfert xHCI : observation IRQ, libération par la tâche
+
+- Core `2d4390911e` : `xhciIntWorkProcess` enregistre le premier code terminal
+  et son résiduel dans le privé de la requête. Pour les transferts munis de ce
+  privé, l'IRQ ne copie/libère plus le payload et n'efface plus `ringio`.
+  Les observations Stopped/Invalid et les événements terminaux suivants
+  n'écrasent pas le résultat enregistré.
+- `xhciHandleFinishedTDs` appelle le consommateur `xhciRetireCompletion` dans
+  ses chemins périodique et asynchrone avant de rendre le résultat au client.
+  Le consommateur retire les références et le payload une seule fois. La
+  publication remet explicitement à zéro le résiduel et le marqueur de retrait.
+- Le chemin historique de commande asynchrone sans privé conserve son résultat
+  immédiat ; les commandes synchrones passent par `xhc_CmdResults`.
+- `make test-xhci-completion` PASS sous ASan/UBSan : 36 observations d'arrêt
+  conservent requête/privé/payload/corrélations ; 96 cas terminaux couvrent les
+  quatre commandes, IN/OUT, succès/short/stall/underrun et zéro/partiel/complet.
+  Avant consommation par la tâche, aucune libération ni modification des
+  corrélations ; les doublons ne changent pas le premier résultat et une
+  consommation répétée ne libère pas deux fois.
+- `make test-xhci-ring` PASS, y compris remise à zéro des marqueurs avant
+  la porte de publication et completion immédiate des quatre commandes.
+  Compilation AArch64 `kernel-usb-pcixhci` PASS.
+- Cette modification est branchée dans le traitement normal des transferts,
+  mais **ne corrige pas encore AbortIO/NAK/flush/RTISO ni la déconnexion**.
+  Le maintien exclusif de la requête pendant la transaction d'annulation reste
+  à raccorder. La tâche et les callbacks de teardown peuvent encore se
+  concurrencer ; ce résultat ne qualifie ni ce cas ni l'entrée USB sous VZ.
+- Revue 243 de la transaction de commandes approuvée. Evidence précise de
+  cette étape : `artifacts/xhci-task-completion.json`.
+
+- Le consommateur conserve un `Disable/Enable` équilibré pendant le retrait
+  du payload : les anciens chemins AbortIO/NAK ne partagent pas encore le
+  propriétaire tâche. Cela préserve leur exclusion préexistante avec la
+  libération IRQ et évite une nouvelle course introduite par le déplacement.
+  Aucun gain de latence IRQ n’est revendiqué tant que cette exclusion reste.
