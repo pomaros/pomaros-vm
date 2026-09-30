@@ -20,11 +20,18 @@ struct WBStartup *WBenchMsg;
 APTR OpenFirmwareBase;
 APTR KernelBase;
 static OOP_AttrBase device_attr;
-static unsigned enumerated,console_seen,expected;
+static unsigned enumerated,console_seen,expected,mapped_common,mapping_failed;
+static int check_mappings;
 static OOP_Object *driver;
 static struct PCIECAMConfig host;
 static OOP_MethodID read_base;
 static void mark(const char *s) { while(*s) RawPutChar(*s++); }
+static void hex(const char *name,uint64_t value)
+{
+    mark(name);mark("=0x");
+    for(int shift=60;shift>=0;shift-=4) RawPutChar("0123456789abcdef"[(value>>shift)&15]);
+    mark("\n");
+}
 static uint32_t cell(const UBYTE *p) { return (uint32_t)p[0]<<24|(uint32_t)p[1]<<16|(uint32_t)p[2]<<8|p[3]; }
 static void complete_write(void) { __asm__ volatile("dsb sy" ::: "memory"); }
 static IPTR reserve_console(void)
@@ -49,6 +56,65 @@ static IPTR check_driver(void)
     }
     return visible && hidden;
 }
+static uint32_t config_read(OOP_Object *device,unsigned reg,unsigned width)
+{
+    OOP_MethodID mb=OOP_GetMethodID((CONST_STRPTR)IID_Hidd_PCIDevice,0);
+    if(width==2) {
+        struct pHidd_PCIDevice_ReadConfigWord msg={mb+moHidd_PCIDevice_ReadConfigWord,reg};
+        return OOP_DoMethod(device,(OOP_Msg)&msg);
+    }
+    if(width==1) {
+        struct pHidd_PCIDevice_ReadConfigByte msg={mb+moHidd_PCIDevice_ReadConfigByte,reg};
+        return OOP_DoMethod(device,(OOP_Msg)&msg);
+    }
+    struct pHidd_PCIDevice_ReadConfigLong msg={mb+moHidd_PCIDevice_ReadConfigLong,reg};
+    return OOP_DoMethod(device,(OOP_Msg)&msg);
+}
+static void config_write_word(OOP_Object *device,unsigned reg,uint16_t value)
+{
+    struct pHidd_PCIDevice_WriteConfigWord msg={
+        OOP_GetMethodID((CONST_STRPTR)IID_Hidd_PCIDevice,moHidd_PCIDevice_WriteConfigWord),reg,value};
+    OOP_DoMethod(device,(OOP_Msg)&msg);
+}
+static int map_common(OOP_Object *device)
+{
+    unsigned cap=config_read(device,0x34,1),seen[64]={0};
+    for(unsigned n=0;cap && n<48;++n) {
+        if(cap<0x40 || cap>0xfc || (cap&3) || seen[cap/4]++) return 0;
+        unsigned next=config_read(device,cap+1,1);
+        if(config_read(device,cap,1)==9 && config_read(device,cap+3,1)==1) {
+            unsigned bytes=config_read(device,cap+2,1);
+            unsigned bar=config_read(device,cap+4,1);
+            if(bytes<16 || cap+bytes>256 || bar>5) return 0;
+            uint32_t off=config_read(device,cap+8,4),len=config_read(device,cap+12,4);
+            IPTR base=0,size=0,owner=0;
+            OOP_GetAttr(device,device_attr+aoHidd_PCIDevice_Base0+3*bar,&base);
+            OOP_GetAttr(device,device_attr+aoHidd_PCIDevice_Size0+3*bar,&size);
+            OOP_GetAttr(device,device_attr+aoHidd_PCIDevice_Driver,&owner);
+            base &= ~(IPTR)15;
+            hex("[VM] BAR",base);hex("[VM] BAR size",size);hex("[VM] cap offset",off);hex("[VM] cap bytes",len);
+            if(!owner || !base || len<56 || (off&3) || off>size || len>size-off ||
+                base>UINTPTR_MAX-off) return 0;
+            struct pHidd_PCIDriver_MapPCI map={
+                read_base+moHidd_PCIDriver_MapPCI,(void *)(base+off),len};
+            void *cpu=(void *)OOP_DoMethod((void *)owner,(OOP_Msg)&map);
+            hex("[VM] BAR CPU",(uintptr_t)cpu);
+            if(!cpu || cpu==(void *)-1) return 0;
+            /* Read-only common configuration, no reset or queue programming. */
+            uint16_t command=config_read(device,4,2);
+            config_write_word(device,4,command|2); /* MEM decode only; preserve master bit. */
+            unsigned queues=*(volatile uint16_t *)((uint8_t *)cpu+18);
+            config_write_word(device,4,command);
+            struct pHidd_PCIDriver_UnmapPCI unmap={
+                read_base+moHidd_PCIDriver_UnmapPCI,cpu,len};
+            OOP_DoMethod((void *)owner,(OOP_Msg)&unmap);
+            hex("[VM] virtio queues",queues);
+            return queues>0 && queues<0x8000;
+        }
+        cap=next;
+    }
+    return 0;
+}
 AROS_UFH3(static IPTR, count_device,
     AROS_UFHA(struct Hook *,hook,A0),
     AROS_UFHA(OOP_Object *,device,A2),
@@ -59,7 +125,12 @@ AROS_UFH3(static IPTR, count_device,
     (void)hook;(void)message;
     OOP_GetAttr(device,device_attr+aoHidd_PCIDevice_VendorID,&vendor);
     OOP_GetAttr(device,device_attr+aoHidd_PCIDevice_ProductID,&product);
-    if(vendor==0x1af4) { ++enumerated; if(product==0x1043) ++console_seen; }
+    if(vendor==0x1af4) {
+        ++enumerated;
+        if(check_mappings) hex("[VM] virtio product",product);
+        if(product==0x1043) ++console_seen;
+        if(check_mappings) { if(map_common(device)) ++mapped_common; else ++mapping_failed; }
+    }
     return 0;
     AROS_USERFUNC_EXIT
 }
@@ -71,6 +142,9 @@ static int register_bridge(struct TagItem *tags)
      * DMA remain unavailable. Stage2 already checked the aperture against RAM. */
     host.config.last_bus=0;host.config.bytes=1u<<20;
     KrnSetProtection((void *)host.config.mapping,host.config.bytes,MAP_Readable|MAP_Writable);
+    for(unsigned i=0;i<host.window_count;++i)
+        KrnSetProtection((void *)(uintptr_t)host.windows[i].cpu,host.windows[i].bytes,
+            MAP_Readable|MAP_Writable);
     device_attr=OOP_ObtainAttrBase((CONST_STRPTR)IID_Hidd_PCIDevice);
     OOP_Object *pci=OOP_NewObject(NULL,(CONST_STRPTR)CLID_Hidd_PCI,NULL);
     if(!device_attr || !pci) return 0;
@@ -81,7 +155,9 @@ static int register_bridge(struct TagItem *tags)
     struct Hook hook={0};hook.h_Entry=(HOOKFUNC)count_device;
     struct pHidd_PCI_EnumDevices enumerate={
         OOP_GetMethodID((CONST_STRPTR)IID_Hidd_PCI,moHidd_PCI_EnumDevices),&hook,NULL};
+    check_mappings=1;
     OOP_DoMethod(pci,(OOP_Msg)&enumerate);
+    check_mappings=0;
     unsigned before=enumerated;
     struct pHW_RemoveDriver remove={OOP_GetMethodID((CONST_STRPTR)IID_HW,moHW_RemoveDriver),registered};
     if(!OOP_DoMethod(pci,(OOP_Msg)&remove)) return 0;
@@ -89,7 +165,11 @@ static int register_bridge(struct TagItem *tags)
     OOP_DoMethod(pci,(OOP_Msg)&enumerate);
     OOP_DisposeObject(pci);OOP_ReleaseAttrBase((CONST_STRPTR)IID_Hidd_PCIDevice);
     KrnSetProtection((void *)host.config.mapping,host.config.bytes,MAP_Readable|MAP_Writable|MAP_Supervisor);
-    return expected && before==expected && !enumerated && !console_seen;
+    for(unsigned i=0;i<host.window_count;++i)
+        KrnSetProtection((void *)(uintptr_t)host.windows[i].cpu,host.windows[i].bytes,
+            MAP_Readable|MAP_Writable|MAP_Supervisor);
+    return expected && before==expected && mapped_common==expected && !mapping_failed &&
+        !enumerated && !console_seen;
 }
 int main(void)
 {
@@ -112,6 +192,21 @@ int main(void)
     host.config.mapping=(void *)(uintptr_t)(((uint64_t)cell(r)<<32)|cell(r+4));
     host.config.bytes=((uint64_t)cell(r+8)<<32)|cell(r+12);
     host.config.first_bus=cell(b);host.config.last_bus=cell(b+4);
+    void *ranges=OF_FindProperty(pci,"ranges");
+    if(!ranges) return 86;
+    unsigned range_bytes=OF_GetPropLen(ranges);
+    if(!range_bytes || range_bytes%28 || range_bytes>PCIECAM_MAX_WINDOWS*28) return 86;
+    const UBYTE *range=OF_GetPropValue(ranges);
+    for(unsigned at=0;at<range_bytes;at+=28) {
+        unsigned space=(cell(range+at)>>24)&3;
+        if(space==1) continue;
+        if(space!=2 && space!=3) return 86;
+        struct PCIECAMWindow *w=&host.windows[host.window_count++];
+        w->bus=((uint64_t)cell(range+at+4)<<32)|cell(range+at+8);
+        w->cpu=((uint64_t)cell(range+at+12)<<32)|cell(range+at+16);
+        w->bytes=((uint64_t)cell(range+at+20)<<32)|cell(range+at+24);
+        if(!w->bytes || w->bytes>UINT32_MAX) return 86;
+    }
     host.complete_config_write=complete_write;
     Supervisor((APTR)reserve_console);
     OOP_AttrBase attr=OOP_ObtainAttrBase((CONST_STRPTR)IID_Hidd_PCIECAM);
@@ -127,6 +222,7 @@ int main(void)
     if(!register_bridge(tags)) return 90;
     OOP_ReleaseAttrBase((CONST_STRPTR)IID_Hidd_PCIECAM);
     mark("[VM] PCI subsystem enumerate + remove PASS\n");
+    mark("[VM] virtio common config via MapPCI PASS\n");
     /* Keep libraries resident, as a driver startup would. No instance retains
      * this command's completion callback after disposal. */
     mark("[VM] PCI HIDD class + reserved console PASS\n");

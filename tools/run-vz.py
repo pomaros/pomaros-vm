@@ -32,7 +32,8 @@ markers=['[VM] OpenFirmware FDT + PCI config PASS',
          '[B2Q] AROS startup contract PASS']
 if a.require_pci_hidd:
     markers += ['[VM] PCI HIDD class + reserved console PASS',
-                '[VM] PCI subsystem enumerate + remove PASS']
+                '[VM] PCI subsystem enumerate + remove PASS',
+                '[VM] virtio common config via MapPCI PASS']
 passed=False;reason='timeout';start=time.monotonic()
 with log.open('w') as out:
     proc=subprocess.Popen([str(root/'build/macaros-vm'),str(disk),str(a.output/'state'),'--headless'],stdout=out,stderr=subprocess.STDOUT)

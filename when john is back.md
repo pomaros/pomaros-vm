@@ -632,3 +632,35 @@ La contre-épreuve avec l’ancien disque qui charge seulement la classe doit
 qualifié en initialisation persistante et apporter les fenêtres BAR, puis
 DMA/IRQ/virtio GPU et entrées. Cette preuve temporaire ne constitue pas encore
 le pilote utilisable au bureau. Revue #211 approuvée ; SMP inchangé.
+
+
+## Registres virtio atteints via MapPCI — 30 septembre
+
+Le probe copie les fenêtres `ranges` du tree déjà validé au boot, puis le
+constructeur du HIDD vérifie leurs bornes/recouvrements avant l’ouverture des
+permissions. Les fenêtres deviennent temporairement accessibles en EL0 pour
+ce test, puis reviennent en MAP_Supervisor après retrait du pont.
+
+Pour chaque device virtio non réservé, le test parcourt les capacités PCI avec
+borne/alignement et détection de cycle, vérifie le BAR et la taille de sa
+configuration commune, puis appelle HIDD_PCIDriver_MapPCI/UnmapPCI. La lecture
+de num_queues passe en EL0 sur l’adresse CPU retournée. Sous HVF, le premier
+résultat était 0xffff : le décodage MEM PCI était désactivé par le firmware.
+Le test active uniquement MEM, garde le bit bus master inchangé, lit, puis
+restaure exactement le mot de commande via un store 16 bits et sa barrière.
+Aucun reset de device, programmation de queue ou transfert DMA.
+
+PASS `hvf-pci-bars-decode` (3 et 1 queues) et `vz-pci-bars-decode` (1 et 1).
+Bundle `ecc4543bfd76c9e5252111c9f53e775b4187a78f6fb8c1ec92fb34a7b56880e3` ;
+disque VZ `200855bb0f032b34f0a0eca7fb6a2add7ac4b3afc9923f7fba6962f36b7d2f51`.
+Les deux configurations ont des translations identité ; la translation non
+identité reste couverte par le test hôte de la classe, pas par un guest réel.
+Les runners exigent désormais aussi le marqueur MapPCI pour --require-pci-hidd.
+
+Point découvert avant réutilisation : rom/devs/virtio/virtio_hw.c traite encore
+le BAR comme un pointeur CPU et ne passe pas par MapPCI. Il faudra adapter ce
+transport existant, avec validation des capacités et libération des mappings,
+plutôt que recopier cette hypothèse dans le pilote VM. L’initialisation
+persistante du pont, le DMA et les interruptions restent à réaliser. Le test
+reste volontairement temporaire ; aucun bureau VZ ou stockage persistant n’est
+revendiqué ici. SMP inchangé.

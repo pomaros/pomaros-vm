@@ -62,7 +62,7 @@ with (a.output/'host.log').open('w') as log:
             if '[B2Q] AROS startup contract PASS' in text:
                 timer_ok = (text.count('[VM] timer.device three waits PASS') == 1 and
                             text.count('[KI] dispatch masks: disabled 0x00000000000000c0 plain 0x0000000000000040 PASS') == 1)
-                passed=(not a.require_timer or timer_ok) and (not a.require_irq_chain or text.count('[VM] IRQ handler chain PASS')==1) and (not a.require_platform or text.count('[VM] OpenFirmware FDT + PCI config PASS')==1) and (not a.require_pci_hidd or (text.count('[VM] PCI HIDD class + reserved console PASS')==1 and text.count('[VM] PCI subsystem enumerate + remove PASS')==1))
+                passed=(not a.require_timer or timer_ok) and (not a.require_irq_chain or text.count('[VM] IRQ handler chain PASS')==1) and (not a.require_platform or text.count('[VM] OpenFirmware FDT + PCI config PASS')==1) and (not a.require_pci_hidd or (text.count('[VM] PCI HIDD class + reserved console PASS')==1 and text.count('[VM] PCI subsystem enumerate + remove PASS')==1 and text.count('[VM] virtio common config via MapPCI PASS')==1))
                 reason='startup-contract' if passed else 'proof-missing';break
             if proc.poll() is not None:
                 reason='early-exit';break

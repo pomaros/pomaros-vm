@@ -200,3 +200,8 @@ libraries remain resident. It additionally registers and removes the flat root b
 subsystem, comparing its enumeration against direct ECAM discovery. The probe
 grants EL0 access to the first ECAM bus temporarily and restores supervisor
 permissions after removal. It does not leave a persistent bridge or enable DMA.
+
+The PCI qualification also maps every visible virtio common configuration
+through the driver's MapPCI method and reads its queue count. It temporarily
+enables PCI memory decode and restores the original command word. The required
+PCI gate includes this MMIO proof; no queue is activated and no DMA is tested.
