@@ -453,3 +453,23 @@ Contrôle de capture indépendant : timeout volontaire 0,7 s dans
 artifacts/hvf-virtio-console-capture-control, FAIL attendu et registers.txt
 présent (PC firmware 0x5fd5de04). Ce contrôle valide l'accès superviseur avant
 la panne ; il ne reproduit pas le timeout VZ ni ne donne son instruction fautive.
+
+## Fenêtres PCI mappées par la MMU invitée
+
+Core a832c8dc8d : binding ECAM partagé dans arch/aarch64-all/boot/fdt,
+réutilisé par le plan MMIO du stage two. Les contrôles portent sur cellules,
+bus, taille ECAM, limites 48 bits, chevauchements RAM/GIC, alignements et
+chevauchements de fenêtres. Les translations PCI/CPU sont conservées ; pas
+de mapping I/O ports ni de contrat DMA ajouté implicitement.
+30 cas ASan/UBSan PASS dans tests/virt-fdt.py. VZ PASS
+artifacts/vz-pci-mapped (disque e0f7df6b7af5dc2a75659efa3ab518d4c244fe1cfa940f9afc8f47a00c3a08f4),
+HVF ACPI/console virtio PASS artifacts/hvf-pci-mapped,
+HVF FDT/GICv2 PASS artifacts/hvf-pci-mapped-fdt-gic2.
+Bundle f67f812258d7721f2d6549962fd0f74b936f44cc76f49528028c12b7d2be8667.
+Cela prouve le démarrage avec ces mappings et la console PCI existante ;
+pas encore l'énumération par pci.hidd ou les transferts disque/GPU.
+
+L'étape suivante est l'exposition du FDT retenu à openfirmware.resource puis
+l'adaptateur ECAM de pci.hidd. Le code RISC-V pcidt fournit déjà le modèle de
+classes réutilisable, mais ses hypothèses Sv39 et PLIC ne doivent pas migrer
+sur AArch64. Aucun travail SMP ; cette étape reste mono-CPU.

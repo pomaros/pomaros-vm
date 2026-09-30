@@ -12,7 +12,7 @@ fdt=core/'arch/aarch64-all/boot/fdt'
 with tempfile.TemporaryDirectory() as tmp:
     work=Path(tmp);exe=work/'test'
     subprocess.run(['clang','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',
-        '-I'+str(fdt),'-I'+str(fdt/'libfdt'),str(fdt/'early_fdt.c'),
+        '-I'+str(fdt),'-I'+str(fdt/'libfdt'),str(fdt/'early_fdt.c'),str(fdt/'pci_ecam.c'),
         *[str(fdt/'libfdt'/name) for name in ['fdt.c','fdt_ro.c','fdt_check.c']],
         '-I'+str(arch/'include'),'-I'+str(arch/'bootstrap'),str(root/'tests/virt-fdt.c'),
         str(arch/'kernel/memory_plan_contract.c'),str(arch/'bootstrap/boot_memory_map.c'),
@@ -49,4 +49,27 @@ with tempfile.TemporaryDirectory() as tmp:
         subprocess.run(['dtc','-q','-I','dts','-O','dtb','-o',str(dtb),str(dts)],check=True)
         subprocess.run([str(exe),str(dtb),str(expected),'0x09000000',str(ranges),str(roles)],
                        check=True,timeout=5)
-print('virt-fdt result=PASS cases=15 sanitizers=ASan,UBSan')
+    def pci(ecam='0x30000000', low='0x10000000', flags='0x02000000',
+            first=0, last=255, extra='', high='0x80', cells=3):
+        return (f'pcie@30000000 {{ compatible="pci-host-ecam-generic"; device_type="pci"; '
+                f'#address-cells=<{cells}>; #size-cells=<2>; reg=<0 {ecam} 0 0x10000000>; '
+                f'bus-range=<{first} {last}>; '
+                f'ranges=<{flags} 0 {low} 0 {low} 0 0x100000 '
+                f'0x03000000 {high} 0 {high} 0 0 0x100000>; {extra} }};')
+    cases=[(pci(),1,5,6), (pci(first=128),1,5,6),
+           (pci(low='0x40000000'),0,0,0), (pci(ecam='0x40000000'),0,0,0),
+           (pci(low='0x08000000'),0,0,0), (pci(low='0x30000000'),0,0,0),
+           (pci(low='0x10000001'),0,0,0), (pci(ecam='0x30001000'),0,0,0),
+           (pci(flags='0x12000000'),0,0,0), (pci(first=2,last=1),0,0,0),
+           (pci(last=256),0,0,0), (pci(high='0x10000'),0,0,0),
+           (pci(cells=2),0,0,0), (pci(extra='status="disabled";'),1,2,3),
+           (pci()+pci().replace('pcie@30000000','other@30000000'),0,0,0)]
+    for pci_dts,expected,ranges,roles in cases:
+        dts.write_text('/dts-v1/; / { compatible="linux,dummy-virt"; #address-cells=<2>; #size-cells=<2>; '
+            'chosen { stdout-path="/uart@9000000"; }; '
+            'uart@9000000 { compatible="arm,pl011"; reg=<0 0x09000000 0 0x1000>; }; '
+            +controller()+pci_dts+'};')
+        subprocess.run(['dtc','-q','-I','dts','-O','dtb','-o',str(dtb),str(dts)],check=True)
+        subprocess.run([str(exe),str(dtb),str(expected),'0x09000000',str(ranges),str(roles)],
+                       check=True,timeout=5)
+print('virt-fdt result=PASS cases=30 sanitizers=ASan,UBSan')

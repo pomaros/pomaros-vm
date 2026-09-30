@@ -74,3 +74,13 @@ Protocol ABI offsets were cross-checked against [EDK II declarations](https://gi
 no driver implementation was imported. Firmware-owned buffers have no supplied
 length: their bounded descriptor walk has the same trusted-pointer boundary as
 ACPI tables. The parser tests use explicit byte lengths and sanitizer checks.
+
+The shared `pci_ecam` early binding validates one direct-root ECAM host,
+3/2 PCI address/size cells, 2/2 CPU cells, bus bounds, configuration coverage,
+and at most eight ranges. It preserves PCI-to-CPU memory translations.
+Stage two maps ECAM as non-posted Device memory and memory apertures as posted
+Device memory, using the existing MMU builder. RAM overlaps and intersections
+with other controllers fail the map contract. A console fully contained in a
+PCI window shares that mapping. Port I/O has no mapping in this profile.
+These mappings provide reachability; runtime driver admission and DMA ownership
+are separate contracts.
