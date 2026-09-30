@@ -138,7 +138,7 @@ build/xhci-dma-test: tests/xhci-dma.c $(XHCI_SOURCE)/xhci_dma.c | build
 test-xhci-dma: build/xhci-dma-test
 	build/xhci-dma-test
 
-build/xhci-ring-test: tests/xhci-ring.c $(XHCI_SOURCE)/xhci_ring.c | build
+build/xhci-ring-test: tests/xhci-ring.c $(XHCI_SOURCE)/xhci_ring.c $(XHCI_SOURCE)/xhci_control.c | build
 	clang -std=gnu11 -Wall -Wextra -Werror -Wno-unused-parameter -Wno-ignored-attributes -fsanitize=address,undefined -fno-sanitize-recover=all \
 	 -I$(XHCI_SOURCE) -idirafter $(AROS_VM_SDK)/AROS/Developer/include $< -o $@
 .PHONY: test-xhci-ring

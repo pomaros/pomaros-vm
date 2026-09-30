@@ -157,6 +157,12 @@ int main(void)
     hc.hc_Flags=HCF_PLATFORM|HCF_ADDR64;n=64;
     assert(!xhciPreparePCIPayload(&hc,&io,&n,UHDIR_OUT,&cookie) && !cookie);
     assert(!pre && !post);reset();
+    /* Unpublished CPU-addressed preparations balance cache, without copy-back. */
+    void *unpublished=calloc(1,64);assert(unpublished);
+    xhciDiscardPreparedDMABuffer(unpublished,64,UHDIR_IN,unpublished);
+    assert(post==1 && last_post==64 && post_flags==(1UL<<31));reset();
+    xhciDiscardPreparedDMABuffer(data,32,UHDIR_OUT,NULL);
+    assert(post==1 && last_post==32 && post_flags==((1UL<<31)|DMA_ReadFromRAM));reset();
     puts("xhci-dma result=PASS real-payload,nonidentity,partial-IN,zero-actual,oversize,failures,32bit,platform-rejected");
     return 0;
 }

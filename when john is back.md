@@ -1624,3 +1624,52 @@ explicit address-domain integration. This change prevents insufficient-capacity
 partial DATA publication, not every control/abort/teardown failure, and is not
 an atomic hardware publication protocol for complete control transactions.
 SMP untouched. Goal/task71 active; review235 of the earlier primitive pending.
+
+
+## Complete control preparation and admission (core b81bce6042)
+
+Control scheduling now prepares its payload before SETUP publication, outside
+the interrupt-masked ring section. A missing buffer, failed allocation or
+shortened cache preparation rejects the request before touching the ring.
+The shared ring primitive admits SETUP + all DATA segments + STATUS together
+under the existing single-CPU lock. After admission there are no allocations
+or command waits and all scalar failure predicates have already been checked.
+SETUP TRT, DATA direction/chaining and opposite STATUS direction are retained;
+no-data STATUS is IN. Control correlation indices and buffer ownership are
+installed before the wrapper re-enables completion interrupts.
+
+Setup is packed from the eight USB bytes into a numeric little-endian value;
+Poseidon's psdSetupPipe already stores wValue/wIndex in little-endian form
+(rom/usb/poseidon/poseidon.library.c). Test checks the exact emitted eight bytes.
+This is source/host evidence, not a big-endian target qualification.
+
+New xhciDiscardPreparedDMABuffer balances the prepared cache extent and frees
+an old CPU-addressed bounce allocation without any IN copy. It is only for
+buffers that were NEVER published, not a replacement for abort retirement.
+Control admission failure and data-batch admission failure use it. PCI-owned
+payload adoption remains deferred; its header now explicitly warns that the
+existing InsertTRB translates CPU addresses, so returned bus addresses need an
+explicit already-translated path. Review236 approved the preceding payload
+admission change; its two notes are addressed by this header and control work.
+
+`make test-xhci-ring test-xhci-dma` PASS, ASan/UBSan. The actual ring source
+passes 1024 complete-control cases (producer/consumer position, 0..7 DATA
+segments, IN/OUT), alongside the 1152 payload cases. Tests check no publication
+or result mutation on capacity failure, SETUP flags/bytes/TRT, DATA tail without
+CH/IOC, STATUS direction/IOC, and no-data indices. The actual control wrapper is
+included too, with mocked preparation/discard: allocation failure, short prep,
+insufficient ring capacity and null data produce no writes; successful prep
+occurs outside the ring lock. Actual discard function is tested separately for
+cache extent/flags and both bounce and direct buffers. Driver cross-build PASS,
+including final incremental rebuild after the metadata-lock/header changes.
+Exact source/test/device hashes: artifacts/xhci-control-admission.json.
+
+Remaining lifecycle issues found during this work, to repair before live USB:
+failed scheduling can leave hu_DevBusyReq set, blocking the requeued request;
+xhciActivateEndpointTransfer calls Remove/ReplyMsg on failure even though its
+callers handle failure themselves; active TD-list publication can lag descriptor
+publication and interrupt delivery. Fix shared request transitions, single reply
+ownership, and queue/metadata publication ordering, then deferred AbortIO/NAK
+retirement and failed-stop retention. Control capacity is now covered, but this
+is not a proof of those asynchronous lifetime properties or USB delivery.
+No VM USB transfer attempted. SMP untouched; goal/task71 remain active.
