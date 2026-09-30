@@ -1581,3 +1581,46 @@ USB enumeration and keyboard/pointer delivery. These are code-audit findings,
 not observed VM USB crashes. No USB transfer or input acceptance is claimed.
 The old scheduler remains unchanged; do not ship it as VZ USB support. SMP
 untouched; goal/task71 stay active.
+
+
+## Whole-payload ring admission (core 305335fee4)
+
+Moved existing queue/descriptor code from xhci_hcd.c into xhci_ring.c so tests
+compile the real publication functions. xhciQueueData and xhciQueueData_IO now
+check capacity for every segment under the existing outer ring lock before
+publishing any descriptor. Admission simulates the primitive's guard slot and
+Link insertion, including a producer already positioned on the Link slot.
+The lock stays held through all scalar insertions. Rejected transfers leave
+ring descriptors, indices and owner pointers untouched. Invalid ring indices,
+missing bookkeeping and payload extent overflow are rejected. This uses the
+existing single-CPU Disable/Enable contract; no SMP implementation added.
+
+`make test-xhci-ring` PASS with ASan/UBSan: 1152 combinations on an eight-slot
+model ring, invoking actual queue code, all producer/consumer positions,
+segment counts 1..9, and IO/non-IO entry points. Checks guard-slot rejection,
+Link wrap/address/cycle, DATA-to-NORMAL segmentation, chain/IOC/direction,
+lengths, payload addresses and request correlation. Zero-length and malformed
+inputs are covered separately. A regression first invokes the old unchecked
+sequence and confirms two TRBs escape before the third fails; the new public
+path rejects the same request with zero descriptor writes/translations.
+Cross-build kernel-usb-pcixhci PASS. Exact identities:
+artifacts/xhci-ring-admission.json. No USB runtime test in this milestone.
+
+Correction to the earlier DMA audit: xhciInsertTRB already translates non-IDT
+CPU payloads through CPUTOPCI (except Set TR Dequeue, whose parameter is already
+a bus address). Therefore the new PCI-owned primitive cannot simply replace
+xhciPrepareDMABuffer: its returned bus address would be translated twice.
+The actual missing contract is owned-buffer allocation/admission plus explicit
+address-domain handling and lifetime. The host ring test confirms existing
+payload and Link translations with a deliberately nonidentity PCI mapping.
+
+Still required before connecting the owned payload primitive: allocate before
+publishing a control SETUP; reserve setup/data/status together; handle the
+request-level failure without stale descriptors; defer AbortIO/NAK cancellation
+to task context and establish acknowledged retirement before freeing memory;
+retain allocations when stop/reset fails; preserve completion validation errors.
+Also audit segment boundaries against the controller's address rules during
+explicit address-domain integration. This change prevents insufficient-capacity
+partial DATA publication, not every control/abort/teardown failure, and is not
+an atomic hardware publication protocol for complete control transactions.
+SMP untouched. Goal/task71 active; review235 of the earlier primitive pending.
