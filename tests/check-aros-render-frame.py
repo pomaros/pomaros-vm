@@ -166,9 +166,10 @@ def count_region(rows: list[bytes], x0: int, x1: int, y0: int, y1: int,
     )
 
 
-def verify_wanderer(width: int, height: int, rows: list[bytes]) -> str:
-    if width != 800 or height != 600:
-        raise ValueError("G4 fixture requires the locked 800x600 framebuffer")
+def verify_wanderer(width: int, height: int, rows: list[bytes],
+                    expected_size: tuple[int, int] = (800, 600)) -> str:
+    if (width, height) != expected_size:
+        raise ValueError(f"G4 fixture requires the locked {expected_size} framebuffer")
     counts = Counter(
         tuple(row[index:index + 3])
         for row in rows for index in range(0, len(row), 3)
@@ -182,9 +183,9 @@ def verify_wanderer(width: int, height: int, rows: list[bytes]) -> str:
     # across this otherwise empty centre.  Reject that geometry explicitly so
     # a process/Screen/Window marker cannot turn a crashed desktop into a pass.
     central_blue = count_region(
-        rows, 190, 610, 260, 335, REQUESTER_TITLE)
-    central_black = count_region(rows, 190, 610, 260, 335, (0, 0, 0))
-    alert_black = count_region(rows, 0, width, 245, 360, (0, 0, 0))
+        rows, width//2-210, width//2+210, height//2-40, height//2+35, REQUESTER_TITLE)
+    central_black = count_region(rows, width//2-210, width//2+210, height//2-40, height//2+35, (0, 0, 0))
+    alert_black = count_region(rows, 0, width, height//2-55, height//2+60, (0, 0, 0))
     # Wanderer's normal top bar has an 800-pixel black separator at y=14,
     # plus black title text and icon artwork.  Ignore that chrome and inspect
     # the body below it: the Initial CLI fills this band with several lines of
@@ -209,14 +210,13 @@ def verify_wanderer(width: int, height: int, rows: list[bytes]) -> str:
     )
 
 
-def verify_wanderer_classifier() -> None:
+def verify_wanderer_classifier(expected_size: tuple[int, int] = (800, 600)) -> None:
     """Keep the clean-desktop/console threshold causal, not anecdotal."""
-    width = 800
-    height = 600
+    width, height = expected_size
     clean = [bytearray(bytes(WANDERER_DESKTOP) * width)
              for _ in range(height)]
     clean[14][:] = bytes((0, 0, 0)) * width
-    verify_wanderer(width, height, clean)
+    verify_wanderer(width, height, clean, expected_size)
 
     console = [bytearray(row) for row in clean]
     remaining = 1025
@@ -230,7 +230,7 @@ def verify_wanderer_classifier() -> None:
         if remaining == 0:
             break
     try:
-        verify_wanderer(width, height, console)
+        verify_wanderer(width, height, console, expected_size)
     except ValueError as error:
         if "Initial CLI obscures the desktop" not in str(error):
             raise ValueError(
@@ -240,10 +240,26 @@ def verify_wanderer_classifier() -> None:
         raise ValueError("Wanderer classifier accepted synthetic Initial CLI")
 
 
+    # Keep centred requester detection valid at both admitted resolutions.
+    for color, expected_reason in [(REQUESTER_TITLE, "requester title geometry"),
+                                   ((0, 0, 0), "software-failure/requester geometry")]:
+        requester = [bytearray(row) for row in clean]
+        for y in range(height//2-10, height//2+10):
+            for x in range(width//2-20, width//2+20):
+                requester[y][x*3:x*3+3] = bytes(color)
+        try:
+            verify_wanderer(width, height, requester, expected_size)
+        except ValueError as error:
+            if expected_reason not in str(error):
+                raise ValueError(f"requester rejected for wrong reason: {error}") from error
+        else:
+            raise ValueError("Wanderer classifier accepted synthetic requester")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile",
-                        choices=("graphics", "intuition", "wanderer"),
+                        choices=("graphics", "intuition", "wanderer", "wanderer-virtio"),
                         default="graphics")
     parser.add_argument("image", type=Path)
     args = parser.parse_args()
@@ -251,9 +267,10 @@ def main() -> int:
         width, height, rows = decode(args.image)
         if width < 640 or height < 480:
             raise ValueError("framebuffer is smaller than the G2 fixture")
-        if args.profile == "wanderer":
-            verify_wanderer_classifier()
-            result = verify_wanderer(width, height, rows)
+        if args.profile in ("wanderer", "wanderer-virtio"):
+            expected_size = (1024, 768) if args.profile == "wanderer-virtio" else (800, 600)
+            verify_wanderer_classifier(expected_size)
+            result = verify_wanderer(width, height, rows, expected_size)
         elif args.profile == "intuition":
             result = verify_intuition(width, height, rows)
         else:

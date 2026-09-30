@@ -13,6 +13,7 @@ from types import SimpleNamespace
 
 root = Path(__file__).resolve().parents[1]
 p = argparse.ArgumentParser(description=__doc__)
+p.add_argument('--virtio-gpu', action='store_true')
 p.add_argument('--pci-hidd', action='store_true')
 p.add_argument('--virtio-device', action='store_true')
 p.add_argument('--build', type=Path, required=True)
@@ -21,6 +22,8 @@ p.add_argument('--profile', choices=['headless', 'wanderer'], default='headless'
 p.add_argument('--toolchain', type=Path, default=Path.home() / 'aros-crosstools')
 p.add_argument('--efi', type=Path, default=root / 'build/uefi/BOOTAA64.EFI')
 a = p.parse_args()
+if a.virtio_gpu and a.profile != 'wanderer':
+    p.error('--virtio-gpu requires wanderer profile')
 if a.pci_hidd and a.profile != 'headless':
     p.error('--pci-hidd requires headless profile')
 if a.virtio_device and not a.pci_hidd:
@@ -41,6 +44,18 @@ if dirty:
     p.error('commit or resolve core source changes before recording a package')
 stage2 = sdk / 'gen/arch/aarch64-apple/bootstrap/aros-apple-stage2-test.bin'
 modules = json.loads((root / f'boot/{a.profile}-modules.json').read_text())
+if a.virtio_gpu:
+    vm_modules = {}
+    for name, rel in modules.items():
+        if name == 'efifbgfx.hidd':
+            name, rel = 'virtiogfx.hidd', 'Devs/Drivers/virtiogfx.hidd'
+        vm_modules[name] = rel
+        if name == 'rtkit.resource':
+            vm_modules['openfirmware.resource'] = 'Devs/openfirmware.resource'
+        if name == 'hiddclass.hidd':
+            for bus in ['pci', 'pciecam', 'vmpci']:
+                vm_modules[bus+'.hidd'] = 'Devs/Drivers/'+bus+'.hidd'
+    modules = vm_modules
 components = [(name, sdk / 'AROS' / rel) for name, rel in modules.items()]
 efi = a.efi.resolve()
 programs = [sdk / 'AROS/System/Wanderer/Wanderer'] if a.profile == 'wanderer' else []
@@ -89,7 +104,7 @@ shutil.copyfile(efi, output / 'EFI/BOOT/BOOTAA64.EFI')
 inputs = ([pci_probe] if a.pci_hidd else []) + [path for _, path in pci_files] + [stage2, efi, probe, ramdisk] + [path for _, path in components] + programs
 manifest = {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in inputs}
 (output / 'provenance.json').write_text(json.dumps({
-    'profile': a.profile, 'build': str(build), 'seed_bundle': None,
+    'profile': a.profile, 'virtio_gpu': a.virtio_gpu, 'build': str(build), 'seed_bundle': None,
     'source_revision': revision, 'configure_command': configure_command,
     'inputs': manifest, 'bundle_sha256': hashlib.sha256(data).hexdigest(),
 }, indent=2) + '\n')

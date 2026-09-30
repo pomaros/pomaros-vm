@@ -383,3 +383,38 @@ render verifier and check quadrant colors as well as guest cleanup/boot proofs.
 Failure to capture or verify pixels cannot pass the visual gate. A successful
 control-command sequence alone does not qualify VZ rendering. The temporary
 view-cache capture experiment produced black images and was removed.
+
+
+## Virtio desktop profile
+
+Build `kernel-hidd-virtiogfx` in the configured VM core. The module reuses the
+framebuffer chunky bitmap/display classes, replacing pixel presentation with
+virtio GPU transfer/flush. It uses deferred boot-mode display setup, has separate OOP class IDs and retains its PCI/DMA
+context for the display lifetime. The initial mode is 1024x768 truecolor;
+completion is polled, with reset quarantine on failure. This profile includes
+OpenFirmware and PCI/ECAM/vmpci residents and replaces the EFI graphics resident.
+The kernel verifies their exact order, priorities and flags.
+
+```sh
+python3 tools/package-core.py --build BUILD --efi EFI --profile wanderer \
+  --virtio-gpu --output ESP
+python3 tools/run-qemu.py --esp ESP --profile wanderer --console virtio \
+  --virtio-desktop --output artifacts/desktop-NEW
+```
+
+The desktop gate requires driver registration, the complete guest startup
+contract, and the existing Wanderer render check on a QMP capture of the virtio
+GPU itself. Guest registration alone cannot pass it. VZ visual/input acceptance
+is tracked separately in STAGE6.md.
+
+To exercise the same resident desktop under VZ without claiming captured pixels:
+
+```sh
+python3 tools/make-disk.py --esp ESP --output DISK.img
+python3 tools/run-vz.py --disk DISK.img --desktop-startup --output artifacts/vz-desktop-NEW
+```
+
+This gate requires the guest startup/foreground proof and both PCI and graphics
+registration markers. Its verdict explicitly leaves desktop pixels unverified.
+The normal launcher can open that disk in a VZ window; input drivers are a
+separate pending milestone.

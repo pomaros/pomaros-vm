@@ -13,6 +13,7 @@ import subprocess
 import time
 root=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser()
+p.add_argument('--desktop-startup',action='store_true')
 p.add_argument('--require-gpu-scanout',action='store_true')
 p.add_argument('--require-gpu',action='store_true')
 p.add_argument('--filesystem-phase',choices=['write','restart'])
@@ -25,6 +26,8 @@ p.add_argument('--disk',type=Path,required=True)
 p.add_argument('--output',type=Path,required=True)
 p.add_argument('--timeout',type=float,default=45)
 a=p.parse_args()
+if a.desktop_startup and (a.require_gpu or a.require_pci_hidd):
+    p.error('--desktop-startup uses the resident desktop, not the PCI/GPU probe profile')
 if a.require_gpu_scanout and not a.require_gpu: p.error('--require-gpu-scanout requires --require-gpu')
 if a.require_gpu and not a.require_pci_hidd: p.error('--require-gpu requires --require-pci-hidd')
 if a.filesystem_phase and not a.require_virtio_device: p.error('--filesystem-phase requires --require-virtio-device')
@@ -46,6 +49,9 @@ markers=['[VM] OpenFirmware FDT + PCI config PASS',
          '[B2S] DOS takeover + SYS namespace sentinel PASS',
          '[B2A] portable ABI + emulated TLS + streams + W^X/unload PASS',
          '[B2Q] AROS startup contract PASS']
+if a.desktop_startup:
+    markers.remove('[VM] OpenFirmware FDT + PCI config PASS')
+    markers += ['[VMPci] resident bridge registered', '[VM] virtio graphics driver registered']
 if a.require_pci_hidd:
     markers += ['[VM] PCI HIDD class + reserved console PASS',
                 '[VM] PCI subsystem enumerate + remove PASS',
@@ -69,7 +75,7 @@ pixels_verified=False
 capture_count=0
 passed=False;reason='timeout';start=time.monotonic()
 with log.open('w') as out:
-    proc=subprocess.Popen([str(root/'build/macaros-vm'),str(disk),str(a.output/'state'),'--headless']+(['--gpu-window'] if a.require_gpu_scanout else ['--gpu'] if a.require_gpu else []),stdout=out,stderr=subprocess.STDOUT)
+    proc=subprocess.Popen([str(root/'build/macaros-vm'),str(disk),str(a.output/'state'),'--headless']+(['--gpu-window'] if a.require_gpu_scanout else ['--gpu'] if a.require_gpu or a.desktop_startup else []),stdout=out,stderr=subprocess.STDOUT)
     try:
         while time.monotonic()-start<a.timeout:
             text=log.read_text(errors='replace')
@@ -103,7 +109,7 @@ if a.require_gpu_scanout and not pixels_verified and reason=='timeout' and all(t
 boot=subprocess.run(['mtype','-i',str(disk),'::BOOT.LOG'],capture_output=True)
 (a.output/'firmware.log').write_bytes(boot.stdout)
 verdict={'result':'PASS' if passed else 'FAIL','reason':reason,
-         'backend':'Virtualization.framework','graphics':a.require_gpu,'gpu_query_required':a.require_gpu,'gpu_scanout_required':a.require_gpu_scanout,'pixels_verified':pixels_verified,'storage_phase':a.storage_phase,'filesystem_phase':a.filesystem_phase,
+         'backend':'Virtualization.framework','graphics':a.require_gpu or a.desktop_startup,'desktop_startup':a.desktop_startup,'desktop_pixels_verified':False,'gpu_query_required':a.require_gpu,'gpu_scanout_required':a.require_gpu_scanout,'pixels_verified':pixels_verified,'storage_phase':a.storage_phase,'filesystem_phase':a.filesystem_phase,
          'pci_hidd_required':a.require_pci_hidd,'msi_frame_required':a.require_msi_frame,'msi_irq_required':a.require_msi_irq,'virtio_device_required':a.require_virtio_device,
          'seconds':round(time.monotonic()-start,2),
          'input_disk_sha256':hashlib.sha256(a.disk.read_bytes()).hexdigest(),

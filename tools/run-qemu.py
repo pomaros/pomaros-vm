@@ -18,6 +18,7 @@ p.add_argument('--accel',choices=['hvf','tcg'],default='hvf')
 p.add_argument('--console',choices=['pl011','virtio'],default='pl011')
 p.add_argument('--profile',choices=['core','wanderer'],default='wanderer')
 p.add_argument('--timeout',type=float,default=60)
+p.add_argument('--virtio-desktop',action='store_true')
 p.add_argument('--require-gpu-scanout',action='store_true')
 p.add_argument('--require-timer',action='store_true')
 p.add_argument('--require-platform',action='store_true')
@@ -29,12 +30,14 @@ p.add_argument('--gic-version',choices=['2','3'],default='3')
 p.add_argument('--dtb',type=Path)
 p.add_argument('--firmware',type=Path,default=Path('/opt/homebrew/share/qemu/edk2-aarch64-code.fd'))
 a = p.parse_args()
+if a.virtio_desktop and (a.profile != 'wanderer' or a.console != 'virtio'):
+    p.error('--virtio-desktop requires wanderer profile and virtio console')
 if a.require_gpu_scanout and (not a.require_pci_hidd or a.console!='virtio'): p.error('--require-gpu-scanout requires PCI and virtio console')
 if a.require_msi_irq and not a.require_msi_frame: p.error('--require-msi-irq requires --require-msi-frame')
 if a.require_msi_frame and not a.require_pci_hidd: p.error('--require-msi-frame requires --require-pci-hidd')
 if a.output.exists(): p.error('output must not exist')
-if a.console=='virtio' and (a.gic_version!='3' or a.profile!='core' or a.dtb):
-    p.error('virtio console qualification requires ACPI, GICv3 and the core profile')
+if a.console=='virtio' and (a.gic_version!='3' or (a.profile!='core' and not a.virtio_desktop) or a.dtb):
+    p.error('virtio console qualification requires ACPI, GICv3 and a core or virtio-desktop profile')
 a.output.mkdir(parents=True)
 a.output = a.output.resolve()
 esp = a.output/'esp'
@@ -54,7 +57,7 @@ if a.console=='virtio':
                 '-device','virtconsole,chardev=vmconsole,bus=vmconsole.0,name=aros.console']
 if a.require_pci_hidd:
     command += ['-device','virtio-rng-pci,disable-legacy=on']
-if a.require_gpu_scanout:
+if a.require_gpu_scanout or a.virtio_desktop:
     command += ['-device','virtio-gpu-pci,id=gpu,xres=1024,yres=768']
 if a.dtb:
     shutil.copyfile(a.dtb,a.output/'input.dtb')
@@ -100,6 +103,7 @@ with (a.output/'host.log').open('w') as log:
                 passed=passed and (not a.require_msi_frame or text.count('[VM] MSI frame mapped read PASS')==1)
                 passed=passed and (not a.require_msi_irq or text.count('[VM] virtio block MSI-X completion PASS')==1)
                 passed=passed and (not a.require_gpu_scanout or (pixels_verified and text.count('[VM] virtio GPU scanout cleanup PASS')==1 and text.count('[VM] virtio GPU display query PASS')==1))
+                passed=passed and (not a.virtio_desktop or text.count('[VM] virtio graphics driver registered')==1)
                 reason='startup-contract' if passed else 'proof-missing';break
             if proc.poll() is not None:
                 reason='early-exit';break
@@ -118,6 +122,14 @@ with (a.output/'host.log').open('w') as log:
                             if 'error' in reply: raise RuntimeError(reply)
                             if 'return' in reply: break
                     (a.output/'registers.txt').write_text(str(reply['return']))
+                    if a.profile == 'wanderer':
+                        args={'filename':str(a.output/'failure-desktop.png'),'format':'png'}
+                        if a.virtio_desktop: args.update(device='gpu',head=0)
+                        f.write(json.dumps({'execute':'screendump','arguments':args}).encode()+b'\n');f.flush()
+                        while True:
+                            reply=json.loads(f.readline())
+                            if 'error' in reply: raise RuntimeError(reply)
+                            if 'return' in reply: break
             except Exception as error:
                 (a.output/'debugger-error.txt').write_text(str(error))
         if passed and a.profile == 'wanderer':
@@ -133,17 +145,18 @@ with (a.output/'host.log').open('w') as log:
                         if 'error' in reply: raise RuntimeError(reply)
                         if 'return' in reply: return reply['return']
                 execute('qmp_capabilities')
-                execute('screendump',{'filename':str(a.output/'desktop.png'),'format':'png'})
+                execute('screendump',{'filename':str(a.output/'desktop.png'),'format':'png', **({'device':'gpu','head':0} if a.virtio_desktop else {})})
                 execute('quit')
-            check = subprocess.run(['python3', str(Path(__file__).resolve().parents[1]/'tests/check-aros-render-frame.py'), '--profile', 'wanderer', str(a.output/'desktop.png')])
+            check = subprocess.run(['python3', str(Path(__file__).resolve().parents[1]/'tests/check-aros-render-frame.py'), '--profile', 'wanderer-virtio' if a.virtio_desktop else 'wanderer', str(a.output/'desktop.png')])
             if check.returncode: passed=False;reason='desktop-render'
+            else: pixels_verified=True
     finally:
         if proc.poll() is None:
             proc.terminate()
             try: proc.wait(timeout=5)
             except subprocess.TimeoutExpired: proc.kill();proc.wait()
 verdict={'result':'PASS' if passed else 'FAIL','reason':reason,'backend':a.accel,
-         'profile':a.profile,'gpu_scanout_required':a.require_gpu_scanout,'pixels_verified':pixels_verified, 'console':a.console, 'desktop_checked':a.profile == 'wanderer' and passed,
+         'profile':a.profile,'virtio_desktop':a.virtio_desktop,'gpu_scanout_required':a.require_gpu_scanout,'pixels_verified':pixels_verified, 'console':a.console, 'desktop_checked':a.profile == 'wanderer' and passed,
          'seconds':round(time.monotonic()-started,2),'hardware_virtualization':a.accel=='hvf',
          'gic_version':int(a.gic_version),'timer_required':a.require_timer,'platform_required':a.require_platform,'pci_hidd_required':a.require_pci_hidd,'msi_frame_required':a.require_msi_frame,'msi_irq_required':a.require_msi_irq,'irq_chain_required':a.require_irq_chain,
          'bundle_sha256':hashlib.sha256((esp/'AROS/GEN0.BND').read_bytes()).hexdigest()}

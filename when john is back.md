@@ -1435,3 +1435,52 @@ including exact captured quadrant pixels and all required startup gates;
 bundle `3a7ec023a13cd9c33240be40b7431c378cae0a31842bb0e342cd459941101b8a`.
 All test processes terminated. Goal remains active; this completes a transport
 extraction, not stage3 or stage6 acceptance.
+
+
+## Resident virtio graphics HIDD and real Wanderer rendering
+
+Core through 7ea36d0966 adds virtiogfx.hidd, directly reusing maintained EFI
+chunky bitmap/display source through thin wrappers with distinct OOP class IDs.
+Shared HWData gains an optional task-context present callback, invoked after
+clipped pixel copies and display blanking. Reset callback only clears memory;
+it does not submit GPU commands from interrupt context. The HIDD owns its GPU
+surface and retains providers for its lifetime; failed reset retains the module
+and DMA. Fixed1024x768 B8G8R8X8, polling, no hot removal. Dynamic modes/IRQ
+completion are not claimed. New source uses John's explicit APL1.1 header;
+2282232c05 fixes the transport headers requested in review231.
+
+The VM desktop package replaces efifbgfx with virtiogfx and adds OpenFirmware,
+pci, pciecam and vmpci residents. Kernel validation admits this exact ordered
+variant only in the VM build, preserving the native profile. Required fixes:
+static C helpers for pre-DOS graphics initialization; vmpci opens resident
+providers by basename before trying DEVS: paths; fixed boot display creation is
+deferred through DDRV_BootMode until UI dependencies are ready. Immediate display
+creation let Wanderer exit without a screen; failure stage/foreground diagnostics
+preserve that distinction. HIDD color shifts align32-bit components (8/16/24),
+not byte offsets. Wrong shifts visibly produced a green desktop, rejected by
+the final image verifier.
+
+`artifacts/hvf-virtio-desktop-color` PASS: guest startup/foreground contract,
+resident driver marker and independently captured GPU/head0 image, 1024x768,
+769884/786432 pixels at expected gray153. Image viewed directly: Wanderer bar,
+boot-volume icon, gray desktop, no requester/CLI. Bundle SHA256
+`4b7d5ea12c2e59877d72a827aaf3776a2f0ef837bce554e7efb89dc84d80d848`.
+`artifacts/hvf-efi-desktop-regression` PASS: rebuilt shared EFI frontend,
+800x600 desktop; bundle
+`39d18bd60bc8791b17428aab5a645747aa0ef27f46df9be8bbf400eca614f3d1`.
+Verifier keeps explicit800x600 and1024x768 profiles, centers requester detection,
+and tests clean/CLI/requester synthetic cases at both sizes. Earlier green
+`hvf-virtio-desktop-bootmode/desktop.png` remains rejected for wrong colors.
+Failure runs retain registers and, where available, a GPU screenshot; the
+initial profile/dependency/failure captures remain under hvf-virtio-desktop*.
+
+`artifacts/vz-virtio-desktop-startup` PASS with the same final bundle: PCI and
+GPU registration, timer/IRQ/ABI/DOS and complete guest startup/foreground proof.
+This is --desktop-startup, NOT captured VZ pixels or input acceptance.
+Input disk `c184d0b7a8bc32d91a7a376bc3a0d4e89bc1f53b7cf7598391b6290bbf469527`;
+launcher `046bef28890248f478e3a66b11163320132f85f11c5513ce3b364ecb67f14ac3`.
+Package: build/virtio-desktop-color; disk: build/virtio-desktop-color.img.
+All guest processes ended. Stage3 still needs VZ visual/input qualification;
+stage6 still needs sustained IO, independent rebuild and integration services.
+SMP untouched. Native launcher ab97ed7453 is not imported (the existing positive
+launcher path passed here); its missing-barrier failure fix remains a follow-up.
