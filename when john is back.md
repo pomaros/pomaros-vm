@@ -326,3 +326,43 @@ La revue 201 approuve le contrat GIC précédent. Prochain travail : intégrer
 la règle de masques de retour de claude-next, puis PCI et virtio. Le transport
 PCI moderne de `rom/devs/virtio` existe et sera réutilisé ; le pilote ECAM du
 port RISC-V fournit aussi une référence APL, avec ses dépendances à isoler.
+
+## Retours de tâches et idle : correctifs partagés
+
+Le merge `e89c648944` prend les changements de claude-next jusqu’à `67b5ca3f0d`.
+La qualification VM a révélé deux problèmes corrigés séparément :
+
+- `ceee139ac0` : le dispatcher peut remplacer un frame EL0 par un retour idle
+  EL1h sans changer le numéro de vecteur. Appliquer ensuite le nesting de la
+  tâche endormie coupe les interruptions idle. La règle de masques vérifie
+  désormais le mode de retour réel. Avant correction, timeout VZ et HVF ;
+  `artifacts/hvf-task-masks/registers.txt` capture l’attente EL1h à 0x3c5.
+- `b3fcb7508b` : la nouvelle preuve lisait le snapshot du dispatcher, avant le
+  dernier Enable interne de Wait. Elle lit maintenant le SPSR du véritable
+  appelant au retour de DoIO, via Supervisor, et vérifie les erreurs DoIO.
+  L’attendu suit les lignes prêtes : IRQ pour VM, FIQ pour Apple physique.
+
+PASS final VZ (`artifacts/vz-return-mask-required`) et HVF GICv2/GICv3
+(`artifacts/hvf-return-mask-gic2`, `artifacts/hvf-return-masks`) : disabled 0xc0,
+plain 0x40, timer, chaîne IRQ, x18 et démarrage complet. Disque VZ SHA256
+`663128090d2927db12d2f556d54cbc07157a1a8dd8b4a868f389b65b531f3df5`.
+Le runner VZ et l’option QEMU --require-timer exigent cette preuve de masques.
+`make test` PASS. Revues 202 (chaîne IRQ) et 203 (retour idle/preuve) demandées ;
+les correctifs ont été transmis à claude-next. Pas de validation physique ici.
+
+## Reconstruction dans un répertoire neuf
+
+Le configure possède un profil explicite --enable-vm-guest, exporté aux
+makefiles et sans réservation x18 dans les flags C/C++. Le helper
+`tools/configure-core.py` refuse un répertoire existant et utilise la toolchain
+croisée installée. Contrôles réels de configure PASS : profil VM sans fixed-x18,
+profil natif par défaut avec fixed-x18, valeur invalide refusée ; preuves dans
+`artifacts/configure-profile-control`.
+
+La reconstruction est lancée dans `~/Build/macaros-vm/clean-core`, sans objets
+copiés, cible apple-boot-payloads. Elle n’est pas encore qualifiée comme un
+build complet. La première tentative s’est arrêtée parce que le script
+configure avait été régénéré après sa configuration ; config.status --recheck
+puis config.status ont resynchronisé le build. Journal actif :
+`/tmp/vm-clean-build-retry.log`. Il faut finir ce build, reconstruire le bureau,
+composer les bundles à partir de ces seuls produits puis refaire VZ/HVF.

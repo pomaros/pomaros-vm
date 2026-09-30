@@ -136,3 +136,19 @@ in the isolated VM adapter with a no-op, build and package a separate ESP.
 The guest must pass its timer waits and then print `[VM] FAIL: IRQ handler chain`;
 the runner must reject the boot. Restore the source, rebuild and compare the
 positive kernel hash before using the build again.
+
+## Fresh configuration
+
+```sh
+python3 tools/configure-core.py --output "$HOME/Build/macaros-vm/clean-core"
+make -C "$HOME/Build/macaros-vm/clean-core" -j8 apple-boot-payloads
+```
+
+The output directory must not exist. The helper uses the prebuilt cross
+toolchain in `~/aros-crosstools` (override with `--toolchain`), records the
+configure command and log, and selects `--enable-vm-guest`. This profile exports
+`AROS_VM_GUEST=1` to generated makefiles and omits the native x18 reservation
+from C and C++ flags. Other targets cannot select this profile; the physical
+Apple default retains its existing flags. This creates no copy of native
+object files. The full build and packaging acceptance state belongs in the
+handoff log, separate from successful configuration.

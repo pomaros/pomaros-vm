@@ -22,6 +22,7 @@ log=a.output/'console.log'
 markers=['[VM] GIC + CNTV deadline ready',
          '[VM] timer.device three waits PASS',
          '[VM] IRQ handler chain PASS',
+         '[KI] dispatch masks: disabled 0x00000000000000c0 plain 0x0000000000000040 PASS',
          '[B2V] runtime vectors + EL0 SVC PASS',
          '[B2D] boot + two-task context dispatch PASS',
          '[B2S] DOS takeover + SYS namespace sentinel PASS',
