@@ -151,3 +151,10 @@ build/xhci-request-test: tests/xhci-request.c $(XHCI_SOURCE)/xhci_request.c $(XH
 .PHONY: test-xhci-request
 test-xhci-request: build/xhci-request-test
 	build/xhci-request-test
+
+build/xhci-completion-test: tests/xhci-completion.c $(XHCI_SOURCE)/xhci_completion.inc | build
+	clang -std=gnu11 -Wall -Wextra -Werror -Wno-unused-parameter -Wno-ignored-attributes -fsanitize=address,undefined -fno-sanitize-recover=all \
+	 -I$(XHCI_SOURCE) -idirafter $(AROS_VM_SDK)/AROS/Developer/include $< -o $@
+.PHONY: test-xhci-completion
+test-xhci-completion: build/xhci-completion-test
+	build/xhci-completion-test

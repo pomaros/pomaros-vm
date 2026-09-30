@@ -1755,3 +1755,45 @@ concurrent removal as part of request-state work. Then integrate explicitly
 owned PCI payloads without double translation, validate segment address rules
 and controller register bounds/interrupt admission, and test real VZ USB input.
 No USB transfers attempted yet. SMP unchanged; stage-six goal remains active.
+
+
+## Stop observations preserve request ownership (core cbb3fcac84)
+
+The cancellation audit found a concrete additional release hazard: the event
+handler excluded Stopped codes only from fallback-to-busy correlation. A request
+resolved through ringio still reached xhciIntWorkProcess, which cleared its
+correlation, released the payload and marked it complete. The transfer-event
+branch now consumes all three Stopped codes before request processing; the
+completion function itself also rejects them defensively. The accumulator uses
+OR for transfer completion work, retaining work already seen in the same event
+batch. Remaining fallback comments no longer assume stopped requests were freed.
+
+Reference checked directly: [Intel xHCI 1.2b, sections 4.6.9–4.6.10](https://cdrdv2-public.intel.com/625472/625472_xHCI_Rev1_2b.pdf).
+Stop preserves resumable state; Set TR Dequeue discards cached transfer state.
+Ring edits require command acknowledgement. This rules out resetting dequeue
+indiscriminately while an unrelated ISO transfer is partially executed.
+Board240 records the cancellation design discussion and corrections to code/order
+assumptions; no native host-xHCI cancellation implementation exists to reuse.
+
+The existing completion body is extracted into xhci_completion.inc, included
+unchanged apart from the guard by the driver and host test. Its AROS provenance
+is preserved. `make test-xhci-completion` PASS under ASan/UBSan: 36 combinations
+of control/bulk/INT/ISO, three stopped codes (26/27/28), and residual values
+including UINT32_MAX. Every stopped observation leaves the full IO/private
+record and ring ownership unchanged and calls no DMA release. A later success
+still releases once with correct actual length and clears only matching owners,
+including wrapped data indices. A late stopped observation cannot overwrite the
+completed result; missing/private-less requests are covered too. This tests the
+actual completion function, not a full interrupt-controller or cancellation run.
+
+Also removed debug logging from out-of-line xhciRingDoorbell per review239;
+the inline form was already MMIO-only. Both remain suitable for the publication
+critical section. Guest driver rebuild PASS after these changes. Exact hashes:
+artifacts/xhci-stopped-completion.json. Review239 approved publication ordering.
+
+Next implement command-owner cancellation: deferred AbortIO/NAK/flush handling,
+endpoint submission exclusion during stop, stopped/dequeue acknowledgement,
+retirement of only the cancelled request while preserving unrelated TDs, and
+retention after command timeout. Existing immediate abort/free paths remain
+unsafe and are NOT declared fixed by filtering stopped events. Owned PCI payloads
+remain unwired and no VZ USB traffic was attempted. Goal active; SMP untouched.
