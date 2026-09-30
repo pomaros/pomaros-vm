@@ -496,3 +496,22 @@ translates it into existing `aros,desktop-hold-seconds` or
 `aros,desktop-hold-forever` chosen strings. An absent file selects the boot
 proof with no hold. Invalid contents reject the platform setup. This is VZ
 loader policy; a firmware-provided FDT uses its own chosen properties.
+
+### Host-to-guest window input qualification
+
+Add `--input-probe` when packaging the USB desktop with a bounded session of
+at least 30 seconds. Startup launches VMInput asynchronously; it opens an
+active Intuition window and observes IDCMP messages. Run with
+`--desktop-startup --usb-input --require-usb-desktop --require-desktop-session 30
+--require-input --timeout 45`.
+
+The runner shows a VZ window and waits for the guest observer's ready marker
+before requesting host events. The launcher delivers two pointer movements,
+a left-button press/release and an A-key press/release to its own
+[VZVirtualMachineView](https://developer.apple.com/documentation/virtualization/vzvirtualmachineview).
+No global event posting or guest input injection is used. Guest success requires
+the corresponding raw-key/button codes and both expected pointer positions
+within two pixels, followed by the full session/startup gates. This qualifies
+a synthetic host-event path through USB/HID/Intuition, not physical input.
+`--no-input-events` is the negative control: the guest must fail without host
+stimulus. Pixel capture and prolonged use are separate gates.

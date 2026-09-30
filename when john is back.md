@@ -2109,3 +2109,49 @@ has been attempted. Full stage-six goal remains open; SMP untouched.
   réelles, puis durées longues/annulations USB. M1 et Pi non utilisés.
 - Suite `make test` complète PASS (artifacts/desktop-session-host-tests.log),
   y compris ABI x18, FDT/early-FDT, GIC, PCI et virtio ; pas de test physique.
+
+## Entrées VZ jusque dans une fenêtre Intuition
+
+- Fixture VMInput (commande DOS MIT) lancée via Run dans Startup-Sequence,
+  après VMUSB ; fenêtre active après démarrage du bureau. Observation IDCMP
+  uniquement, aucune injection dans input.device. Deux mouvements vérifiés
+  à ±2 pixels, bouton gauche down/up et touche A raw down/up sont obligatoires.
+- Le runner attend `input observer ready`, puis crée une requête dans le
+  répertoire d'état isolé. Le lanceur envoie des NSEvent à sa propre vue VZ,
+  sans publication globale. L'option --require-input impose cette preuve
+  et le contrat de session complet ; --no-input-events sert de contre-épreuve.
+- Premier essai `vz-desktop-input-v2` FAIL31,07 s : touches0x20/0xa0 reçues,
+  aucun mouvement/bouton. Traces HID temporaires localisent la perte après
+  réception : rapports pointeur de20octets présents, mais carte du rapport1
+  limitée à5champs (molette/pan/vendor), champs X/Y/boutons absents.
+- Descripteur réel conservé dans `vz-desktop-input-trace4/console.log`.
+  Changement report1 → report2(feature) → report1 dans une collection imbriquée.
+  nParseReport ignorait les ancêtres quand la feuille était vide et parcourait
+  le parent du nouveau clone au lieu de l'ancienne collection. Correctif générique
+  5ed1c1d692 : sauvegarde et clone toute la hiérarchie ouverte à chaque changement.
+  Le test avec traces `vz-desktop-input-parent` PASS32,52 s.
+- Le recadrage tablette5..95% décalait aussi les coordonnées des souris absolues.
+  6f639b6c24 le désactive pour les collections Mouse, conserve les réglages
+  Tablet et le chemin relatif. Ce n'est pas une exception VID/PID pour VZ.
+- Core final6f639b6c24 ne contient plus les traces temporaires (retirées dans
+  e39b57b88f). Build HID final PASS sans avertissement ; la première trace
+  temporaire avait deux avertissements de format, corrigés avant retrait.
+- `vz-desktop-input-clean` PASS32,52 s : messages aux positions relatives
+  (199,199) puis(299,249), codes boutons0x68/0xe8, touches0x20/0xa0 ; fenêtre
+  fermée, puis fin du hold30s et contrat startup. Bundle
+  7cd0da732de86612859b0164a98c78a4f37c0cf38dc18f46ef626959fa6c7f89,
+  disque f0550eb02943b54312035235ceb3c0c491ebffeccbe34dedf31ceb9c8dacb72f,
+  lanceur724f99b31ffaf7c3d6c18aa0648894040ab4b5afe2ee60ae3c4297bbab235b7c.
+  input_verified=true signifie ici chemin événement synthétique hôte → VZ USB
+  → xHCI/Poseidon/HID → fenêtre Intuition, pas clavier/souris physiques.
+- Bibliothèque VZ utilisée par API publique :
+  https://developer.apple.com/documentation/virtualization/vzvirtualmachineview
+- Limites : pas de capture pixels VZ validée, pas de durée longue ni de teardown
+  USB qualifié. La table de tags tablette existante utilise ULONG au lieu
+  d'IPTR : audit64bits à poursuivre pour les attributs tablette étendus.
+  Pas de changement SMP, pas d'essai M1/Pi. Réseau/clipboard/fichiers restent
+  dans l'objectif complet. La prochaine étape ne doit pas recompter ce seul
+  scénario d'entrée comme qualification prolongée.
+- Contre-épreuve `vz-desktop-input-withheld` : même disque/lanceur, requête
+  d'événements hôte retenue, échec attendu30,65 s avec `input observer missing
+  events`, aucune preuve d'entrée. Pas de faux PASS par simple fenêtre ouverte.

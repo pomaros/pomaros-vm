@@ -18,6 +18,7 @@ p.add_argument('--pci-hidd', action='store_true')
 p.add_argument('--virtio-device', action='store_true')
 p.add_argument('--startup-sequence', type=Path)
 p.add_argument('--desktop-session', help='1..3600 seconds or forever; omitted for boot proof')
+p.add_argument('--input-probe',action='store_true')
 p.add_argument('--usb-desktop', action='store_true')
 p.add_argument('--xhci-driver', action='store_true')
 p.add_argument('--xhci-enumerate', action='store_true')
@@ -27,6 +28,8 @@ p.add_argument('--profile', choices=['headless', 'wanderer'], default='headless'
 p.add_argument('--toolchain', type=Path, default=Path.home() / 'aros-crosstools')
 p.add_argument('--efi', type=Path, default=root / 'build/uefi/BOOTAA64.EFI')
 a = p.parse_args()
+if a.input_probe and (not a.usb_desktop or a.desktop_session is None):
+    p.error('--input-probe requires --usb-desktop and --desktop-session')
 if a.desktop_session is not None:
     if a.profile != 'wanderer' or not a.virtio_gpu:
         p.error('--desktop-session requires wanderer and --virtio-gpu')
@@ -125,7 +128,13 @@ if a.usb_desktop:
     subprocess.run([str(root/'tools/build-abi-probe'),'--sdk',str(sdk),
         '--crosstools',str(a.toolchain.resolve()),'--profile','usb-desktop',str(usb_command)],check=True)
     startup=output/'Startup-Sequence'
-    startup.write_text('SYS:VMUSB\nG4Ready\nEndCLI\n')
+    startup.write_text('SYS:VMUSB\n'+('Run >NIL: SYS:VMINPUT\n' if a.input_probe else '')+'G4Ready\nEndCLI\n')
+    if a.input_probe:
+        input_command=output/'VMINPUT'
+        subprocess.run([str(root/'tools/build-abi-probe'),'--sdk',str(sdk),
+            '--crosstools',str(a.toolchain.resolve()),'--profile','desktop-input',str(input_command)],check=True)
+        image_command += ['--file',f'VMINPUT={input_command}']
+        pci_files += [('VMINPUT',input_command)]
     image_command += ['--file',f'VMUSB={usb_command}','--startup-sequence',str(startup)]
     pci_files += [('VMUSB',usb_command),('Startup-Sequence',startup)]
 if programs:
@@ -151,7 +160,7 @@ shutil.copyfile(efi, output / 'EFI/BOOT/BOOTAA64.EFI')
 inputs = ([output/'AROS/SESSION.CFG'] if a.desktop_session is not None else []) + ([pci_probe] if a.pci_hidd else []) + [path for _, path in pci_files] + [stage2, efi, probe, ramdisk] + [path for _, path in components] + programs
 manifest = {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in inputs}
 (output / 'provenance.json').write_text(json.dumps({
-    'profile': a.profile, 'desktop_session': a.desktop_session, 'usb_desktop': a.usb_desktop, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,
+    'profile': a.profile, 'input_probe': a.input_probe, 'desktop_session': a.desktop_session, 'usb_desktop': a.usb_desktop, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,
     'source_revision': revision, 'configure_command': configure_command,
     'inputs': manifest, 'bundle_sha256': hashlib.sha256(data).hexdigest(),
 }, indent=2) + '\n')
