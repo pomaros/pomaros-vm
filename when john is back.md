@@ -1797,3 +1797,49 @@ retirement of only the cancelled request while preserving unrelated TDs, and
 retention after command timeout. Existing immediate abort/free paths remain
 unsafe and are NOT declared fixed by filtering stopped events. Owned PCI payloads
 remain unwired and no VZ USB traffic was attempted. Goal active; SMP untouched.
+
+
+## Stopped-ring retirement primitives (core bc42b1c88d)
+
+Added prepare/commit cancellation helpers beside the actual ring code. Their
+caller MUST already own an acknowledged stopped endpoint and hold the ring lock,
+excluding all producers/recovery until commit/resume. They do not issue commands,
+free buffers or reply, and are not yet connected to AbortIO.
+
+Prepare validates the entire first..last request range and matching ring owners
+before changing anything. Link TRBs stay untouched; only target TRBs become
+zero-length/address No-Ops with their original cycle bits. Other request data,
+flags and ownership are preserved. If the stopped position belongs to this
+request, the plan advances past its last descriptor, computes the next DCS across
+wrap/Link, and requires a Set TR Dequeue acknowledgement. Otherwise it leaves
+the stopped position alone so an unrelated partially executed TD can resume.
+Commit revalidates all owners/types before clearing any correlation and refuses
+a required but unacknowledged dequeue change. It updates the software consumer
+position only when dequeue was actually moved. These checks do not themselves
+prove a hardware stop: that belongs to the forthcoming command owner.
+
+The final replacement No-Op has IOC. Without an event, cancelled entries at the
+end of a ring could strand software capacity indefinitely. The transfer-event
+handler now recognizes a successful ownerless No-Op before busy-request fallback,
+keeps the normal ring-end update and wakes the scheduler without completing an
+unrelated IO. Host tests check the IOC descriptor; this IRQ dispatch branch still
+needs live/controller-level qualification.
+
+`make test-xhci-ring` PASS with ASan/UBSan: 672 cancellation combinations on the
+8-slot ring model (every start/count, stop position including Link, and initial
+cycle). Tests preserve all non-target descriptors and Link bytes, verify DCS by
+walking across the physical Link, retain every owner after denied acknowledgement,
+reject changed ownership without partial commit, and reject malformed range,
+stop index or cycle before mutation. Earlier 1024 control and 1152 data admission
+cases and immediate-completion publication tests also pass. Guest driver build
+PASS. Exact source/test/device identities: artifacts/xhci-cancel-ring.json.
+
+Next wire an endpoint command owner in the event task: mark active cancellations
+without replying/freeing in interrupt context, exclude submissions/recovery during
+stop, wait for Stop and conditional Set Dequeue completion, invoke these helpers,
+then clear/release/reply only after retirement. Completion while cancellation is
+pending must retain the request; device/endpoint teardown needs the same lifetime
+coordination. Command timeout must retain state and prevent endpoint reuse.
+RT-ISO stop/flush call sites need their own completion ownership treatment.
+Existing immediate AbortIO paths remain unchanged and unsafe; no live USB traffic
+has been attempted. Full stage-six goal remains open; SMP untouched.

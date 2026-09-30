@@ -23,6 +23,7 @@ struct pcisusbXHCIRing {
     struct IORequest **ringio;
     volatile UWORD next,end;
 };
+struct xhciCancelPlan { UWORD first,last,next;BOOL moveDequeue,cycle; };
 struct xhciControlTRBs { UWORD setup,dataFirst,dataLast,status; };
 static unsigned depth,writes,translations;
 static void xhciRingLock(void) { ++depth; }
@@ -278,6 +279,75 @@ int main(void)
         assert(hc.hc_PeriodicTDQueue.lh_Head==(struct Node *)&hc.hc_PeriodicTDQueue.lh_Tail);
     }
     auto_complete=0;
+    unsigned cancellations=0;
+    const unsigned slots=XHCI_EVENT_RING_TRBS-1;
+    for(unsigned first=0;first<slots;++first)
+    for(unsigned count=1;count<slots;++count)
+    for(unsigned stopped=0;stopped<XHCI_EVENT_RING_TRBS;++stopped)
+    for(unsigned initialCycle=0;initialCycle<2;++initialCycle) {
+        init(&r,owners,0,0);
+        struct IORequest other={0};
+        unsigned last=(first+count-1)%slots;
+        for(unsigned idx=0;idx<slots;++idx) {
+            r.ring[idx].dbp.addr64=0x12345000+idx*4096;
+            r.ring[idx].tparams=64;
+            r.ring[idx].flags=AROS_LONG2LE(TRBF_FLAG_TRTYPE_NORMAL|TRBF_FLAG_CH|TRBF_FLAG_ISP|
+                ((initialCycle^(idx<first))?TRBF_FLAG_C:0));
+            owners[idx]=&other;
+        }
+        for(unsigned n=0;n<count;++n)owners[(first+n)%slots]=&io;
+        unsigned current=stopped==slots?0:stopped;
+        BOOL dcs=!!(AROS_LE2LONG(r.ring[current].flags)&TRBF_FLAG_C);
+        if(stopped==slots)dcs=!dcs;
+        r.ring[slots].flags=AROS_LONG2LE(TRBF_FLAG_TRTYPE_LINK|TRBF_FLAG_TC|(dcs?TRBF_FLAG_C:0));
+        r.ring[slots].dbp.addr64=(IPTR)&r.ring[0];
+        before=r;struct IORequest *beforeOwners[XHCI_EVENT_RING_TRBS];memcpy(beforeOwners,owners,sizeof(owners));
+        struct xhciCancelPlan plan;
+        xhciRingLock();
+        assert(xhciPrepareStoppedCancellation(&hc,&r,&io,first,last,stopped,dcs,&plan));
+        assert(plan.moveDequeue==(beforeOwners[current]==&io));
+        assert(writes==count && memcmp(owners,beforeOwners,sizeof(owners))==0);
+        for(unsigned idx=0;idx<XHCI_EVENT_RING_TRBS;++idx) {
+            if(beforeOwners[idx]==&io) {
+                ULONG f=AROS_LE2LONG(r.ring[idx].flags);
+                assert(f==((AROS_LE2LONG(before.ring[idx].flags)&TRBF_FLAG_C)|TRBF_FLAG_TRTYPE_NOOP|(idx==last?TRBF_FLAG_IOC:0)));
+                assert(!r.ring[idx].dbp.addr64 && !r.ring[idx].tparams);
+            } else assert(memcmp(&r.ring[idx],&before.ring[idx],sizeof(r.ring[idx]))==0);
+        }
+        if(plan.moveDequeue) {
+            unsigned walk=stopped;BOOL expectedCycle=dcs;
+            while(walk!=last) {
+                if(walk==slots){walk=0;expectedCycle=!expectedCycle;}
+                else ++walk;
+            }
+            if(++walk==slots){walk=0;expectedCycle=!expectedCycle;}
+            assert(plan.next==walk && plan.cycle==expectedCycle);
+            assert(!xhciCommitStoppedCancellation(&r,&io,&plan,FALSE));
+            assert(memcmp(owners,beforeOwners,sizeof(owners))==0 && r.end==before.end);
+        }
+        owners[last]=NULL;
+        assert(!xhciCommitStoppedCancellation(&r,&io,&plan,TRUE));
+        for(unsigned n=0;n<count;++n)if((first+n)%slots!=last)
+            assert(owners[(first+n)%slots]==&io);
+        owners[last]=&io;
+        assert(xhciCommitStoppedCancellation(&r,&io,&plan,TRUE));
+        for(unsigned idx=0;idx<XHCI_EVENT_RING_TRBS;++idx)
+            assert(owners[idx]==(beforeOwners[idx]==&io?NULL:beforeOwners[idx]));
+        assert(r.end==(plan.moveDequeue?((before.end&RINGENDCFLAG)|plan.next):before.end));
+        xhciRingUnlock();++cancellations;
+    }
+    /* Malformed ownership/range/cycle cannot partly neutralise a request. */
+    for(unsigned bad=0;bad<4;++bad) {
+        init(&r,owners,0,0);owners[0]=owners[1]=&io;
+        r.ring[0].flags=r.ring[1].flags=AROS_LONG2LE(TRBF_FLAG_C|TRBF_FLAG_TRTYPE_NORMAL);
+        if(!bad)owners[1]=NULL;
+        before=r;struct xhciCancelPlan plan;
+        xhciRingLock();
+        assert(!xhciPrepareStoppedCancellation(&hc,&r,&io,0,bad==1?slots:1,
+                                               bad==2?XHCI_EVENT_RING_TRBS:0,bad==3?FALSE:TRUE,&plan));
+        assert(!writes && memcmp(&r,&before,sizeof(r))==0);xhciRingUnlock();
+    }
+    printf("xhci-cancel-ring result=PASS cases=%u preserve-others,link,cycle,ack-gated-commit,final-noop-ioc,invalid-input\n",cancellations);
     puts("xhci-publication result=PASS metadata,list,doorbell-before-unmask,immediate-free,control-bulk-int-iso");
     printf("xhci-control result=PASS cases=%u prepare-failure,short-prepare,capacity-failure,null-data,setup-bytes\n",controls);
     printf("xhci-ring result=PASS cases=%u actual-queue,wrap,nonidentity,all-or-none,zero,overflow\n",cases);
