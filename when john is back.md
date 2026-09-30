@@ -1229,3 +1229,38 @@ Reviews 223/224/225 approved. Next qualify interruption during writes and
 sustained filesystem IO; this clean-close/restart test is not crash recovery.
 VZ desktop/input, reproducible independent rebuild and stage-six integration
 remain open. SMP remains reserved to bsek.
+
+## Abrupt termination during an open-file workload
+
+`tools/run-crash-vz.py` first requires the clean filesystem/restart baseline.
+It copies the resulting 80 MiB image and adds an unused 4 MiB trailer: exact
+84 MiB geometry selects crash mode while the mounted FAT extent stays 64..80.
+After checking the seed and durable KEPT.BIN, the guest opens UNFINISHED.BIN,
+writes 64 KiB, emits the active-workload marker and repeatedly seeks/rewrites
+without closing, flushing or inhibiting. The host observes required mount/
+content/workload markers, sends SIGKILL and requires process return code -9.
+No guest shutdown is requested. The exact crash image is preserved. A recovery
+copy loses only the unused trailer, without repairing any filesystem byte;
+read-only fsck_msdos examines the extracted volume, a fresh VZ guest remounts,
+and mtools checks KEPT.BIN both before and after guest recovery.
+
+First `artifacts/vz-filesystem-crash` FAIL at baseline: early IRQ-console silence,
+before any write-cut scenario. It remains a failure and the underlying early
+console symptom is unresolved. The same scenario's explicit second attempt
+`artifacts/vz-filesystem-crash-2` PASS: workload observed, kill return -9,
+read-only fsck return 0, no orphan-cluster report, fresh guest remount and durable
+file content PASS. Post-kill FAT volume SHA256
+`dda29fac6680548e27f889fcbd1d1cea43d02a4325849ff9deb2d12bb63c27b6`;
+durable file `1942de172742ea4cc88bacca1802a39924147e552ff0a36397597ad066c3e94f`.
+Bundle `e7350d794eb912d669b1c1ba62169bcda5234dd74db46446165c5516e1ec59df`;
+PCIPROBE `c79243b73562e1dd192488b52cf8bd410405d6fe1e8c94fd8bdc1db38262dd45`.
+Core remains `7769f704f7`. Actual IO/queue/lifecycle sanitizer tests and Python
+syntax checks pass. Old guest without the crash workload is a negative control
+in `artifacts/vz-crash-negative-old-guest`.
+
+Scope: one observed abrupt open-file write workload, not a precise DMA-boundary
+cut, exhaustive FAT recovery or physical host power loss. The interrupted file
+may be absent/partial; the already flushed reference must remain exact. Broader
+interruption and sustained IO remain, as do VZ GPU/input, independent clean-build
+comparison and networking/clipboard/file exchange. The early console issue
+needs independent debugging before sustained-use acceptance. SMP untouched.

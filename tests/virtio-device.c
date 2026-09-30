@@ -73,7 +73,7 @@ static int storage_test(struct IOStdReq *io,UBYTE *buffer)
     for(unsigned i=0;i<4096;++i)if(buffer[i]!=pattern(i))return 0;
     mark("[VM] storage write readback PASS\n");return 1;
 }
-static int filesystem_test(struct IOStdReq *io,UBYTE *buffer)
+static int filesystem_test(struct IOStdReq *io,UBYTE *buffer,int crash)
 {
     struct virtio_Unit *unit=(void *)io->io_Unit;
     if(!(unit->au_Bus->ab_Dev->dev_Features&((UQUAD)1<<VIRTIO_BLK_F_FLUSH)))return 0;
@@ -134,6 +134,22 @@ static int filesystem_test(struct IOStdReq *io,UBYTE *buffer)
     if(okay && Read(file,buffer,1)!=0)okay=0;
     Close(file);if(!okay) { mark("[VM] filesystem content mismatch\n");return 0; }
     mark("[VM] filesystem content PASS\n");
+    if(crash) {
+        if(!existing)return 0;
+        file=Open((CONST_STRPTR)"VMTEST:DATA/UNFINISHED.BIN",MODE_NEWFILE);
+        if(!file)return 0;
+        /* No Close/Flush/Inhibit on this branch. The host kills the VM while
+         * the file is open and writes continue; no exact DMA cut is claimed. */
+        for(unsigned pass=0;pass<100000;++pass) {
+            if(pass && Seek(file,0,OFFSET_BEGINNING)==-1)return 0;
+            for(unsigned block=0;block<16;++block) {
+                for(unsigned i=0;i<4096;++i)buffer[i]=pattern(i+block*4096+pass);
+                if(Write(file,buffer,4096)!=4096)return 0;
+            }
+            if(pass==0)mark("[VM] crash write workload active\n");
+        }
+        mark("[VM] crash workload unexpectedly finished\n");return 0;
+    }
     /* Inhibit drains the filesystem cache before the explicit device flush. */
     if(!Inhibit((CONST_STRPTR)"VMTEST0:",DOSTRUE)) { number("[VM] inhibit error",IoErr());return 0; }
     int result=transfer(io,CMD_UPDATE,0,NULL,0);
@@ -180,8 +196,9 @@ int test_virtio_device(void)
         if(result<0)return 0;
         okay=result;
     }
-    if(okay && (uint64_t)geometry.dg_TotalSectors*geometry.dg_SectorSize==80UL*1024*1024) {
-        result=filesystem_test(io,buffer);
+    uint64_t disk_bytes=(uint64_t)geometry.dg_TotalSectors*geometry.dg_SectorSize;
+    if(okay && (disk_bytes==80UL*1024*1024 || disk_bytes==84UL*1024*1024)) {
+        result=filesystem_test(io,buffer,disk_bytes==84UL*1024*1024);
         if(result<0)return 0;
         okay=result;
     }

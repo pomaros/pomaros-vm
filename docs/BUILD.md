@@ -316,3 +316,23 @@ flush/detach the volume; a negotiated device FLUSH follows. A fresh second VM
 must read the existing file. Host mtools independently checks contents, seed
 and disappearance of the pre-rename name after each VM. Corruption is an error,
 not a request to recreate the file. This gate does not inject interruption.
+
+For an abrupt VM-process cut during open-file writes:
+
+```sh
+python3 tools/run-crash-vz.py --disk DISK.img --output artifacts/crash-NEW
+```
+
+The harness first requires the clean filesystem/restart gate. It copies that
+result and appends an unused 4 MiB trailer, selecting crash mode by exact 84 MiB
+geometry. The mounted volume remains bounded to 64..80 MiB. After verifying the
+durable reference file, the guest opens UNFINISHED.BIN and repeatedly writes
+64 KiB without close, flush or inhibit. The host requires the workload marker
+and terminates VZ with SIGKILL, verifying return code -9. It preserves the exact
+post-kill image, removes only the unused trailer from a recovery copy, and runs
+read-only fsck_msdos on the extracted volume. A fresh guest must remount and
+verify the reference; host mtools verifies it before and after recovery.
+
+PASS requires the observed workload, forced termination, clean read-only FAT
+check and intact durable file. It does not require a complete interrupted file,
+pinpoint an in-flight DMA write, or establish host-power-loss durability.
