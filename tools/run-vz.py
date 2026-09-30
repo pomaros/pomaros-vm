@@ -5,12 +5,15 @@
 import argparse
 import hashlib
 import json
+import re
+import runpy
 from pathlib import Path
 import shutil
 import subprocess
 import time
 root=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser()
+p.add_argument('--require-gpu-scanout',action='store_true')
 p.add_argument('--require-gpu',action='store_true')
 p.add_argument('--filesystem-phase',choices=['write','restart'])
 p.add_argument('--storage-phase',choices=['write','restart'])
@@ -22,6 +25,7 @@ p.add_argument('--disk',type=Path,required=True)
 p.add_argument('--output',type=Path,required=True)
 p.add_argument('--timeout',type=float,default=45)
 a=p.parse_args()
+if a.require_gpu_scanout and not a.require_gpu: p.error('--require-gpu-scanout requires --require-gpu')
 if a.require_gpu and not a.require_pci_hidd: p.error('--require-gpu requires --require-pci-hidd')
 if a.filesystem_phase and not a.require_virtio_device: p.error('--filesystem-phase requires --require-virtio-device')
 if a.storage_phase and not a.require_virtio_device: p.error('--storage-phase requires --require-virtio-device')
@@ -60,25 +64,46 @@ if a.storage_phase:
 if a.filesystem_phase:
     markers += ['[VM] filesystem mount PASS', '[VM] filesystem '+('write flush' if a.filesystem_phase=='write' else 'restart')+' PASS']
 if a.require_gpu: markers += ['[VM] virtio GPU display query PASS']
+if a.require_gpu_scanout: markers += ['[VM] virtio GPU scanout cleanup PASS']
+pixels_verified=False
+capture_count=0
 passed=False;reason='timeout';start=time.monotonic()
 with log.open('w') as out:
-    proc=subprocess.Popen([str(root/'build/macaros-vm'),str(disk),str(a.output/'state'),'--headless']+(['--gpu'] if a.require_gpu else []),stdout=out,stderr=subprocess.STDOUT)
+    proc=subprocess.Popen([str(root/'build/macaros-vm'),str(disk),str(a.output/'state'),'--headless']+(['--gpu-window'] if a.require_gpu_scanout else ['--gpu'] if a.require_gpu else []),stdout=out,stderr=subprocess.STDOUT)
     try:
         while time.monotonic()-start<a.timeout:
             text=log.read_text(errors='replace')
             if 'FAIL:' in text: reason='guest-failure';break
-            if all(text.count(marker)==1 for marker in markers): passed=True;reason='headless-startup-contract';break
+            if a.require_gpu_scanout and not pixels_verified and '[VM] virtio GPU scanout ready' in text and capture_count<10:
+                window=re.search(r'window-id=(\d+)',text)
+                if window:
+                    capture_count+=1
+                    shot=a.output/f'scanout-{capture_count}.png'
+                    captured=subprocess.run(['/usr/sbin/screencapture','-x','-o','-l',window[1],str(shot)],capture_output=True,timeout=5)
+                    (a.output/'capture.log').write_bytes(captured.stdout+captured.stderr)
+                    if captured.returncode==0 and shot.exists():
+                        decoder=runpy.run_path(str(root/'tests/check-aros-render-frame.py'))
+                        w,h,rows=decoder['decode'](shot)
+                        actual=[decoder['pixel'](rows,int(w*x),int(h*y)) for x,y in [(0.25,0.25),(0.75,0.25),(0.25,0.75),(0.75,0.75)]]
+                        expected=[(255,0,0),(0,255,0),(0,0,255),(255,255,255)]
+                        pixels_verified=all(abs(a-b)<16 for pixel,color in zip(actual,expected) for a,b in zip(pixel,color))
+                        (a.output/'pixels.json').write_text(json.dumps({'actual':actual,'expected':expected,'passed':pixels_verified})+'\n')
+            if (not a.require_gpu_scanout or pixels_verified) and all(text.count(marker)==1 for marker in markers): passed=True;reason='headless-startup-contract';break
             if proc.poll() is not None: reason='early-exit';break
             time.sleep(.1)
+    except Exception as error:
+        reason='runner-error: '+str(error)
     finally:
         if proc.poll() is None:
             proc.terminate()
             try: proc.wait(timeout=5)
             except subprocess.TimeoutExpired: proc.kill();proc.wait();passed=False;reason='stop-timeout'
+if a.require_gpu_scanout and not pixels_verified and reason=='timeout' and all(text.count(marker)==1 for marker in markers):
+    reason='gpu-pixels-unverified'
 boot=subprocess.run(['mtype','-i',str(disk),'::BOOT.LOG'],capture_output=True)
 (a.output/'firmware.log').write_bytes(boot.stdout)
 verdict={'result':'PASS' if passed else 'FAIL','reason':reason,
-         'backend':'Virtualization.framework','graphics':a.require_gpu,'gpu_query_required':a.require_gpu,'storage_phase':a.storage_phase,'filesystem_phase':a.filesystem_phase,
+         'backend':'Virtualization.framework','graphics':a.require_gpu,'gpu_query_required':a.require_gpu,'gpu_scanout_required':a.require_gpu_scanout,'pixels_verified':pixels_verified,'storage_phase':a.storage_phase,'filesystem_phase':a.filesystem_phase,
          'pci_hidd_required':a.require_pci_hidd,'msi_frame_required':a.require_msi_frame,'msi_irq_required':a.require_msi_irq,'virtio_device_required':a.require_virtio_device,
          'seconds':round(time.monotonic()-start,2),
          'input_disk_sha256':hashlib.sha256(a.disk.read_bytes()).hexdigest(),

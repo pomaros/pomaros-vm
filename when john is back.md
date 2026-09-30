@@ -1354,3 +1354,46 @@ verification, then connect an AROS graphics HIDD (existing gfx/efifbgfx provide
 reusable bitmap/rendering behavior). A display query is not a desktop.
 Review228 approved the console diagnosis/fix. VZ input and stage-six services,
 independent complete rebuild and sustained IO remain. SMP untouched.
+
+## GPU surfaces, fenced commands and independent rendered pixels
+
+The GPU test reuses its two owned descriptors sequentially, waiting for each
+completion before reuse; it never calls the block queue's descriptor free-list
+allocator for these commands. Every command uses FENCE and a matching nonzero
+fence id; responses must have exact used length, expected type and returned
+fence. Added RESOURCE_CREATE_2D (B8G8R8X8), ATTACH_BACKING (owned contiguous3MiB),
+TRANSFER_TO_HOST_2D, SET_SCANOUT and RESOURCE_FLUSH. A1024x768 red/green/blue/white
+quadrant image is held for5seconds. Cleanup disables scanout, detaches backing,
+unrefs and acknowledges reset before freeing DMA; any failed reset retains it.
+This remains a finite transport test, not the resident graphics HIDD.
+
+`artifacts/hvf-gpu-scanout` PASS: QEMU virtio-gpu-pci, QMP screendump selecting
+GPU/head0, actual decoded quadrant RGB values exactly match255/0 primaries and
+white, guest cleanup + boot/timer/IRQ/platform/PCI proofs pass. Viewed
+`scanout.png` directly: the intended four quadrants cover the image. The runner
+reuses tests/check-aros-render-frame.py's PNG decoder, no Pillow dependency.
+Old no-render guest `hvf-gpu-scanout-negative` FAIL proof-missing as intended.
+HVF bundle `c818ec43cf452205972cf5ac1a7f1a41633076c19d7a95e01838515b41dee513`.
+
+VZ command protocol `artifacts/vz-gpu-scanout-protocol` PASS, including the same
+fenced resource/transfer/scanout/cleanup sequence and installed block IRQ/read.
+VZ visual gates `vz-gpu-scanout` and `vz-gpu-view-capture` FAIL: screencapture
+could not create an image from the target window. An app-owned NSView cache
+experiment produced all-black images, correctly rejected by the pixel gate;
+it does not establish whether the Metal-backed view actually displayed black.
+The cache experiment was removed. --gpu-window retains an ordinary VZ test
+window without adding USB input to the headless profile. The strict VZ visual
+gate remains available and cannot pass on command responses alone. No private
+VZ API or screen-permission workaround was introduced.
+
+VZ input `ee8b3066ccc0542763dc882b8b5fcebd7e2d4dd1dff70151c46c9ae21a8c2e92`;
+bundle `5c1d8d3ad758cced0f6d1a56bf59fca823930c3295b821f94429f16474899359`;
+PCIPROBE `1ec0ec31e7bcece34b9a535ec0944aaba12e665f6eba37a80a437e21e87cdff7`;
+final launcher `046bef28890248f478e3a66b11163320132f85f11c5513ce3b364ecb67f14ac3`.
+Guest/Swift builds, console/queue/lifecycle sanitizer tests, Python syntax/diff
+checks pass. Core stays d49ffc2e5c. Next move this transport into a reusable
+resident graphics HIDD and connect AROS rendering, while keeping VZ visual
+acceptance open. Review229 approved the prior display-query step. Board196
+reports launcher fix ab97ed7453 now qualified on EL1/EL2 with missing-program
+and missing-script negatives: inspect that change before the VM Wanderer return.
+SMP untouched; stage six remains active and incomplete.

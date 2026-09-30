@@ -364,3 +364,22 @@ complete response and enabled mode. Reset must be acknowledged before DMA is
 freed. This is a polled control command, not rendered pixels, GPU IRQs, a HIDD
 or a desktop. The wire layout follows
 [Virtio 1.2 §5.7](https://docs.oasis-open.org/virtio/virtio/v1.2/virtio-v1.2.html).
+
+The GPU probe also exercises fenced RESOURCE_CREATE_2D, ATTACH_BACKING,
+TRANSFER_TO_HOST_2D, SET_SCANOUT and RESOURCE_FLUSH using a 1024x768 owned DMA
+buffer. It holds a four-quadrant pattern for five seconds, then disables the
+scanout, detaches/unrefs and resets before freeing memory. Every response must
+match its fence and expected size/type. To require independently rendered pixels:
+
+```sh
+python3 tools/run-qemu.py --esp ESP --profile core --console virtio \
+  --require-pci-hidd --require-gpu-scanout --output artifacts/gpu-HVF-NEW
+```
+
+The QMP capture selects the GPU device directly. On VZ,
+`--require-gpu --require-gpu-scanout` opens a dedicated test window and captures
+only that window with screencapture. Both lanes decode the PNG using the existing
+render verifier and check quadrant colors as well as guest cleanup/boot proofs.
+Failure to capture or verify pixels cannot pass the visual gate. A successful
+control-command sequence alone does not qualify VZ rendering. The temporary
+view-cache capture experiment produced black images and was removed.

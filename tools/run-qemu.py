@@ -5,6 +5,7 @@
 import argparse
 import hashlib
 import json
+import runpy
 from pathlib import Path
 import shutil
 import socket
@@ -17,6 +18,7 @@ p.add_argument('--accel',choices=['hvf','tcg'],default='hvf')
 p.add_argument('--console',choices=['pl011','virtio'],default='pl011')
 p.add_argument('--profile',choices=['core','wanderer'],default='wanderer')
 p.add_argument('--timeout',type=float,default=60)
+p.add_argument('--require-gpu-scanout',action='store_true')
 p.add_argument('--require-timer',action='store_true')
 p.add_argument('--require-platform',action='store_true')
 p.add_argument('--require-pci-hidd',action='store_true')
@@ -27,6 +29,7 @@ p.add_argument('--gic-version',choices=['2','3'],default='3')
 p.add_argument('--dtb',type=Path)
 p.add_argument('--firmware',type=Path,default=Path('/opt/homebrew/share/qemu/edk2-aarch64-code.fd'))
 a = p.parse_args()
+if a.require_gpu_scanout and (not a.require_pci_hidd or a.console!='virtio'): p.error('--require-gpu-scanout requires PCI and virtio console')
 if a.require_msi_irq and not a.require_msi_frame: p.error('--require-msi-irq requires --require-msi-frame')
 if a.require_msi_frame and not a.require_pci_hidd: p.error('--require-msi-frame requires --require-pci-hidd')
 if a.output.exists(): p.error('output must not exist')
@@ -51,10 +54,14 @@ if a.console=='virtio':
                 '-device','virtconsole,chardev=vmconsole,bus=vmconsole.0,name=aros.console']
 if a.require_pci_hidd:
     command += ['-device','virtio-rng-pci,disable-legacy=on']
+if a.require_gpu_scanout:
+    command += ['-device','virtio-gpu-pci,id=gpu,xres=1024,yres=768']
 if a.dtb:
     shutil.copyfile(a.dtb,a.output/'input.dtb')
     command += ['-dtb',str(a.output/'input.dtb')]
 (a.output/'command.json').write_text(json.dumps(command,indent=2)+'\n')
+pixels_verified=False
+capture_attempted=False
 passed = False
 reason = 'timeout'
 started=time.monotonic()
@@ -65,12 +72,34 @@ with (a.output/'host.log').open('w') as log:
             text = serial.read_text(errors='replace') if serial.exists() else ''
             if 'FAIL:' in text or 'Synchronous Exception' in text:
                 reason='guest-failure';break
+            if a.require_gpu_scanout and not capture_attempted and '[VM] virtio GPU scanout ready' in text:
+                capture_attempted=True
+                try:
+                    sock=socket.socket(socket.AF_UNIX);sock.settimeout(3);sock.connect(str(qmp))
+                    with sock,sock.makefile('rwb') as stream:
+                        stream.readline()
+                        for name,args in [('qmp_capabilities',{}),('screendump',{'filename':str(a.output/'scanout.png'),'format':'png','device':'gpu','head':0})]:
+                            stream.write(json.dumps({'execute':name,'arguments':args}).encode()+b'\n');stream.flush()
+                            while True:
+                                reply=json.loads(stream.readline())
+                                if 'error' in reply:raise RuntimeError(reply)
+                                if 'return' in reply:break
+                    decoder=runpy.run_path(str(Path(__file__).resolve().parents[1]/'tests/check-aros-render-frame.py'))
+                    w,h,rows=decoder['decode'](a.output/'scanout.png')
+                    actual=[decoder['pixel'](rows,int(w*x),int(h*y)) for x,y in [(0.25,0.25),(0.75,0.25),(0.25,0.75),(0.75,0.75)]]
+                    expected=[(255,0,0),(0,255,0),(0,0,255),(255,255,255)]
+                    pixels_verified=all(abs(a-b)<16 for pixel,color in zip(actual,expected) for a,b in zip(pixel,color))
+                    (a.output/'pixels.json').write_text(json.dumps({'actual':actual,'expected':expected,'passed':pixels_verified})+'\n')
+                except Exception as error:
+                    (a.output/'capture-error.txt').write_text(str(error))
+                    reason='gpu-capture-failed';break
             if '[B2Q] AROS startup contract PASS' in text:
                 timer_ok = (text.count('[VM] timer.device three waits PASS') == 1 and
                             text.count('[KI] dispatch masks: disabled 0x00000000000000c0 plain 0x0000000000000040 PASS') == 1)
                 passed=(not a.require_timer or timer_ok) and (not a.require_irq_chain or text.count('[VM] IRQ handler chain PASS')==1) and (not a.require_platform or text.count('[VM] OpenFirmware FDT + PCI config PASS')==1) and (not a.require_pci_hidd or (text.count('[VM] PCI HIDD class + reserved console PASS')==1 and text.count('[VM] PCI subsystem enumerate + remove PASS')==1 and text.count('[VM] virtio common config via MapPCI PASS')==1 and text.count('[VM] virtio reset acknowledged PASS')==1 and text.count('[VM] PCI resident install PASS')==1 and text.count('[VM] PCI resident bridge after command unload PASS')==1 and text.count('[VM] virtio entropy DMA completion PASS')==1 and text.count('[VM] virtio block queue sector read PASS')==1))
                 passed=passed and (not a.require_msi_frame or text.count('[VM] MSI frame mapped read PASS')==1)
                 passed=passed and (not a.require_msi_irq or text.count('[VM] virtio block MSI-X completion PASS')==1)
+                passed=passed and (not a.require_gpu_scanout or (pixels_verified and text.count('[VM] virtio GPU scanout cleanup PASS')==1 and text.count('[VM] virtio GPU display query PASS')==1))
                 reason='startup-contract' if passed else 'proof-missing';break
             if proc.poll() is not None:
                 reason='early-exit';break
@@ -114,7 +143,7 @@ with (a.output/'host.log').open('w') as log:
             try: proc.wait(timeout=5)
             except subprocess.TimeoutExpired: proc.kill();proc.wait()
 verdict={'result':'PASS' if passed else 'FAIL','reason':reason,'backend':a.accel,
-         'profile':a.profile, 'console':a.console, 'desktop_checked':a.profile == 'wanderer' and passed,
+         'profile':a.profile,'gpu_scanout_required':a.require_gpu_scanout,'pixels_verified':pixels_verified, 'console':a.console, 'desktop_checked':a.profile == 'wanderer' and passed,
          'seconds':round(time.monotonic()-started,2),'hardware_virtualization':a.accel=='hvf',
          'gic_version':int(a.gic_version),'timer_required':a.require_timer,'platform_required':a.require_platform,'pci_hidd_required':a.require_pci_hidd,'msi_frame_required':a.require_msi_frame,'msi_irq_required':a.require_msi_irq,'irq_chain_required':a.require_irq_chain,
          'bundle_sha256':hashlib.sha256((esp/'AROS/GEN0.BND').read_bytes()).hexdigest()}

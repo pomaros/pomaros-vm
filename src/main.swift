@@ -45,7 +45,7 @@ final class Application: NSObject, NSApplicationDelegate, VZVirtualMachineDelega
         fileHandleForWriting: .standardOutput)
       console.ports[0] = port
       config.consoleDevices = [console]
-      if !headless || CommandLine.arguments.contains("--gpu") {
+      if !headless || CommandLine.arguments.contains("--gpu") || CommandLine.arguments.contains("--gpu-window") {
         let graphics = VZVirtioGraphicsDeviceConfiguration()
         graphics.scanouts = [
           VZVirtioGraphicsScanoutConfiguration(widthInPixels: 1024, heightInPixels: 768)
@@ -60,7 +60,7 @@ final class Application: NSObject, NSApplicationDelegate, VZVirtualMachineDelega
       try config.validate()
       machine = VZVirtualMachine(configuration: config)
       machine.delegate = self
-      if !headless {
+      if !headless || CommandLine.arguments.contains("--gpu-window") {
         let view = VZVirtualMachineView()
         view.virtualMachine = machine
         view.capturesSystemKeys = true
@@ -75,6 +75,7 @@ final class Application: NSObject, NSApplicationDelegate, VZVirtualMachineDelega
         print("window-id=\(window.windowNumber)")
         fflush(stdout)
         NSApp.activate(ignoringOtherApps: true)
+
 
       }
       signal(SIGTERM, SIG_IGN)
@@ -106,13 +107,13 @@ final class Application: NSObject, NSApplicationDelegate, VZVirtualMachineDelega
 }
 let options = Array(CommandLine.arguments.dropFirst(3))
 if CommandLine.arguments.count < 3 || options.count != Set(options).count
-  || options.contains(where: { $0 != "--headless" && $0 != "--gpu" }) {
-  fputs("usage: macaros-vm DISK_IMAGE STATE_DIRECTORY [--headless] [--gpu]\n", stderr)
+  || options.contains(where: { $0 != "--headless" && $0 != "--gpu" && $0 != "--gpu-window" }) {
+  fputs("usage: macaros-vm DISK_IMAGE STATE_DIRECTORY [--headless] [--gpu] [--gpu-window]\n", stderr)
   exit(2)
 }
 if #available(macOS 13.0, *) {
   let app = NSApplication.shared
-  app.setActivationPolicy(CommandLine.arguments.contains("--headless") ? .prohibited : .regular)
+  app.setActivationPolicy(CommandLine.arguments.contains("--headless") && !CommandLine.arguments.contains("--gpu-window") ? .prohibited : .regular)
   let delegate = Application(
     disk: URL(fileURLWithPath: CommandLine.arguments[1]),
     state: URL(fileURLWithPath: CommandLine.arguments[2]))
