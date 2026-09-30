@@ -58,6 +58,24 @@ final class Application: NSObject, NSApplicationDelegate, VZVirtualMachineDelega
         config.keyboards = [VZUSBKeyboardConfiguration()]
         config.pointingDevices = [VZUSBScreenCoordinatePointingDeviceConfiguration()]
       }
+      if CommandLine.arguments.contains("--network") {
+        let network=VZVirtioNetworkDeviceConfiguration()
+        let macFile=state.appendingPathComponent("mac-address.txt")
+        if FileManager.default.fileExists(atPath:macFile.path) {
+          let saved=try String(contentsOf:macFile,encoding:.utf8).trimmingCharacters(in:.whitespacesAndNewlines)
+          guard let mac=VZMACAddress(string:saved), mac.isUnicastAddress, mac.isLocallyAdministeredAddress else {
+            throw NSError(domain:"MacarosVM",code:1,userInfo:[NSLocalizedDescriptionKey:"Invalid saved VM MAC address"])
+          }
+          network.macAddress=mac
+        } else {
+          network.macAddress=VZMACAddress.randomLocallyAdministered()
+          try (network.macAddress.string+"\n").write(to:macFile,atomically:true,encoding:.utf8)
+        }
+        network.attachment=VZNATNetworkDeviceAttachment()
+        config.networkDevices=[network]
+        print("network-config attachment=NAT mac=\(network.macAddress.string)")
+        fflush(stdout)
+      }
       config.entropyDevices = [VZVirtioEntropyDeviceConfiguration()]
       try config.validate()
       machine = VZVirtualMachine(configuration: config)
@@ -155,8 +173,8 @@ if options.contains("--input-probe") && options.contains("--headless") && (!opti
   fputs("--input-probe requires a VZ window and USB input\n",stderr);exit(2)
 }
 if CommandLine.arguments.count < 3 || options.count != Set(options).count
-  || options.contains(where: { $0 != "--headless" && $0 != "--gpu" && $0 != "--gpu-window" && $0 != "--usb-input" && $0 != "--input-probe" }) {
-  fputs("usage: macaros-vm DISK_IMAGE STATE_DIRECTORY [--headless] [--gpu] [--gpu-window] [--usb-input] [--input-probe]\n", stderr)
+  || options.contains(where: { $0 != "--headless" && $0 != "--gpu" && $0 != "--gpu-window" && $0 != "--usb-input" && $0 != "--input-probe" && $0 != "--network" }) {
+  fputs("usage: macaros-vm DISK_IMAGE STATE_DIRECTORY [--headless] [--gpu] [--gpu-window] [--usb-input] [--input-probe] [--network]\n", stderr)
   exit(2)
 }
 if #available(macOS 13.0, *) {

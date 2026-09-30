@@ -275,6 +275,37 @@ static int inspect_xhci(OOP_Object *device)
     transport_unmap(device,(void *)regs,(uint32_t)bytes);
     return length>=32 && length<bytes && version>=0x100 && (structural>>24)!=0;
 }
+/* Read configuration only; no network queues or packets are submitted. */
+static int inspect_network(OOP_Object *device)
+{
+    const struct VirtioPCIAccess io={device,transport_read,transport_bar,transport_map,transport_unmap};
+    struct VirtioPCIMapping mapping={0};
+    if(!VirtioPCIMap(&io,&mapping,15))return 0;
+    UWORD command=config_read(device,4,2);
+    config_write_word(device,4,command|2);
+    volatile UBYTE *common=mapping.regions[0],*cfg=mapping.regions[3];
+    ULONG selector=*(volatile ULONG *)(common+0);
+    *(volatile ULONG *)(common+0)=0;complete_write();
+    ULONG features=*(volatile ULONG *)(common+4);
+    *(volatile ULONG *)(common+0)=selector;complete_write();
+    int okay=0;
+    if((features&(1u<<5)) && mapping.bytes[3]>=6) {
+        for(unsigned attempt=0;attempt<8;++attempt) {
+            UBYTE generation=common[21],mac[6];complete_write();
+            for(unsigned i=0;i<6;++i)mac[i]=cfg[i];
+            complete_write();
+            if(common[21]!=generation)continue;
+            uint64_t address=0;
+            for(unsigned i=0;i<6;++i)address=(address<<8)|mac[i];
+            okay=(mac[0]&3)==2 && address!=0;
+            if(okay)hex("[VM] virtio network MAC",address);
+            break;
+        }
+    }
+    config_write_word(device,4,command);
+    VirtioPCIUnmap(&io,&mapping);
+    return okay;
+}
 AROS_UFH3(static IPTR, count_device,
     AROS_UFHA(struct Hook *,hook,A0),
     AROS_UFHA(OOP_Object *,device,A2),
@@ -305,6 +336,10 @@ AROS_UFH3(static IPTR, count_device,
             }
             if(product==0x1050) {
                 if(test_gpu_query(device,OOPBase)) mark("[VM] virtio GPU display query PASS\n");
+                else ++dma_failed;
+            }
+            if(product==0x1041) {
+                if(inspect_network(device))mark("[VM] virtio network configuration PASS\n");
                 else ++dma_failed;
             }
             if(product==0x1044) {

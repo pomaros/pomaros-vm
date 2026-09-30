@@ -2184,3 +2184,41 @@ has been attempted. Full stage-six goal remains open; SMP untouched.
   repro-a-20261001 / repro-b-20261001 sous ~/Build/macaros-vm. Ne pas confondre
   leur lancement avec une comparaison achevée ; résultats à consigner après
   les builds et la comparaison binaire effective.
+
+## Configuration réseau VZ et échec de reconstruction indépendante
+
+- Ajout opt-in --network au lanceur : virtio-net avec attachement NAT,
+  adresse MAC locale unicast aléatoire conservée dans le répertoire d'état.
+  Pas de pont réseau ni de changement d'entitlements. API Apple documentée :
+  https://developer.apple.com/documentation/virtualization/vznatnetworkdeviceattachment
+- Probe PCI existant étendu : découvre1041, vérifie le bit MAC offert et
+  la génération de configuration, lit les6octets via MapPCI, restaure sélecteur
+  et commande PCI. Le runner compare exactement avec l'adresse annoncée par
+  le lanceur. Ce n'est pas un driver SANA-II ni une preuve de paquets.
+- `vz-network-config` PASS1,63 s. Bundle
+  39fb2565cb45317899941ba6f6765f263302f7221c14a41742f1c96c0ce9cc7e,
+  disque fde92b2bdb8ce8928b3bd6d80b7970ce6fb52e5bad4f8be36ec1cfd1dd8bb33f,
+  lanceur87e436bd4b27df54c2a720597c7f78d5ea23b739ea37c75c05e2c73c3f1c72b6.
+  Sans réseau, `vz-network-disabled-regression` PASS1,60 s.
+  `vz-network-identity/verdict.json` : deux boots1,37/1,38 s reprennent
+  02:aa:bb:cc:dd:ee côté invité ; valeurs malformée/multicast refusées avant boot.
+- ReproA figé1e814b029e échoue229,75 s : SIGBUS du genmodule hôte pendant
+  graphics.library. Rapport macOS genmodule-2026-10-01-000749.ips, pile
+  writeincdefines.c147 → strcmp, lecture3octets avant une allocation5octets
+  contenant Text. La recherche TagList faisait strlen(name)-7 sans borne.
+- Test réel ASan/UBSan `genmodule-short-before` reproduit l'overflow sur
+  graphics.conf et un fixture de noms1..6caractères. Les deux émetteurs
+  defines/inline avaient le même défaut. Après borne de longueur, UBSan révèle
+  aussi le VLA argtypes[0] pour les APIs sans argument ; taille minimale1.
+  Core03275b8c5e corrige les deux émetteurs. `genmodule-short-fixed` PASS
+  sur graphics et fixture, sans erreur de sanitizer ; les avertissements
+  préexistants de compilation du générateur sont conservés dans compile.log.
+- Le buildB initial utilise encore le clone1e814b029e, laissé intact pendant
+  son exécution. Aucune conclusion de reproductibilité à partir de cette paire.
+  Une nouvelle source figée aros-core-vm-repro-fixed-20261001 à03275b8c5e
+  et deux sorties neuves repro-fixed-a/b-20261001 préparent la reprise.
+  Ne pas réutiliser les objets de la tentative échouée pour la preuve finale.
+- Suite réseau : réutiliser transport/DMA/IRQ virtio, ajouter le chemin
+  RX/TX et l'interface SANA-II pour la pile existante. La négociation actuelle
+  virtio_hw_negotiate_features contient des masques spécifiques au bloc :
+  les séparer avant de la réutiliser pour le réseau. Pas de SMP/M1.

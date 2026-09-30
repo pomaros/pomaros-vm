@@ -27,3 +27,6 @@ Keep run paths, exact hashes, decisions and limitations in
 [`when john is back.md`](../when%20john%20is%20back.md). Review requests and
 coordination live on the project board. Native Apple and Raspberry Pi proofs
 remain distinct from VM and host-parser results.
+
+VZ network configuration admission passes (guest MAC equals persisted host MAC).
+No network packet exchange or guest IP connectivity is qualified by that gate.

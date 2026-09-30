@@ -14,6 +14,7 @@ import time
 root=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser()
 p.add_argument('--require-desktop-session',type=int,metavar='SECONDS')
+p.add_argument('--require-network-config',action='store_true')
 p.add_argument('--no-input-events',action='store_true',help='negative control: withhold host input events')
 p.add_argument('--require-input',action='store_true')
 p.add_argument('--require-usb-desktop',action='store_true')
@@ -33,6 +34,7 @@ p.add_argument('--disk',type=Path,required=True)
 p.add_argument('--output',type=Path,required=True)
 p.add_argument('--timeout',type=float,default=45)
 a=p.parse_args()
+if a.require_network_config and not a.require_pci_hidd: p.error('--require-network-config requires --require-pci-hidd')
 if a.no_input_events and not a.require_input: p.error('--no-input-events requires --require-input')
 if a.require_input and not (a.require_usb_desktop and a.require_desktop_session):
     p.error('--require-input requires --require-usb-desktop and --require-desktop-session')
@@ -74,6 +76,7 @@ if a.desktop_startup:
     markers += ['[VMPci] resident bridge registered', '[VM] virtio graphics driver registered']
 if a.require_desktop_session is not None:
     markers += ['[KI] shell launched','[KI] hold bounded','[KI] hold complete']
+if a.require_network_config: markers += ['[VM] virtio network configuration PASS']
 if a.require_input: markers += ['[VM] input observer ready','[VM] window keyboard and pointer PASS']
 if a.require_usb_desktop: markers += ['[VM] desktop two HID bindings PASS']
 if a.require_pci_hidd:
@@ -103,7 +106,7 @@ pixels_verified=False
 capture_count=0
 passed=False;reason='timeout';start=time.monotonic()
 with log.open('w') as out:
-    proc=subprocess.Popen([str(root/'build/macaros-vm'),str(disk),str(a.output/'state'),'--headless']+(['--gpu-window'] if a.require_gpu_scanout or a.require_input else ['--gpu'] if a.require_gpu or a.desktop_startup else [])+(['--usb-input'] if a.usb_input else [])+(['--input-probe'] if a.require_input else []),stdout=out,stderr=subprocess.STDOUT)
+    proc=subprocess.Popen([str(root/'build/macaros-vm'),str(disk),str(a.output/'state'),'--headless']+(['--gpu-window'] if a.require_gpu_scanout or a.require_input else ['--gpu'] if a.require_gpu or a.desktop_startup else [])+(['--usb-input'] if a.usb_input else [])+(['--input-probe'] if a.require_input else [])+(['--network'] if a.require_network_config else []),stdout=out,stderr=subprocess.STDOUT)
     try:
         while time.monotonic()-start<a.timeout:
             text=log.read_text(errors='replace')
@@ -130,7 +133,12 @@ with log.open('w') as out:
                         pixels_verified=all(abs(a-b)<16 for pixel,color in zip(actual,expected) for a,b in zip(pixel,color))
                         (a.output/'pixels.json').write_text(json.dumps({'actual':actual,'expected':expected,'passed':pixels_verified})+'\n')
             session_ok=(a.require_desktop_session is None or (time.monotonic()-start>=a.require_desktop_session and text.count('[KI] tick')>=max(1,a.require_desktop_session//2)))
-            if session_ok and (not a.require_gpu_scanout or pixels_verified) and all(text.count(marker)==1 for marker in markers): passed=True;reason='headless-startup-contract';break
+            network_ok=not a.require_network_config
+            if a.require_network_config:
+                host_mac=re.findall(r'network-config attachment=NAT mac=([0-9a-f:]{17})',text)
+                guest_mac=re.findall(r'\[VM\] virtio network MAC=0x([0-9a-f]{16})',text)
+                network_ok=len(host_mac)==len(guest_mac)==1 and int(host_mac[0].replace(':',''),16)==int(guest_mac[0],16)
+            if network_ok and session_ok and (not a.require_gpu_scanout or pixels_verified) and all(text.count(marker)==1 for marker in markers): passed=True;reason='headless-startup-contract';break
             if proc.poll() is not None: reason='early-exit';break
             time.sleep(.1)
     except Exception as error:
@@ -145,7 +153,7 @@ if a.require_gpu_scanout and not pixels_verified and reason=='timeout' and all(t
 boot=subprocess.run(['mtype','-i',str(disk),'::BOOT.LOG'],capture_output=True)
 (a.output/'firmware.log').write_bytes(boot.stdout)
 verdict={'result':'PASS' if passed else 'FAIL','reason':reason,
-         'input_events_withheld':a.no_input_events,'desktop_session_seconds':a.require_desktop_session,'desktop_session_verified':passed and a.require_desktop_session is not None,
+         'network_config_verified':passed and a.require_network_config,'network_packets_verified':False,'input_events_withheld':a.no_input_events,'desktop_session_seconds':a.require_desktop_session,'desktop_session_verified':passed and a.require_desktop_session is not None,
          'backend':'Virtualization.framework','graphics':a.require_gpu or a.desktop_startup,'usb_input_exposed':a.usb_input,'xhci_mapping_required':a.usb_input and a.require_pci_hidd,'input_verified':passed and a.require_input,'usb_hid_bindings_verified':passed and a.require_usb_desktop,'xhci_driver_required':a.require_xhci_driver,'xhci_enumeration_required':a.require_xhci_enumeration,'usb_child_descriptors_verified':passed and a.require_xhci_enumeration,'usb_transfers_verified':False,'desktop_startup':a.desktop_startup,'desktop_pixels_verified':False,'gpu_query_required':a.require_gpu,'gpu_scanout_required':a.require_gpu_scanout,'pixels_verified':pixels_verified,'storage_phase':a.storage_phase,'filesystem_phase':a.filesystem_phase,
          'pci_hidd_required':a.require_pci_hidd,'msi_frame_required':a.require_msi_frame,'msi_irq_required':a.require_msi_irq,'virtio_device_required':a.require_virtio_device,
          'seconds':round(time.monotonic()-start,2),

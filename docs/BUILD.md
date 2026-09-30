@@ -517,3 +517,28 @@ The full session/startup gates must then pass. This qualifies
 a synthetic host-event path through USB/HID/Intuition, not physical input.
 `--no-input-events` is the negative control: the guest must fail without host
 stimulus. Pixel capture and prolonged use are separate gates.
+
+### VZ network configuration
+
+The launcher accepts `--network` to expose a virtio network device with Apple's
+[NAT attachment](https://developer.apple.com/documentation/virtualization/vznatnetworkdeviceattachment).
+Its random locally administered unicast MAC is persisted in
+`STATE_DIRECTORY/mac-address.txt` and validated when reused. An invalid saved
+address stops configuration before VM startup.
+
+Package a headless PCI profile with `--pci-hidd`, then use
+`tools/run-vz.py --require-pci-hidd --require-network-config ...`. This exposes
+the device and compares the guest's generation-checked MAC read through PCI
+mapping with the host configuration. The probe restores PCI command and
+feature-selector registers and releases mappings. It does not submit network
+queues or packets; `network_packets_verified` is false. A guest network driver
+and stack remain required for network use.
+
+### Host header-generator regression
+
+`python3 tests/genmodule-short-names.py --output artifacts/UNIQUE_DIRECTORY`
+builds the real core genmodule with ASan/UBSan and generates both graphics
+headers and a short-name/vararg fixture. `--source` selects an isolated source
+revision; `--expect-failure` verifies that an old revision triggers a sanitizer
+failure. Logs and a JSON verdict are retained. Leak checking is disabled for
+this process-lifetime generator; bounds and undefined behavior checks are fatal.
