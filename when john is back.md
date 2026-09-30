@@ -185,3 +185,22 @@ La revue 197 du lecteur/GIC est approuvée par claude-next. Ses précisions non
 bloquantes sur fournisseurs implicites, IRQ spéciales et groupes GIC sont dans
 le core `5d010c5112`. Le grand jalon suivant reste le raccordement IRQ/timer
 au noyau VM, puis le bureau interactif ; les probes ne le remplacent pas.
+
+## Objectif actif : atteindre l’étape 6
+
+John demande de poursuivre jusqu’à la qualification et à l’intégration d’usage :
+IRQ/timer dans le noyau, description matérielle portable, bureau VZ et entrées,
+stockage persistant, build complet reproductible, puis tests prolongés, réseau,
+presse-papiers et échanges de fichiers. Chaque étape exige ses artefacts et
+ses verdicts ; les preuves sur modèle restent séparées du matériel physique.
+
+Le SMP est réservé à bsek, qui doit publier du code prochainement. Ne pas
+développer de SMP en parallèle ; ne rouvrir ce sujet que s’il bloque concrètement
+la progression et commencer par examiner/réutiliser son travail. La VM reste
+mono-CPU pour les prochaines qualifications.
+
+La revue x18 198 est approuvée. Sa demande de fusion du correctif de masques
+d’interruptions `fbbe4c1596` est traitée : merge core `97125633aa`. Les preuves
+x18 et le démarrage restent PASS sous VZ et HVF après reconstruction, dans
+`artifacts/readiness-merged-vz` et `artifacts/readiness-merged-hvf`. Cela prépare
+le raccordement IRQ sans prétendre que le timer VM est déjà intégré au noyau.
