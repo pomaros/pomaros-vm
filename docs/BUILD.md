@@ -283,3 +283,20 @@ fatal ASan/UBSan. It checks whole-transfer bounds, logical-block alignment,
 64-bit offsets, submission rejection with one list removal, and immediate
 request destruction by a completion recipient. An accepted asynchronous request
 must not be touched after publication, including its IOF_QUICK flag.
+
+For isolated block persistence, first create the ordinary 64 MiB image from a
+`--pci-hidd --virtio-device` package, then run:
+
+```sh
+python3 tools/run-storage-vz.py --disk DISK.img --output artifacts/storage-NEW
+```
+
+The harness verifies the FAT volume ends at 64 MiB, copies it and appends a
+4 MiB test area. Exact geometry and a full signature block opt the guest into
+writing one 4 KiB pattern beyond the filesystem. The driver must have negotiated
+FLUSH; CMD_UPDATE must complete successfully. The first VM writes, flushes and
+reads back; after its process stops, the host checks the pattern and all guard
+bytes. A second fresh VM reads the resulting image and must report the restart
+proof, followed by another host byte check. Each VM has its own state directory.
+The input image is preserved. This proves block persistence across VM restart,
+not filesystem recovery or survival of host power loss.

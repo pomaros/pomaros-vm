@@ -1151,3 +1151,40 @@ Require actual flush negotiation/completion before claiming flush durability;
 the existing no-FLUSH success fallback is not such evidence. Filesystem mount,
 controlled crash recovery, VZ desktop/input and stage-six integration remain
 open. No physical disk was touched. SMP remains reserved to bsek.
+
+## Isolated block write, flush and fresh-VM persistence
+
+`tools/run-storage-vz.py` accepts only a regular 64 MiB test image whose FAT
+BPB describes that exact extent. It preserves the source and extends a copy
+to 68 MiB. A signed, zero-padded 4 KiB header identifies the appended test area;
+the next 4 KiB holds the deterministic payload and every other appended byte
+is a guard. The guest requires exact geometry/header before writing. It checks
+the installed driver's negotiated FLUSH bit (diagnostic private-structure
+inspection), sends CMD_WRITE and CMD_UPDATE through public IO, and verifies
+readback. A timeout retains all in-flight resources until bounded VM shutdown.
+
+The runner stops the first VM, verifies the complete tail from macOS, then
+launches a new VM process with a fresh state directory and a copy of the
+resulting disk. Matching content takes a read-only restart path in the guest;
+it must emit the restart marker, not merely repeat the write proof. The host
+checks the entire tail again. --storage-phase gates require the full installed
+device/PCI/MSI proofs, FLUSH negotiation, and the expected phase's markers.
+The ordinary 64 MiB image remains a read-only guest qualification.
+
+`artifacts/vz-storage-restart` PASS for both VMs and host byte checks.
+Input `5c7f9275ce379e35c5d0a28402740dd4ce6586141df6d49eb21acd2bc121949b`;
+bundle `ac70a375a0611f4d28cca1c683cd4353b5e7cc8d535740b81bbf631823844ffe`;
+PCIPROBE `5029e2ebbb4a718b4548022e4f3743574678a855a7a3841a5d68fcfb0673b6c9`.
+Both tails SHA256 `25532b511bd49b7dea78e73175a1ecc1977b6f2894cf1fed0d7f9276d2baef6c`.
+A one-byte corrupted payload is rejected as guest-failure in
+`artifacts/vz-storage-corrupt`; it is not silently overwritten. The unextended
+image passes `artifacts/vz-storage-read-regression`. Actual IO/queue/lifecycle
+fatal-sanitizer regressions and Python syntax checks PASS. Core remains
+`7769f704f7`; no core change was needed for this write test.
+
+This proves a 4 KiB block transfer and persistence across VM process restart.
+It does not prove host-power-loss durability, a mounted filesystem, sustained
+IO or crash recovery. Next mount a filesystem on an explicitly isolated region
+or second disk, exercise real files across restart, then controlled interruption.
+VZ desktop/input, clean-build comparison and networking/clipboard/file exchange
+remain outstanding; stage six is not complete. SMP remains reserved to bsek.
