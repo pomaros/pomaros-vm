@@ -1397,3 +1397,41 @@ acceptance open. Review229 approved the prior display-query step. Board196
 reports launcher fix ab97ed7453 now qualified on EL1/EL2 with missing-program
 and missing-script negatives: inspect that change before the VM Wanderer return.
 SMP untouched; stage six remains active and incomplete.
+
+
+## Persistent GPU transport and partial updates
+
+Core be6caf1b2e extracts the GPU protocol into rom/hidds/virtiogfx/transport.c
+and transport.h. Core 7a1cc5ee61 separates the 64-bit fence identity from the
+16-bit virtqueue index (review230 note). The heap-owned context retains PCI/DMA,
+queue, command memory and a 1024x768 B8G8R8X8 surface until Close. Open/GetSurface/
+Present/Close define the lifetime explicitly; Present validates rectangle bounds
+and serializes command submission. Failed commands stop buffer reuse; failed
+reset quarantines all DMA. Close distinguishes clean teardown, reset recovery
+and retained quarantine. Existing virtio hardware/queue code is reused directly.
+This is the backend for a graphics HIDD, not yet a registered HIDD module.
+Completion remains polled; GPU-specific failure injection and IRQ completion are
+follow-ups. Caller must retain OOP/PCI providers and serialize surface writes
+and destruction according to transport.h.
+
+PCIPROBE now calls this backend, rejects empty/out-of-bounds rectangles, then
+presents four separate quadrants instead of one full frame. The nonzero x/y
+transfers exercise the backing offset and full-surface stride.
+`artifacts/hvf-gpu-transport` PASS before the independent-fence change, exact
+captured pixels plus timer/IRQ/platform/PCI gates. Final VZ protocol gate
+`artifacts/vz-gpu-transport` PASS, including installed block IRQ/read;
+VZ pixels remain unverified. Final PCIPROBE SHA256
+`db2608743c58e1268e79d7ed00796888c73822c1051fad584ba3a053430e7cdf`;
+VZ bundle `1a55a5ba03edac7d287d3ee11e49c3b9f05495f1e52d84263bf239b0076e8f7d`;
+VZ input `3556f308c34cbb444f509419c75b595683501e7e71d92ba35e258351f313cd8d`.
+Shared queue/controller/bus sanitizer regressions pass. Review230 approved the
+previous finite scanout milestone. Inspected native launcher fix ab97ed7453:
+it tracks Boot Mount liveness instead of requiring observation of CLI1; it is
+not cherry-picked yet. Next: reuse the existing chunky bitmap/display frontend
+for a real graphics HIDD, then validate Wanderer and input. SMP untouched.
+
+Final independent-fence build: `artifacts/hvf-gpu-transport-fence` PASS,
+including exact captured quadrant pixels and all required startup gates;
+bundle `3a7ec023a13cd9c33240be40b7431c378cae0a31842bb0e342cd459941101b8a`.
+All test processes terminated. Goal remains active; this completes a transport
+extraction, not stage3 or stage6 acceptance.

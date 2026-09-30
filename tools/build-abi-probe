@@ -117,6 +117,7 @@ fi
     -O2 -Wall -Wextra -Werror \
     -I"${AROS_CORE_SOURCE:-$project_root/../aros-core-vm}/rom/hidds/pci" \
     -I"${AROS_CORE_SOURCE:-$project_root/../aros-core-vm}/rom/devs/virtio" \
+    -I"${AROS_CORE_SOURCE:-$project_root/../aros-core-vm}/rom/hidds/virtiogfx" \
     -isystem "$include_dir" -isystem "$generated_include_dir" \
     -isystem "$posix_include_dir" -isystem "$stdc_include_dir" \
     -nostartfiles -nodefaultlibs \
