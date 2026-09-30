@@ -745,3 +745,50 @@ Build AROS complet `make -j8 kernel-virtio` PASS dans clean-core ; binaire
 virtio.device SHA256 `526d85f61b7d0ef67ba4304b2b4aeff7b3896bbf34e20528c719cce25eaefcc4`.
 Le binaire complet est compilé, mais le test invité exécute le helper partagé
 via PCIPROBE et non le cycle complet de virtio.device.
+
+
+## Démarrage virtio transactionnel — 30 septembre
+
+Core `064fbbe712` corrige le raccordement au framework stockage : AddBus de
+Hidd_StorageController remplace l'appel HW_AddDriver sur le contrôleur, qui
+n'implémente pas cette interface. RootNew retourne NULL sur chaque échec et
+ne publie le contrôleur ni son callback reset qu'après création du bus.
+L'ancien nom du callback lisait le pointeur OOP comme un struct Node : remplacé
+par un nom statique. Le nom du bus est statique aussi (plus d'allocation perdue).
+
+Le démarrage du bus prépare l'unité et son ID avant l'IRQ, DRIVER_OK et la tâche
+IO. Un échec avant création de la tâche ne laisse donc aucune tâche orpheline ;
+un échec DRIVER_OK ou création de tâche retire l'IRQ. Dispose du bus non publié
+libère unités, tableau, ID et chaînes. Les requêtes ne sont pas encore visibles
+à ce stade. La tâche ne commence plus par effacer un signal éventuellement reçu.
+L'IRQ tolère le court intervalle sans q_IOTask ; aucune requête n'est publiée.
+
+Dispose du contrôleur non publié attend le reset avant FreePCIMem et UnmapPCI,
+puis restaure le registre command PCI. Si le reset ne répond pas, les mappings,
+les buffers et la propriété PCI restent réservés jusqu'à extinction : pas de
+réattribution d'une mémoire potentiellement encore ciblée par le matériel.
+Ce chemin est signalé par dev_Quarantined ; le probe PCI libère normalement son
+descripteur et la propriété lorsqu'une création échoue proprement.
+
+Limite assumée : le framework stockage ne sait pas retirer un bus publié et
+virtio.device est noexpunge. Dispose conserve donc un bus publié avec ses
+utilisateurs au lieu de libérer sa queue sous eux. Cela sécurise les échecs de
+démarrage ; ce n'est pas une implémentation du retrait à chaud ni un arrêt
+complet d'un service actif. La récupération d'une quarantaine reste à faire.
+MakeDosNode/AddBootNode restent une publication de boot optionnelle : leur échec
+ne retire pas une unité runtime créée avec succès ; le boot disque sera qualifié
+séparément.
+
+Autres corrections sur ce chemin : sélection moderne du bloc par PCI 0x1042,
+au lieu d'exiger le subsystem ID legacy ; tableau DOS initialisé à zéro ; copie
+des noms d'unité bornée par la fin de chaîne (l'ancien code lisait 40 octets même
+pour un nom court). Le bus impose une seule unité, conformément au pilote.
+
+`make test-virtio-lifecycle` compile les vrais fichiers controllerclass.c et
+busclass.c avec des services hôte simulés, sous ASan/UBSan. PASS : mapping,
+reset, features, allocation/installation queue, création bus, expansion,
+unité, ID, IRQ, DRIVER_OK et worker en échec ; aucun callback/contrôleur publié
+sur échec, ressources libérées seulement après reset, quarantaine conservée
+sur refus, succès conservé sur Dispose. Ce test ne prouve ni l'ordonnancement
+réel des tâches/IRQ ni les transferts DMA. Aucun nouveau résultat invité ou
+matériel physique n'est revendiqué pour ce commit. SMP inchangé.

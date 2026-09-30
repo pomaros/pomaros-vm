@@ -83,3 +83,14 @@ test-virtio-status: build/virtio-status-test
 build/virtio-status-test: tests/virtio-status.c $(VIRTIO_SOURCE)/status.h | build
 	clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined \
 	 -I$(VIRTIO_SOURCE) $< -o $@
+
+.PHONY: test-virtio-lifecycle
+test-virtio-lifecycle: build/virtio-controller-test build/virtio-bus-test
+	build/virtio-controller-test
+	build/virtio-bus-test
+build/virtio-controller-test: tests/virtio-controller.c $(VIRTIO_SOURCE)/virtio_controllerclass.c $(VIRTIO_SOURCE)/virtio_intern.h | build
+	clang -std=gnu11 -Wall -Wextra -Werror -Wno-unused-parameter -Wno-ignored-attributes -Wno-cast-function-type-mismatch -fsanitize=address,undefined \
+	 -I$(VIRTIO_SOURCE) -idirafter $(AROS_VM_SDK)/AROS/Developer/include $< -o $@
+build/virtio-bus-test: tests/virtio-bus.c $(VIRTIO_SOURCE)/virtio_busclass.c $(VIRTIO_SOURCE)/virtio_intern.h | build
+	clang -std=gnu11 -Wall -Wextra -Werror -Wno-unused-parameter -Wno-unused-function -Wno-ignored-attributes -Wno-cast-function-type-mismatch -fsanitize=address,undefined \
+	 -I$(VIRTIO_SOURCE) -idirafter $(AROS_VM_SDK)/AROS/Developer/include $< -o $@

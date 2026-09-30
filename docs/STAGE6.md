@@ -16,8 +16,8 @@ unless a concrete blocker is documented.
 | 6. Prolonged use and integration | Sustained desktop/storage/network exercise; clipboard text and images in both directions; usable file exchange | Network and integration services remain. Intermittent early virtio-console diagnostic loss remains unresolved and must retain independent supervision. |
 
 Next implementation boundary: persistent platform binding for the now-qualified
-generic ECAM PCI HIDD, plus controller/bus rollback and quiescence before
-queue/mapping release. The transport uses MapPCI and bounded acknowledged
+generic ECAM PCI HIDD, plus DMA and peripheral IRQ admission. Controller/bus startup failure
+unwind is host-tested; published-bus hot removal remains unsupported. The transport uses MapPCI and bounded acknowledged
 reset; full virtio.device operation is not yet qualified. Preserve access widths (especially command/status writes),
 validate BARs against declared apertures, and do not enable DMA or assume INTx
 without its platform contract. Reuse existing virtio transport where suitable;
