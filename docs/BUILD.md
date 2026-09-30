@@ -203,7 +203,8 @@ permissions after removal. After the temporary test, it loads `vmpci.hidd`, whic
 bridge and its callback. The kernel unloads the installer command and runs a
 fresh command to verify enumeration and configuration writes through the
 retained bridge. The permanent module keeps its admitted mappings for the VM
-lifetime and reserves the boot console. DMA and peripheral IRQs are refused.
+lifetime and reserves the boot console. DMA translation is limited to buffers
+allocated through its explicit platform policy; peripheral IRQs are refused.
 Build it with `make -C "$HOME/Build/macaros-vm/clean-core" -j8 kernel-hidd-vmpci`;
 this target is limited to the VM profile. Both resident markers are required
 by `--require-pci-hidd`. The default package without that option does not load
@@ -219,3 +220,15 @@ virtio transport, including translated CPU addresses, every partial mapping
 failure and notification-window overflow. It is also part of `make test`.
 The guest PCI probe uses this same engine for real register reads. This does
 not qualify virtio.device queue activation, DMA or controller teardown.
+
+`make test-vmpci-dma` tests the VM allocation/translation implementation under
+host sanitizers with a non-identity physical-address model, out-of-range and
+freed addresses, and noncontiguous pages. `make test-pci-ecam-class` also tests
+callback forwarding and rejection of an incomplete DMA policy. These use the
+fresh SDK and are separate from `make test`.
+
+The PCI guest qualification submits one virtio entropy descriptor, polls for
+completion with an architectural-counter deadline, then waits for reset
+acknowledgement before freeing the DMA buffer. QEMU's PCI profile adds an
+entropy device to match VZ. The mandatory DMA completion marker proves this
+bounded queue transfer; it does not prove peripheral IRQs or block I/O.

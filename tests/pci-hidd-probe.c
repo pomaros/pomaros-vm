@@ -14,6 +14,7 @@
 #include "pci_mapping.h"
 #include "status.h"
 #include <string.h>
+#include <hardware/virtio.h>
 #undef OOPBase
 #undef UtilityBase
 struct Library *OOPBase;
@@ -25,7 +26,7 @@ APTR KernelBase;
 static OOP_AttrBase device_attr;
 static unsigned enumerated,console_seen,expected,mapped_common,mapping_failed;
 static int check_mappings,check_resident;
-static unsigned resident_checked;
+static unsigned resident_checked,dma_checked,dma_failed;
 static OOP_Object *driver;
 static struct PCIECAMConfig host;
 static OOP_MethodID read_base;
@@ -139,6 +140,66 @@ static int map_common(OOP_Object *device)
     VirtioPCIUnmap(&io,&mapping);
     return queues>0 && queues<0x8000 && began && stopped;
 }
+static void *dma_method(OOP_Object *owner,unsigned method,void *address)
+{
+    struct pHidd_PCIDriver_CPUtoPCI msg={read_base+method,address};
+    return (void *)OOP_DoMethod(owner,(OOP_Msg)&msg);
+}
+static uint64_t counter(void) { uint64_t n;__asm__ volatile("mrs %0,cntvct_el0":"=r"(n));return n; }
+static int entropy_dma(OOP_Object *device)
+{
+    IPTR owner_value=0;OOP_GetAttr(device,device_attr+aoHidd_PCIDevice_Driver,&owner_value);
+    OOP_Object *owner=(void *)owner_value;
+    const struct VirtioPCIAccess io={device,transport_read,transport_bar,transport_map,transport_unmap};
+    struct VirtioPCIMapping mapping={0};
+    if(!owner || !VirtioPCIMap(&io,&mapping,7)) return 0;
+    volatile struct virtio_pci_common_cfg *cfg=mapping.regions[0];
+    struct pHidd_PCIDriver_AllocPCIMem alloc={read_base+moHidd_PCIDriver_AllocPCIMem,4096};
+    uint8_t *cpu=(void *)OOP_DoMethod(owner,(OOP_Msg)&alloc);
+    if(!cpu) { VirtioPCIUnmap(&io,&mapping);return 0; }
+    uint64_t bus=(uintptr_t)dma_method(owner,moHidd_PCIDriver_CPUtoPCI,cpu);
+    int okay=bus && bus!=UINTPTR_MAX &&
+        dma_method(owner,moHidd_PCIDriver_PCItoCPU,(void *)(uintptr_t)(bus+4095))==cpu+4095 &&
+        dma_method(owner,moHidd_PCIDriver_CPUtoPCI,cpu+4096)==(void *)-1;
+    uint16_t command=config_read(device,4,2);config_write_word(device,4,command|6);
+    const struct VirtioStatusAccess status={(uint8_t *)cfg+20,status_read,status_write};
+    if(!okay || !VirtioStatusBegin(&status,1000000)) { okay=0;goto stop; }
+    cfg->device_feature_select=1;complete_write();
+    if(!(cfg->device_feature&1)) { okay=0;goto stop; }
+    cfg->guest_feature_select=0;cfg->guest_feature=0;complete_write();
+    cfg->guest_feature_select=1;cfg->guest_feature=1;complete_write();
+    status_write(status.context,11); /* ACK|DRIVER|FEATURES_OK */
+    if(status_read(status.context)!=11) { okay=0;goto stop; }
+    cfg->queue_select=0;complete_write();
+    if(cfg->queue_size<8) { okay=0;goto stop; }
+    cfg->queue_size=8;cfg->queue_msix_vector=0xffff;
+    cfg->queue_desc=bus;cfg->queue_driver=bus+256;cfg->queue_device=bus+512;
+    volatile uint16_t *notify=VirtioPCINotify(&mapping,cfg->queue_notify_off);
+    if(!notify) { okay=0;goto stop; }
+    volatile struct virtq_desc *desc=(void *)cpu;
+    volatile struct virtq_avail *avail=(void *)(cpu+256);
+    volatile struct virtq_used *used=(void *)(cpu+512);
+    memset(cpu,0,4096);memset(cpu+1024,0xa5,64);
+    desc[0].addr=bus+1024;desc[0].len=64;desc[0].flags=VIRTQ_DESC_F_WRITE;
+    avail->flags=1; /* Polling probe: request no interrupt. */
+    cfg->queue_enable=1;complete_write();status_write(status.context,15);
+    if(status_read(status.context)!=15) { okay=0;goto stop; }
+    avail->ring[0]=0;complete_write();avail->idx=1;complete_write();*notify=0;complete_write();
+    uint64_t frequency;__asm__ volatile("mrs %0,cntfrq_el0":"=r"(frequency));
+    uint64_t start=counter();
+    while(used->idx==0 && counter()-start<frequency) __asm__ volatile("yield");
+    complete_write();
+    okay=used->idx==1 && used->ring[0].id==0 && used->ring[0].len>0 && used->ring[0].len<=64;
+stop:
+    /* Never free a buffer a non-acknowledged device could still modify. */
+    if(!VirtioStatusReset(&status,1000000)) return 0;
+    config_write_word(device,4,command);
+    struct pHidd_PCIDriver_FreePCIMem release={read_base+moHidd_PCIDriver_FreePCIMem,cpu};
+    OOP_DoMethod(owner,(OOP_Msg)&release);
+    okay=okay && dma_method(owner,moHidd_PCIDriver_CPUtoPCI,cpu)==(void *)-1;
+    VirtioPCIUnmap(&io,&mapping);
+    return okay;
+}
 AROS_UFH3(static IPTR, count_device,
     AROS_UFHA(struct Hook *,hook,A0),
     AROS_UFHA(OOP_Object *,device,A2),
@@ -155,6 +216,9 @@ AROS_UFH3(static IPTR, count_device,
             uint16_t command=config_read(device,4,2);
             config_write_word(device,4,command);
             if(config_read(device,4,2)==command) ++resident_checked;
+            if(product==0x1044) {
+                if(entropy_dma(device)) ++dma_checked;else ++dma_failed;
+            }
         }
         if(check_mappings) hex("[VM] virtio product",product);
         if(product==0x1043) ++console_seen;
@@ -211,7 +275,7 @@ static int resident_bridge(void)
     check_resident=1;
     OOP_DoMethod(pci,(OOP_Msg)&enumerate);
     OOP_DisposeObject(pci);OOP_ReleaseAttrBase((CONST_STRPTR)IID_Hidd_PCIDevice);
-    return expected && enumerated==expected && resident_checked==expected && !console_seen;
+    return expected && enumerated==expected && resident_checked==expected && !console_seen && dma_checked==1 && !dma_failed;
 }
 int main(int argc,char **argv)
 {
@@ -252,9 +316,11 @@ int main(int argc,char **argv)
     host.complete_config_write=complete_write;
     Supervisor((APTR)reserve_console);
     if(argc==2 && !strcmp(argv[1],"resident")) {
+        read_base=OOP_GetMethodID((CONST_STRPTR)IID_Hidd_PCIDriver,0);
         /* Do not load vmpci here: its bridge must survive the prior command. */
         if(!resident_bridge()) return 91;
         mark("[VM] PCI resident bridge after command unload PASS\n");
+        mark("[VM] virtio entropy DMA completion PASS\n");
         return 0;
     }
     OOP_AttrBase attr=OOP_ObtainAttrBase((CONST_STRPTR)IID_Hidd_PCIECAM);

@@ -8,7 +8,11 @@
 #define PROTO_OOP_H
 #include <oop/oop.h>
 static IPTR super_result;
-static unsigned completions;
+static unsigned completions,dma_released;
+static void *dma_allocate(void *context,uint32_t bytes) { return bytes==4096?context:NULL; }
+static void dma_release(void *context,void *address) { assert(context==address);++dma_released; }
+static void *dma_bus(void *context,void *address) { return address==context?(void *)0x12345000:(void *)-1; }
+static void *dma_cpu(void *context,void *address) { return address==(void *)0x12345000?context:(void *)-1; }
 static void complete_write(void) { ++completions; }
 static IPTR test_super(OOP_Class *cl,OOP_Object *o,OOP_Msg msg)
 { (void)cl;(void)o;(void)msg;return super_result; }
@@ -55,6 +59,18 @@ int main(void)
     assert(!PCIECAM__Hidd_PCIDriver__AllocPCIMem(&cl,object,NULL));
     assert(!PCIECAM__Hidd_PCIDriver__AddInterrupt(&cl,object,NULL));
     assert(PCIECAM__Hidd_PCIDriver__CPUtoPCI(&cl,object,NULL)==(void *)-1);
+    host.dma.allocate=dma_allocate;
+    assert(!PCIECAM__Root__New(&cl,NULL,&newmsg)); /* partial policy rejected */
+    host.dma=(struct PCIECAMDMA){memory,dma_allocate,dma_release,dma_bus,dma_cpu};
+    assert(PCIECAM__Root__New(&cl,NULL,&newmsg)==object);
+    struct pHidd_PCIDriver_AllocPCIMem allocate={0,4096};
+    assert(PCIECAM__Hidd_PCIDriver__AllocPCIMem(&cl,object,&allocate)==memory);
+    struct pHidd_PCIDriver_CPUtoPCI to_bus={0,memory};
+    assert(PCIECAM__Hidd_PCIDriver__CPUtoPCI(&cl,object,&to_bus)==(void *)0x12345000);
+    struct pHidd_PCIDriver_PCItoCPU to_cpu={0,(void *)0x12345000};
+    assert(PCIECAM__Hidd_PCIDriver__PCItoCPU(&cl,object,&to_cpu)==memory);
+    struct pHidd_PCIDriver_FreePCIMem release={0,memory};
+    PCIECAM__Hidd_PCIDriver__FreePCIMem(&cl,object,&release);assert(dma_released==1);
     host.config.first_bus=1;host.config.last_bus=1;
     assert(!PCIECAM__Root__New(&cl,NULL,&newmsg));
     host.config.first_bus=0;host.config.last_bus=0;

@@ -840,3 +840,49 @@ Vérification du build standard : après retrait du seul binaire vmpci.hidd,
 aucune invocation manuelle spéciale nécessaire. Les bibliothèques et le SDK
 étaient déjà construits : ce n'est pas encore une seconde reconstruction
 indépendante complète. Revue 217.
+
+
+## Premier transfert DMA virtio — 30 septembre
+
+Core `887f3882da` : le HIDD ECAM accepte quatre callbacks DMA de plateforme,
+tous présents ou tous absents. Sans politique explicite, il continue à refuser
+allocation/traduction. La plateforme VM suit chaque allocation de pages et
+n'accepte CPUtoPCI/PCItoCPU que dans l'étendue demandée d'un buffer vivant.
+FreePCIMem exige son adresse de base exacte. Les pages sont vérifiées une par
+une avec KrnVirtualToPhysical avant exposition, et l'étendue/alignment ne doit
+pas déborder. Les adresses inconnues, padding d'allocation et adresses libérées
+sont refusés. L'allocation échouée restitue mémoire et métadonnées.
+
+Politique explicite de ce profil : périphériques logiciels VZ/QEMU cohérents,
+adressage DMA par adresse physique invitée, pas d'IOMMU. KrnVirtualToPhysical
+du noyau VM est actuellement l'identité ; le test hôte, lui, impose un décalage
+CPU/bus pour vérifier que le code ne les confond pas. Ce n'est pas une preuve
+DART/native/Pi ni un mapper pour des buffers utilisateurs arbitraires. La mémoire
+provient de l'arène KrnAllocPages existante, donc reste soumise à sa limite de
+taille. Les clients doivent ordonner leurs descripteurs/notifications ; le
+probe utilise DSB SY. Ne pas activer virtio-blk avant adaptation de ses buffers
+header/data/status, qui ne sont pas tous alloués par AllocPCIMem actuellement.
+
+`make test-vmpci-dma` ASan/UBSan PASS sur le vrai vmpci_dma.c avec primitives
+hôte simulées : adresse physique décalée, première/dernière adresse, dépassement,
+free intérieur refusé, double free ignoré, traduction après free refusée et
+pages non contiguës rejetées. `make test-pci-ecam-class` PASS, y compris politique
+partielle refusée et forwarding des quatre callbacks.
+
+Dans le second PCIPROBE, après déchargement du programme installateur :
+allocation de 4096 octets via le HIDD résident, contrôle des traductions,
+négociation VERSION_1 sur le périphérique entropie, queue de huit descripteurs,
+une requête de 64 octets, publication ordonnée, notification et attente bornée
+à une seconde de compteur architectural. La complétion vérifie used.idx=1,
+id=0 et longueur 1..64 ; elle ne qualifie pas la qualité de l'aléa. Le reset est
+acquitté avant FreePCIMem ; sinon le buffer reste réservé. Le probe vérifie
+ensuite que l'adresse libérée ne se traduit plus. Pas d'IRQ demandée.
+
+`artifacts/vz-pci-dma` et `artifacts/hvf-pci-dma` PASS.
+Bundle `dcf1044b9e6279c2d2a6efb38e4af659ddf0655d0b8f70c1766d53b2f843d0cc` ;
+disque VZ `899e8e2e34da825761329b1cfbf504231983d7573b592abc7a5d0535b14b9399`.
+QEMU reçoit maintenant virtio-rng-pci dans le profil PCI pour exercer le même
+transfert que VZ. Les marqueurs DMA sont obligatoires pour --require-pci-hidd.
+Cette preuve est un vrai transfert de queue avec le device virtuel, pas encore
+le fonctionnement de virtio.device, une interruption MSI ou une écriture disque.
+SMP intact, revue 217 du pont résident approuvée.

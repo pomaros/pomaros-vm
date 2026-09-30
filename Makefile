@@ -94,3 +94,11 @@ build/virtio-controller-test: tests/virtio-controller.c $(VIRTIO_SOURCE)/virtio_
 build/virtio-bus-test: tests/virtio-bus.c $(VIRTIO_SOURCE)/virtio_busclass.c $(VIRTIO_SOURCE)/virtio_intern.h | build
 	clang -std=gnu11 -Wall -Wextra -Werror -Wno-unused-parameter -Wno-unused-function -Wno-ignored-attributes -Wno-cast-function-type-mismatch -fsanitize=address,undefined \
 	 -I$(VIRTIO_SOURCE) -idirafter $(AROS_VM_SDK)/AROS/Developer/include $< -o $@
+
+.PHONY: test-vmpci-dma
+test-vmpci-dma: build/vmpci-dma-test
+	build/vmpci-dma-test
+VMPCI_SOURCE := $(AROS_CORE_SOURCE)/arch/aarch64-all/hidds/vmpci
+build/vmpci-dma-test: tests/vmpci-dma.c $(VMPCI_SOURCE)/vmpci_dma.c $(VMPCI_SOURCE)/vmpci.h $(PCI_SOURCE)/ecam/pciecam.h | build
+	clang -std=gnu11 -Wall -Wextra -Werror -Wno-ignored-attributes -fsanitize=address,undefined \
+	 -I$(PCI_SOURCE) -I$(VMPCI_SOURCE) -idirafter $(AROS_VM_SDK)/AROS/Developer/include $< -o $@
