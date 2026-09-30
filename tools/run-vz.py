@@ -21,6 +21,7 @@ disk=a.output/'system.img';shutil.copyfile(a.disk,disk)
 log=a.output/'console.log'
 markers=['[VM] GIC + CNTV deadline ready',
          '[VM] timer.device three waits PASS',
+         '[VM] IRQ handler chain PASS',
          '[B2V] runtime vectors + EL0 SVC PASS',
          '[B2D] boot + two-task context dispatch PASS',
          '[B2S] DOS takeover + SYS namespace sentinel PASS',

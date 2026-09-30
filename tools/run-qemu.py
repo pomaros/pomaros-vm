@@ -16,6 +16,7 @@ p.add_argument('--output',type=Path,required=True)
 p.add_argument('--accel',choices=['hvf','tcg'],default='hvf')
 p.add_argument('--timeout',type=float,default=60)
 p.add_argument('--require-timer',action='store_true')
+p.add_argument('--require-irq-chain',action='store_true')
 p.add_argument('--gic-version',choices=['2','3'],default='3')
 p.add_argument('--dtb',type=Path)
 p.add_argument('--firmware',type=Path,default=Path('/opt/homebrew/share/qemu/edk2-aarch64-code.fd'))
@@ -47,7 +48,7 @@ with (a.output/'host.log').open('w') as log:
             if 'FAIL:' in text or 'Synchronous Exception' in text:
                 reason='guest-failure';break
             if '[B2Q] AROS startup contract PASS' in text:
-                passed=not a.require_timer or text.count('[VM] timer.device three waits PASS')==1;reason='startup-contract' if passed else 'timer-proof-missing';break
+                passed=(not a.require_timer or text.count('[VM] timer.device three waits PASS')==1) and (not a.require_irq_chain or text.count('[VM] IRQ handler chain PASS')==1);reason='startup-contract' if passed else 'irq-proof-missing';break
             if proc.poll() is not None:
                 reason='early-exit';break
             time.sleep(.1)
@@ -91,7 +92,7 @@ with (a.output/'host.log').open('w') as log:
             except subprocess.TimeoutExpired: proc.kill();proc.wait()
 verdict={'result':'PASS' if passed else 'FAIL','reason':reason,'backend':a.accel,
          'seconds':round(time.monotonic()-started,2),'hardware_virtualization':a.accel=='hvf',
-         'gic_version':int(a.gic_version),'timer_required':a.require_timer,
+         'gic_version':int(a.gic_version),'timer_required':a.require_timer,'irq_chain_required':a.require_irq_chain,
          'bundle_sha256':hashlib.sha256((esp/'AROS/GEN0.BND').read_bytes()).hexdigest()}
 (a.output/'verdict.json').write_text(json.dumps(verdict,indent=2)+'\n')
 print(json.dumps(verdict))

@@ -296,3 +296,33 @@ Après cette fusion, timer, x18 et démarrage VZ/HVF PASS :
 Pas de preuve spécifique Disable/Wait ajoutée ici ; elle reste avec le
 propriétaire du correctif. Prochaine étape concrète : hooks IRQ des pilotes
 puis virtio GPU/entrées. Le chantier SMP n’a pas été touché.
+
+## Chaîne de handlers IRQ utilisable par les pilotes
+
+Core `42fae09f39` raccorde les API AROS existantes au GIC VM : configuration
+explicite par KrnModifyIRQA, ajout de handlers, distribution des deux arguments
+aux callbacks et désactivation au retrait du dernier handler. Une source non
+configurée ne renvoie plus de faux handle valide. Les PPIs du noyau, polarités
+non prises en charge, listes de tags cycliques et changements avec handlers
+installés sont refusés. Ce code reste mono-CPU.
+
+La preuve active une SPI par son registre pending : deux callbacks, retrait
+du premier puis seconde livraison au seul survivant, retrait du dernier et
+vérification du bit matériel de masquage. PASS VZ et HVF GICv2/GICv3 :
+`artifacts/vz-irq-spi`, `artifacts/hvf-irq-spi-gic2`, `artifacts/hvf-irq-spi-gic3`.
+Disque VZ SHA256 `f8366a5595f7dff6116f0c118034e46fb732c37499be4e3fd0c763d999072904`.
+Le test initial par SGI échouait sur GICv2, dont les SGIs peuvent être activées
+en permanence ; le test a été corrigé pour mesurer une source désactivable.
+
+Contrôle négatif : suppression du seul appel de distribution des callbacks,
+timer toujours PASS puis refus explicite IRQ handler chain dans
+`artifacts/vz-irq-spi-negative`. Source restaurée et noyau reconstruit identique
+octet pour octet, SHA256 `82c380179f0f08357850d72092dd722e0c3559e017a92b742f6e45dc4b741d3e`.
+Résumé `artifacts/irq-spi-control.json`. `make test` PASS. Les runners peuvent
+exiger cette preuve (obligatoire VZ, option --require-irq-chain sous QEMU).
+
+Limite : pas encore d’IRQ provenant d’un périphérique, de MSI ni de preuve DMA.
+La revue 201 approuve le contrat GIC précédent. Prochain travail : intégrer
+la règle de masques de retour de claude-next, puis PCI et virtio. Le transport
+PCI moderne de `rom/devs/virtio` existe et sera réutilisé ; le pilote ECAM du
+port RISC-V fournit aussi une référence APL, avec ses dépendances à isoler.

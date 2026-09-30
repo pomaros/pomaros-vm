@@ -47,3 +47,16 @@ AML and general PCI routing belong to subsequent platform work.
 Field meanings follow [ACPI 6.6, MADT and GTDT](https://uefi.org/specs/ACPI/6.6/05_ACPI_Software_Programming_Model.html).
 Timer names follow the [architectural timer binding](https://github.com/torvalds/linux/blob/master/Documentation/devicetree/bindings/timer/arm%2Carch_timer.yaml);
 only the binding facts were used, with no GPL implementation copied.
+
+VM device handlers use the existing `KrnModifyIRQA`, `KrnAddIRQHandler` and
+`KrnRemIRQHandler` interfaces. A driver first configures an SPI with explicit
+edge/level and active-high attributes. Unconfigured sources, kernel PPIs and
+reconfiguration with installed handlers are refused. Dispatch visits the shared
+AROS callback chain; removing its last handler disables the GIC source. This
+adapter is serialized with `Disable()` and is qualified only on one CPU.
+
+The boot qualification injects a pending SPI through the distributor. It checks
+two callbacks, removal of one, and hardware masking after the last removal.
+It does not simulate a peripheral's acknowledgement protocol or establish DMA
+correctness. SGIs are unsuitable for the masking assertion on GICv2: their
+enable/disable behavior is implementation-defined ([Arm IHI 0048B, GICD_ICENABLER](https://www.scs.stanford.edu/~zyedidia/docs/arm/gic.pdf)).

@@ -120,3 +120,19 @@ windows exactly before GIC MMIO access. Old stage-two binaries without these
 tags fail the VM IRQ contract; package matching stage two and kernel binaries.
 `make test` checks tag emission, capacity, incomplete records, duplicates and
 overlap under ASan/UBSan.
+
+## Kernel device-handler chain qualification
+
+VZ requires `[VM] IRQ handler chain PASS`. With QEMU, add
+`--require-irq-chain --require-timer`, and exercise both GIC versions. The proof
+uses a software-pended SPI and the public handler APIs, including rejection of
+unconfigured/reserved sources, unsupported polarity, cyclic attribute lists,
+and reconfiguration while handlers are installed. It validates callback data
+and final-removal hardware masking; it is not a real peripheral or SMP test.
+The kernel generated makefile must include the `modifyirq` architecture override.
+
+For a dispatch negative control, replace only the call to `krnRunIRQHandlers`
+in the isolated VM adapter with a no-op, build and package a separate ESP.
+The guest must pass its timer waits and then print `[VM] FAIL: IRQ handler chain`;
+the runner must reject the boot. Restore the source, rebuild and compare the
+positive kernel hash before using the build again.
