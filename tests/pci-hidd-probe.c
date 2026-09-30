@@ -276,7 +276,7 @@ static int inspect_xhci(OOP_Object *device)
     return length>=32 && length<bytes && version>=0x100 && (structural>>24)!=0;
 }
 /* Read configuration only; no network queues or packets are submitted. */
-int test_network_packets(OOP_Object *,struct Library *);
+int test_network_packets(OOP_Object *,struct Library *,int);
 static int inspect_network(OOP_Object *device)
 {
     const struct VirtioPCIAccess io={device,transport_read,transport_bar,transport_map,transport_unmap};
@@ -346,7 +346,7 @@ AROS_UFH3(static IPTR, count_device,
             if(product==0x1041) {
                 if(inspect_network(device)) {
                     mark("[VM] virtio network configuration PASS\n");
-                    if(!test_network_packets(device,OOPBase))++dma_failed;
+                    if(!test_network_packets(device,OOPBase,msi_frame!=0))++dma_failed;
                 }
                 else ++dma_failed;
             }

@@ -52,12 +52,31 @@ static int offered(const UBYTE *frame,unsigned length,const UBYTE *mac,const UBY
     }
     return 0;
 }
-int test_network_packets(OOP_Object *device,struct Library *oop)
+struct NetIRQ { struct VirtioNet *net;volatile ULONG hits; };
+static AROS_INTH1(network_irq,struct NetIRQ *,state)
+{
+    AROS_INTFUNC_INIT
+    (void)__ufi_intmask;(void)__ufi_custom;(void)__ufi_code;(void)SysBase;
+    (void)VirtioNetInterruptStatus(state->net);
+    ++state->hits;
+    return TRUE;
+    AROS_INTFUNC_EXIT
+}
+int test_network_packets(OOP_Object *device,struct Library *oop,int irq_mode)
 {
     struct VirtioNet *net=NULL;
     int okay=0;
+    struct NetIRQ irq={0};
+    struct Interrupt interrupt={0};
+    interrupt.is_Node.ln_Type=NT_INTERRUPT;
+    interrupt.is_Node.ln_Name="virtio-net qualification";
+    interrupt.is_Data=&irq;interrupt.is_Code=(APTR)network_irq;
     if(!VirtioNetOpen(oop,device,&net)) { net_mark("[VM] virtio network open FAIL\n");
         goto done; }
+    irq.net=net;
+    if(irq_mode && !VirtioNetEnableInterrupt(net,&interrupt)) {
+        net_mark("[VM] virtio network IRQ registration FAIL\n");goto done;
+    }
     UBYTE mac[6],frame[342]={0},reply[1518];
     if(!VirtioNetMAC(net,mac))goto done;
     bug("[VM] virtio network MTU=%lu\n",(unsigned long)VirtioNetMTU(net));
@@ -75,6 +94,7 @@ int test_network_packets(OOP_Object *device,struct Library *oop)
     dhcp[240]=53;dhcp[241]=1;dhcp[242]=1;dhcp[243]=255;
     if(VirtioNetSend(net,frame,sizeof(frame))!=1)goto done;
     for(unsigned tick=0;tick<250;++tick) {
+        if(irq_mode && !irq.hits) { Delay(1);continue; }
         LONG sent=VirtioNetPollTX(net),received=VirtioNetReceive(net,reply,sizeof(reply));
         if(sent<0 || received<0) {
             ULONG badid=net->rx->q_Used->ring[net->rx->q_LastUsedIdx%8].id;
@@ -95,12 +115,16 @@ int test_network_packets(OOP_Object *device,struct Library *oop)
         Delay(1);
     }
 done:
+    if(net && net->ready)bug("[VM] network summary irq=%lu tx=%u/%u rx=%u/%u failed=%u\n",
+        (unsigned long)irq.hits,net->tx->q_Used->idx,net->tx->q_LastUsedIdx,
+        net->rx->q_Used->idx,net->rx->q_LastUsedIdx,net->failed);
     if(!VirtioNetClose(net)) {
         net_mark("[VM] virtio network reset quarantine\n");
         /* Keep this command and its provider references alive until supervisor
          * termination; unloading code while reset failed is not safe. */
         for(;;)Wait(0);
     }
+    if(okay && irq_mode && irq.hits)net_mark("[VM] virtio network interrupt delivery PASS\n");
     if(okay)net_mark("[VM] virtio network DHCP exchange PASS\n");
     else net_mark("[VM] virtio network DHCP exchange FAIL\n");
     return okay;

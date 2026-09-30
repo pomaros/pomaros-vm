@@ -2290,3 +2290,51 @@ has been attempted. Full stage-six goal remains open; SMP untouched.
   bundle 9b56ee958effcc1774764ea6421f3a3cfe2ae2dad5653208ed2f5740159df2b5.
   Cela exerce aussi le constructeur bloc après déplacement des bornes de
   configuration hors du transport commun.
+
+
+## Interruptions réseau et dépendances de reconstruction
+
+- Core dad242ffe0 : routage partagé virtio_hw_route_queue_irq(queue), vérifie
+  num_queues et lit le vecteur après écriture ; l'API bloc existante reste un
+  wrapper queue0. Le réseau enregistre un gestionnaire PCI, route RX0/TX1 sur
+  le vecteur partagé et active les notifications. Le callback acquitte ISR et
+  peut signaler le propriétaire ; le traitement des trames reste en tâche.
+- Contrat de vie explicite : callback/code/data restent vivants jusqu'à Close
+  réussi. Reset non confirmé conserve tout, y compris le gestionnaire ; reset
+  confirmé puis RemoveInterrupt, puis buffers/queues/mappings/libérations.
+  Huit scénarios du code réel Enable/Close sous ASan/UBSan couvrent refus
+  d'enregistrement, refus de routage0/1, double enregistrement et reset refusé
+  puis réussi. Aucun test SMP ; le fournisseur PCI actuel est UP.
+- `vz-network-irq` PASS2,22s, DHCP et callback réel requis avant drainage.
+  Ancienne image polled `vz-network-irq-negative` FAIL attendu1,94s,
+  network-irq-not-run, alors que son DHCP passait. Le runner distingue
+  network_packets_verified et network_irq_verified.
+- Régression combinée réseau + vrai virtio.device + CMD_READ/MSI-X :
+  `vz-network-irq-block` a eu un timeout DHCP isolé9,54s, sans faute explicite.
+  Pas classé comme corrigé. Ajout d'un résumé IRQ/indices de queues :
+  `vz-network-irq-summary` PASS2,12s, IRQ4, TX1/1, RX8/8, failed0.
+  Même binaire `vz-network-irq-sample-0..4` : cinq PASS1,83..2,33s,
+  IRQ2..3, TX1/1, RX5..7 entièrement drainés. Ceci est un échantillon de boots,
+  pas une endurance ni une preuve expliquant le timeout précédent. La sonde
+  DHCP n'envoie qu'un DISCOVER ; la pile/client réel devront gérer les reprises.
+  Image instrumentée 54c60baadb9ba369bf03b5568149132c0268b9146b5e43c8f0d17a7be54cdeb9 (bundle),
+  disque5fc45c0680ca218dd3a8eb881d69c1ba1b713cc626c090c90e94ceab46d0c2fd.
+  Rejouer : `python3 tools/run-vz.py --disk build/network-irq-summary.img
+  --output artifacts/NEW-RUN --require-pci-hidd --require-network-irq
+  --require-virtio-device --timeout 30`.
+- Build kernel-virtio et probe -Werror PASS. Modèles queues18 + IRQ8 +
+  constructeur/bus PASS. La prochaine intégration est le device SANA-II et
+  AROSTCP. Les frontends APL tap/dwmac offrent des références réutilisables ;
+  pcnet32 est GPL, son implémentation n'est pas à copier dans ce code APL.
+- Revue259 : la dépendance storage/bus corrigée est confirmée par les deux
+  builds v3 GPU-first à5be666ebbe, tous deux PASS avant de poursuivre Wanderer.
+  Le reviewer a signalé que les headers virtio écrits à la main dépendaient
+  indirectement de includes-copy. Contrairement à la prédiction de panne,
+  v3 les possédait déjà : hidd stubs tire includes/includes-copy.
+- Core5c177455fa rend cette dépendance directe : les deux copy_includes nommés
+  kernel-virtio-includes-copy sont requis par kernel-virtio-includes ET par
+  includes-copy global, pour préserver le SDK. Fresh configure séparé,
+  seule cible kernel-virtio-includes-copy : PASS ; les4destinations SDK/gen
+  hardware/virtio.h et hidd/virtio.h sont identiques aux sources. Preuve
+  artifacts/virtio-headers-direct-verdict.json. Les v3 continuent sur leur
+  source figée5be666ebbe ; aucune comparaison binaire complète encore faite.

@@ -8,7 +8,7 @@ unless a concrete blocker is documented.
 
 | Stage | Acceptance | Current evidence / remaining work |
 |---|---|---|
-| 1. Interrupts and time | Kernel timer waits, scheduler mask semantics and standard IRQ handler registration/removal on the VM controllers | VZ and HVF GIC2/GIC3 pass. VZ block completion through resident MSI-X passes; other devices need their own IRQ qualification. Single CPU only. |
+| 1. Interrupts and time | Kernel timer waits, scheduler mask semantics and standard IRQ handler registration/removal on the VM controllers | VZ and HVF GIC2/GIC3 pass. VZ block completion through resident MSI-X and network interrupt delivery during DHCP pass; other devices need their own IRQ qualification. Single CPU only. |
 | 2. Portable hardware description | Retained firmware tree exposed through existing AROS APIs; shared bounded discovery; explicit mappings and driver admission | FDT reader, ACPI bridge, ECAM/windows and OpenFirmware API pass. PCI HIDD loading, registration/removal and MapPCI register reads pass in VZ/HVF. Resident bridge survives installer command unload in VZ/HVF; Owned-buffer DMA and polled virtio entropy completion pass in VZ/HVF; MSI frame discovery/mapping and MSI_TYPER read pass in VZ; resident vector ownership and block MSI-X completion pass. QEMU ITS routing remains. No Pi hardware qualification claimed. |
 | 3. VZ desktop and input | Wanderer appears under Virtualization.framework and accepts keyboard/pointer input through guest drivers | Wanderer renders verified pixels through the resident virtio graphics HIDD under HVF (EFI regression also passes). The same desktop guest passes startup/foreground checks under VZ. VZ pixel capture remains unverified; GPU completion is polled. VZ input exposes Apple PCI xHCI (not virtio-input); capability mapping and actual driver OpenDevice/query pass after removing the legacy INTx-line admission restriction. Poseidon enumerates the root hub and reads two child descriptors under VZ after PCI-owned payload integration and observed-bit PORTSC acknowledgment. The desktop SYS startup loads Poseidon/HID and two configured child HID bindings pass with Wanderer startup. A bounded 30-second desktop session with shell, 15 ticks and completed startup passes under VZ. A targeted VZ-view event sequence reaches an Intuition window through USB/HID (key down/up, button down/up, two coordinate-checked moves and native-width tablet button attributes). Physical input, prolonged use and cancellation/teardown lifetime remain unqualified. |
 | 4. Persistent storage | Guest writes, flushes, remounts and verifies data after a full VM restart; controlled interruption recovery | Boot images and acknowledged virtio reset/start/stop probes pass in VZ/HVF. Shared virtio block transport/queue reads a boot sector in VZ/HVF. Shared MSI-X queue routing passes in VZ; full device startup and IRQ-backed CMD_READ pass in VZ. Isolated 4 KiB write/FLUSH/readback and fresh-VM persistence pass in VZ; Mounted FAT mkdir/write/rename/flush and fresh-VM file verification pass; One abrupt open-file write workload passes SIGKILL, read-only FAT consistency and fresh-VM durable-file verification; interruption coverage and sustained IO remain limited. |
@@ -32,6 +32,9 @@ VZ network configuration admission passes (guest MAC equals persisted host MAC).
 The separate `--require-network-packets` gate proves a raw DHCP discover/offer
 exchange through owned DMA buffers and validates IPv4/UDP checksums where supplied.
 The older configuration-only image fails that gate. No resident network driver,
-AROSTCP connectivity, DHCP lease acquisition, network IRQ or sustained traffic is
-qualified by this probe. The transport polls, supports MTU up to 1500, and requires
+AROSTCP connectivity, DHCP lease acquisition or sustained traffic is qualified
+by this probe. The separate `--require-network-irq` gate also requires an actual
+network callback before processing completions. Both queues share the registered
+PCI vector; packet draining stays in task context. The transport supports MTU up
+to 1500 and requires
 coherent PCI DMA; physical-platform cache/IOMMU contracts need separate work.
