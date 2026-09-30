@@ -1484,3 +1484,53 @@ All guest processes ended. Stage3 still needs VZ visual/input qualification;
 stage6 still needs sustained IO, independent rebuild and integration services.
 SMP untouched. Native launcher ab97ed7453 is not imported (the existing positive
 launcher path passed here); its missing-barrier failure fix remains a follow-up.
+
+
+## VZ input transport identified: reuse USB xHCI/HID
+
+Review233 approved the resident graphics HIDD. The roadmap proposes virtio-input
+for the generic VM, but this VZ launcher configures VZUSBKeyboardConfiguration
+and VZUSBScreenCoordinatePointingDeviceConfiguration. Actual guest PCI inventory
+with those devices confirms an Apple xHCI controller, vendor106b/product1a06,
+class0c0330; no virtio-input device. Use the existing AROS PCI xHCI + Poseidon/HID
+stack for this backend, which also supports the Raspberry Pi reuse objective.
+Do not claim that the virtio-input plan has been implemented.
+
+Added --usb-input to the launcher and bounded VZ runner so the windowed device
+configuration can be exercised without screen capture. PCI inventory records
+all vendor/product/classes. xHCI inspection maps BAR0 through the same owned
+PCI driver's MapPCI path, temporarily enables memory decode and restores it;
+no controller reset, start or USB DMA. It validates a bounded capability chain,
+BAR extent, capability length/version/ports. Observed BAR0=0x50001000,4096bytes;
+caplength0x20, version0x110, HCSPARAMS1=0x10002010 (16ports/32interrupters/16slots),
+HCCPARAMS1=0x02600801; MSI-X control0x001f and MSI control0x008a. MSI-X availability
+is not a proof of USB interrupt delivery.
+
+`artifacts/vz-xhci-capabilities-strict` PASS: xHCI capability mapping plus all
+existing GPU protocol/block-device MSI-X/read/startup gates. Bundle
+`d2d77c75447f36e3747c56ead51d3f00426ae14a5b535f07dd0f4677a6240a6c`;
+PCIPROBE `4b915785a2478a6171f33c38015c3d995ac8d5704c7787fbba4e5e4a5c4775e6`;
+input disk `4beef31c4788847cf20864ea9d1f48c87db1f1677cccfa3114b0344664c8ba7b`;
+launcher `4bcffc65164b25d0d6d1e470b9a08cc4493c6b0468000bb69aafc55362df2e17`.
+`artifacts/vz-xhci-missing-proof` FAIL timeout as intended with the previous
+inventory-only guest: the runner requires the mapping proof, not just the
+presence of the controller. `artifacts/vz-desktop-usb-exposed` PASS startup with
+the previously qualified desktop disk and the USB devices exposed. None of
+these tests delivers a key/pointer event; verdicts explicitly say so.
+
+Built kernel-usb-pcixhci in the isolated VM tree. No upstream pcixhci changes
+are pending on origin/apple-silicon relative to this worktree. Existing build
+warns that diagnostic code in xhci_hcd.c reads ctx[2]/ctx[3] beyond the declared
+ctx[2] array (the following hardware fields are deq); resolve before strict
+sanitizer qualification. More substantive: xhciPrepareDMABuffer in
+rom/usb/pcixhci/xhci_schedule.c passes CPU pointers into payload TRBs, only
+bouncing for32-bit addressability. Ring/context allocations already use PCI DMA
+allocation and translation. Next adapt payload buffers to owned PCI allocations
+and explicit bus addresses, preserve cache/copy/free ownership on completion and
+failure, then qualify controller startup and USB HID enumeration/delivery.
+No USB transfer was attempted against this known incomplete DMA contract.
+Core source revision remains7ea36d0966; SMP untouched.
+
+Poseidon and its SDK link library also built successfully. Binary hashes are
+in artifacts/usb-build-products.json; no runtime USB qualification is claimed.
+All build and guest processes ended.

@@ -418,3 +418,24 @@ This gate requires the guest startup/foreground proof and both PCI and graphics
 registration markers. Its verdict explicitly leaves desktop pixels unverified.
 The normal launcher can open that disk in a VZ window; input drivers are a
 separate pending milestone.
+
+
+## VZ USB input discovery
+
+`--usb-input` exposes the same USB keyboard and absolute pointing device in
+headless runs that the ordinary VZ window configuration exposes. Combine it
+with a graphics profile. In the PCI probe profile it additionally requires an
+xHCI capability-mapping marker; this tests register admission, not USB transfers
+or delivered input events. The verdict keeps `input_verified=false`.
+
+```sh
+python3 tools/run-vz.py --disk PCI_PROBE.img --require-pci-hidd \
+  --require-msi-frame --require-msi-irq --require-virtio-device \
+  --require-gpu --usb-input --output artifacts/usb-discovery-NEW
+```
+
+The probe records vendor/product/class, walks the bounded PCI capability chain,
+maps BAR0 through the owning PCI driver and reads xHCI capability registers.
+It temporarily enables memory decoding and restores the command word. It does
+not reset/run the controller or publish DMA buffers. Desktop startup can also
+be checked with `--desktop-startup --usb-input`, independently of input delivery.

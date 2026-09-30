@@ -52,7 +52,7 @@ final class Application: NSObject, NSApplicationDelegate, VZVirtualMachineDelega
         ]
         config.graphicsDevices = [graphics]
       }
-      if !headless {
+      if !headless || CommandLine.arguments.contains("--usb-input") {
         config.keyboards = [VZUSBKeyboardConfiguration()]
         config.pointingDevices = [VZUSBScreenCoordinatePointingDeviceConfiguration()]
       }
@@ -107,8 +107,8 @@ final class Application: NSObject, NSApplicationDelegate, VZVirtualMachineDelega
 }
 let options = Array(CommandLine.arguments.dropFirst(3))
 if CommandLine.arguments.count < 3 || options.count != Set(options).count
-  || options.contains(where: { $0 != "--headless" && $0 != "--gpu" && $0 != "--gpu-window" }) {
-  fputs("usage: macaros-vm DISK_IMAGE STATE_DIRECTORY [--headless] [--gpu] [--gpu-window]\n", stderr)
+  || options.contains(where: { $0 != "--headless" && $0 != "--gpu" && $0 != "--gpu-window" && $0 != "--usb-input" }) {
+  fputs("usage: macaros-vm DISK_IMAGE STATE_DIRECTORY [--headless] [--gpu] [--gpu-window] [--usb-input]\n", stderr)
   exit(2)
 }
 if #available(macOS 13.0, *) {

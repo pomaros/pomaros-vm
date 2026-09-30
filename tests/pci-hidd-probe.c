@@ -242,6 +242,38 @@ stop:
     VirtioPCIUnmap(&io,&mapping);
     return okay;
 }
+/* Read-only admission of the USB controller exposed by VZ input devices.
+ * Decode capability registers only; do not reset, start or arm DMA. */
+static int inspect_xhci(OOP_Object *device)
+{
+    uint64_t visited=0;
+    unsigned cap=config_read(device,0x34,1);
+    for(unsigned steps=0;cap;++steps) {
+        if(steps==48 || cap<0x40 || cap>0xfc || (cap&3))return 0;
+        uint64_t bit=UINT64_C(1)<<(cap/4);
+        if(visited&bit)return 0;
+        visited|=bit;
+        unsigned id=config_read(device,cap,1);
+        hex("[VM] xHCI PCI capability",id);
+        if(id==5 || id==0x11)hex("[VM] xHCI interrupt control",config_read(device,cap+2,2));
+        cap=config_read(device,cap+1,1);
+    }
+    uint64_t bus,bytes;
+    if(!transport_bar(device,0,&bus,&bytes) || bytes<32 || bytes>(1u<<20))return 0;
+    hex("[VM] xHCI BAR0",bus);hex("[VM] xHCI BAR0 bytes",bytes);
+    volatile UBYTE *regs=transport_map(device,bus,(uint32_t)bytes);
+    if(!regs || regs==(void *)-1)return 0;
+    UWORD command=config_read(device,4,2);
+    config_write_word(device,4,command|2);
+    unsigned length=regs[0],version=*(volatile UWORD *)(regs+2);
+    uint32_t structural=*(volatile uint32_t *)(regs+4);
+    hex("[VM] xHCI capability length",length);hex("[VM] xHCI version",version);
+    hex("[VM] xHCI structural parameters",structural);
+    hex("[VM] xHCI capability parameters",*(volatile uint32_t *)(regs+16));
+    config_write_word(device,4,command);
+    transport_unmap(device,(void *)regs,(uint32_t)bytes);
+    return length>=32 && length<bytes && version>=0x100 && (structural>>24)!=0;
+}
 AROS_UFH3(static IPTR, count_device,
     AROS_UFHA(struct Hook *,hook,A0),
     AROS_UFHA(OOP_Object *,device,A2),
@@ -252,6 +284,15 @@ AROS_UFH3(static IPTR, count_device,
     (void)hook;(void)message;
     OOP_GetAttr(device,device_attr+aoHidd_PCIDevice_VendorID,&vendor);
     OOP_GetAttr(device,device_attr+aoHidd_PCIDevice_ProductID,&product);
+    if(check_mappings) {
+        hex("[VM] PCI vendor",vendor); hex("[VM] PCI product",product);
+        unsigned class_code=config_read(device,8,4)>>8;
+        hex("[VM] PCI class",class_code);
+        if(class_code==0x0c0330) {
+            if(inspect_xhci(device))mark("[VM] xHCI capability mapping PASS\n");
+            else ++mapping_failed;
+        }
+    }
     if(vendor==0x1af4) {
         ++enumerated;
         if(check_resident) {
