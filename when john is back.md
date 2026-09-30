@@ -700,3 +700,48 @@ les utilisateurs. Je n’y ai pas ajouté un Unmap aveugle : il faut corriger
 cette transaction de démarrage/arrêt avant les vrais transferts, puis appeler
 virtio_hw_unmap après quiescence. Le rollback interne des mappings, lui, est
 qualifié. Pont permanent, DMA/IRQ et bureau VZ restent à faire ; SMP intact.
+
+
+## Reset virtio acquitté et borne de timeout — 30 septembre
+
+Core `e09a898bdb` : l'ancien `while (status != 0 && spin--)` pouvait
+faire passer le compteur non signé de zéro à ULONG_MAX et accepter un reset
+jamais acquitté. Le helper partagé `status.h` impose un nombre exact de
+lectures, accepte la dernière lecture autorisée et refuse une réponse trop
+tardive ou absente. `virtio_hw_stop` laisse status à zéro ; `virtio_hw_reset`
+n'écrit ACK puis DRIVER qu'après cet acquittement. Les accès status sont
+ordonnés (DSB SY sur AArch64). Le transport PCI lit aussi réellement un mot
+lorsque width=2, conformément à la note de revue 214.
+
+Contrat : [Virtio 1.2, sections 2.4 et 4.1.4.3.2](https://docs.oasis-open.org/virtio/virtio/v1.2/virtio-v1.2.html).
+Un acquittement du reset arrête les interactions du périphérique avec les
+queues ; il ne supprime ni les tâches du pilote ni ses callbacks logiciels.
+L'API stop n'est donc pas encore branchée dans un Dispose qui libérerait
+aveuglément la queue. Le rollback complet reste nécessaire.
+
+`make test` PASS, dont le nouveau `make test-virtio-status` sous ASan/UBSan :
+réponse immédiate/retardée/dernière lecture, refus permanent, réponse trop
+tardive, refus de DRIVER, budget zéro. Le probe invité utilise le même helper
+sur les périphériques non-console, sans soumettre de queue et sans DRIVER_OK,
+puis les laisse arrêtés. La console reste réservée.
+`artifacts/vz-virtio-reset` et `artifacts/hvf-virtio-reset` PASS ;
+bundle `ba6082428fa6deab11f3a8ab59ecaf6b0bd7c283b7f68b5d5ce36df8de83b9fa`,
+disque VZ `c574ebc224014de0cff8636e7fc8b28cbe84243ec4bccc1bc9925134ace705c2`.
+Le nouveau marqueur est obligatoire avec --require-pci-hidd. Contrôle négatif
+`artifacts/vz-virtio-reset-negative` : l'ancienne image qui passe boot et
+MapPCI est refusée, faute de preuve de reset.
+
+Suite concrète : RootNew doit échouer transactionnellement au lieu de
+renvoyer un contrôleur incomplet ; l'échec d'AddInterrupt laisse aujourd'hui
+une tâche IO vivante ; Dispose ne retire pas le callback de reset ; RemoveBus
+refuse tout retrait. Il faut suivre la publication des unités et bootnodes,
+retirer les utilisateurs puis arrêter le device avant de libérer DMA/MMIO.
+La sélection moderne dans virtio_init.c doit aussi utiliser l'identifiant
+PCI 0x1042 pour le bloc, plutôt que supposer un subsystem ID de type legacy.
+Aucune qualification DMA, IRQ périphérique, stockage persistant ou bureau VZ
+n'est ajoutée par ces tests de reset. Pas de modification SMP.
+
+Build AROS complet `make -j8 kernel-virtio` PASS dans clean-core ; binaire
+virtio.device SHA256 `526d85f61b7d0ef67ba4304b2b4aeff7b3896bbf34e20528c719cce25eaefcc4`.
+Le binaire complet est compilé, mais le test invité exécute le helper partagé
+via PCIPROBE et non le cycle complet de virtio.device.

@@ -12,6 +12,7 @@
 #include <interface/HW.h>
 #include "ecam/pciecam.h"
 #include "pci_mapping.h"
+#include "status.h"
 #undef OOPBase
 #undef UtilityBase
 struct Library *OOPBase;
@@ -104,6 +105,18 @@ static void transport_unmap(void *context,void *cpu,uint32_t bytes)
     struct pHidd_PCIDriver_UnmapPCI msg={read_base+moHidd_PCIDriver_UnmapPCI,cpu,bytes};
     OOP_DoMethod((void *)owner,(OOP_Msg)&msg);
 }
+static uint8_t status_read(void *context)
+{
+    uint8_t value=*(volatile uint8_t *)context;
+    complete_write();
+    return value;
+}
+static void status_write(void *context,uint8_t value)
+{
+    complete_write();
+    *(volatile uint8_t *)context=value;
+    complete_write();
+}
 static int map_common(OOP_Object *device)
 {
     const struct VirtioPCIAccess io={device,transport_read,transport_bar,transport_map,transport_unmap};
@@ -112,10 +125,17 @@ static int map_common(OOP_Object *device)
     uint16_t command=config_read(device,4,2);
     config_write_word(device,4,command|2);
     unsigned queues=*(volatile uint16_t *)((uint8_t *)mapping.regions[0]+18);
+    /* Console is excluded, no native driver owns these test devices, and no
+     * queue is submitted. Exercise the shared reset protocol and leave them
+     * stopped, never at DRIVER_OK. File-backed guest disks only. */
+    const struct VirtioStatusAccess status={
+        (uint8_t *)mapping.regions[0]+20,status_read,status_write};
+    int began=VirtioStatusBegin(&status,1000000);
+    int stopped=VirtioStatusReset(&status,1000000);
     config_write_word(device,4,command);
     hex("[VM] virtio queues",queues);
     VirtioPCIUnmap(&io,&mapping);
-    return queues>0 && queues<0x8000;
+    return queues>0 && queues<0x8000 && began && stopped;
 }
 AROS_UFH3(static IPTR, count_device,
     AROS_UFHA(struct Hook *,hook,A0),
@@ -225,6 +245,7 @@ int main(void)
     OOP_ReleaseAttrBase((CONST_STRPTR)IID_Hidd_PCIECAM);
     mark("[VM] PCI subsystem enumerate + remove PASS\n");
     mark("[VM] virtio common config via MapPCI PASS\n");
+    mark("[VM] virtio reset acknowledged PASS\n");
     /* Keep libraries resident, as a driver startup would. No instance retains
      * this command's completion callback after disposal. */
     mark("[VM] PCI HIDD class + reserved console PASS\n");

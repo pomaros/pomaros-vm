@@ -14,7 +14,7 @@ build/x18.bin: build/x18.o
 build/x18-probe: src/x18-probe.c entitlements.plist | build
 	clang -Wall -Wextra -Werror -O2 $< -framework Hypervisor -o $@
 	codesign --force --sign - --entitlements entitlements.plist $@
-test: all build/vz-platform-test build/gic-contract-test build/pci-ecam-access-test build/virtio-pci-map-test
+test: all build/vz-platform-test build/gic-contract-test build/pci-ecam-access-test build/virtio-pci-map-test build/virtio-status-test
 	python3 tests/x18.py
 	python3 tests/virt-fdt.py
 	python3 tests/early-fdt.py
@@ -23,6 +23,7 @@ test: all build/vz-platform-test build/gic-contract-test build/pci-ecam-access-t
 	build/pci-ecam-access-test
 	python3 tests/pci-ecam-codegen.py
 	build/virtio-pci-map-test
+	build/virtio-status-test
 	python3 tools/gen-bootinfo.py --check
 	cmp include/vm-console.h ../aros-core-vm/arch/aarch64-apple/include/aros/apple/vmconsole.h
 clean:
@@ -73,5 +74,12 @@ VIRTIO_SOURCE := $(AROS_CORE_SOURCE)/rom/devs/virtio
 test-virtio-pci-map: build/virtio-pci-map-test
 	build/virtio-pci-map-test
 build/virtio-pci-map-test: tests/virtio-pci-map.c $(VIRTIO_SOURCE)/pci_mapping.h | build
+	clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined \
+	 -I$(VIRTIO_SOURCE) $< -o $@
+
+.PHONY: test-virtio-status
+test-virtio-status: build/virtio-status-test
+	build/virtio-status-test
+build/virtio-status-test: tests/virtio-status.c $(VIRTIO_SOURCE)/status.h | build
 	clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined \
 	 -I$(VIRTIO_SOURCE) $< -o $@
