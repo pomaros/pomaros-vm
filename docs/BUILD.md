@@ -5,43 +5,19 @@ The host builds with `make`; the UEFI loader builds with
 kernel in an isolated, configured AROS build. It deliberately selects explicit
 metatargets to reuse the existing cross toolchain.
 
-The initial local setup uses:
+The supported configuration builds into a new directory with
+`tools/configure-core.py`, followed by the payload target and
+`tools/package-core.py` as shown below. The packager consumes only products
+from that build and refuses missing components. No native object directory or
+seed bundle is needed. Core source lives in `~/Source/aros-core-vm`, on the
+private `codex-macaros-vm` branch; qualified revisions are recorded in
+`when john is back.md`.
 
-- core source: `~/Source/aros-core-vm`, branch `codex-macaros-vm` in the private
-  `jonx/aros-apple-core` repository, qualified revision recorded in `when john is back.md`;
-- configured build: `~/Build/macaros-vm/core`, APFS clone of the qualified
-  native build, with generated include flags redirected to this checkout;
-- guest C/assembly target: AArch64 ELF, no `-ffixed-x18`;
-- EFI target: AArch64 PE/COFF, firmware calling convention;
-- host target: macOS arm64, Apple's calling convention.
-
-A copied generated `arch/aarch64-apple/mmakefile` must match the guest source's
-bootstrap flags, including the explicit `AROS_VM_GUEST=1` profile. The generated
-`arch/aarch64-apple/kernel/mmakefile` must also include its conditional
-`USER_CPPFLAGS += -DAROS_VM_GUEST=1`; the helper refuses a stale kernel makefile.
-This selects task-owned x18 in the scheduler and the three-task canary proof.
-The build
-helper selects it; the default physical Apple profile still reserves x18. An out-of-tree
-source shadow or an include flag pointing to a different checkout is invalid.
-
-Prepare an ESP from a verified bundle and the rebuilt guest artifacts:
-
-```sh
-python3 tools/prepare-esp.py --base BASE.BND \
-  --stage2 "$AROS_BUILD/bin/apple-aarch64/gen/arch/aarch64-apple/bootstrap/aros-apple-stage2-test.bin" \
-  --kernel "$AROS_BUILD/bin/apple-aarch64/AROS/boot/apple/Devs/kernel.resource" \
-  --output build/esp
-python3 tools/make-disk.py --esp build/esp --output build/system.img
-python3 tools/run-vz.py --disk build/system.img --output artifacts/vz-run
-```
-
-Use the 22-module core qualification bundle for the headless VZ lane. Use the
-64-module Wanderer bundle for the QEMU framebuffer lane. If using the
-AFS qualification seed `/tmp/afs-review-corrected-bundle/AROS-qemu.BND`, pass
-`--exclude afsplus-handler`: that extra module is outside this startup workload
-and the 65-module combination fails the stage-two startup gate. These are different
-qualification workloads. Input hashes are recorded with each prepared ESP.
-The named output directories and disk images must be new.
+Guest C and assembly target AArch64 ELF without `-ffixed-x18`. EFI targets
+AArch64 PE/COFF with the firmware calling convention; host code follows the
+macOS ABI. The legacy `tools/prepare-esp.py --base` helper is for replacing
+individual artifacts during diagnostic experiments, not a complete rebuild.
+Use separate, newly named ESP directories and disk images for each run.
 
 The MIT early-console protocol header is authored in `include/vm-console.h`;
 its imported copy in the APL core is `include/aros/apple/vmconsole.h`. Keep
@@ -160,12 +136,24 @@ Apple default retains its existing flags. This creates no copy of native
 object files. It initializes the four pinned catalog submodules required by
 DOS, ASL, muimaster and Wanderer before configuring.
 
-The headless packager consumes the ordered paths in `boot/headless-modules.json`,
+The packager consumes ordered paths in `boot/headless-modules.json` or
+`boot/wanderer-modules.json`,
 builds the ABI command with the fresh SDK, creates the deterministic SYS image,
 and records source revision and input hashes. It refuses missing products and
 a dirty core source; there is no seed-bundle fallback. `--profile core` on the
 QEMU runner checks startup and requested IRQ/timer proofs without claiming a
 desktop. The default `wanderer` profile retains the desktop pixel gate.
 Repeating packaging can verify byte-identical bundles; that is separate from
-comparing two independent complete builds. The desktop build target is
-`apple-wanderer-payloads`; its qualification state is in the handoff log.
+comparing two independent complete builds. Build and package the desktop with:
+
+```sh
+make -C "$HOME/Build/macaros-vm/clean-core" -j8 apple-wanderer-payloads
+python3 tools/package-core.py --build "$HOME/Build/macaros-vm/clean-core" \
+  --efi build/uefi-clean/BOOTAA64.EFI --profile wanderer --output build/fresh-wanderer
+python3 tools/run-qemu.py --esp build/fresh-wanderer --output artifacts/fresh-desktop \
+  --require-timer --require-irq-chain --gic-version 3
+```
+
+This uses QEMU's framebuffer. It does not qualify the VZ virtio GPU or input
+devices. The desktop's source and binary identities are in package provenance;
+qualification results are recorded in the handoff log.

@@ -400,3 +400,16 @@ même build neuf, log `/tmp/vm-clean-desktop-build.log`. Il reste à la terminer
 à composer/qualifier le bundle Wanderer frais, puis à poursuivre PCI/virtio
 pour le bureau VZ, le stockage, le réseau et les échanges. L’étape 6 reste
 ouverte, le SMP reste réservé à bsek.
+
+## Bureau issu de la reconstruction complète
+
+apple-wanderer-payloads terminé dans clean-core, sans objets natifs copiés.
+Le profil --profile wanderer du packager prend 62 modules, le stage two et
+le SYS fraîchement généré : 64 entrées, Wanderer et ABIPROBE issus du SDK neuf.
+FAT vérifié après composition. Bundle SHA256
+127b24de02821026345a8f87ee20194587ed2f501d307a2627ab827be906c3a3.
+PASS HVF GICv3 et GICv2 avec timer, masques, IRQ, x18 et contrôle pixels
+Wanderer : artifacts/hvf-fresh-wanderer et artifacts/hvf-fresh-wanderer-gic2.
+Ce bureau utilise le framebuffer QEMU ; le GPU VZ attend son pilote.
+La prochaine étape est la description PCI et les mappings MMIO/DMA explicites,
+puis les périphériques virtio. Aucun travail SMP engagé.
