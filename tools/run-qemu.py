@@ -14,6 +14,7 @@ p = argparse.ArgumentParser()
 p.add_argument('--esp',type=Path,required=True)
 p.add_argument('--output',type=Path,required=True)
 p.add_argument('--accel',choices=['hvf','tcg'],default='hvf')
+p.add_argument('--console',choices=['pl011','virtio'],default='pl011')
 p.add_argument('--profile',choices=['core','wanderer'],default='wanderer')
 p.add_argument('--timeout',type=float,default=60)
 p.add_argument('--require-timer',action='store_true')
@@ -23,17 +24,25 @@ p.add_argument('--dtb',type=Path)
 p.add_argument('--firmware',type=Path,default=Path('/opt/homebrew/share/qemu/edk2-aarch64-code.fd'))
 a = p.parse_args()
 if a.output.exists(): p.error('output must not exist')
+if a.console=='virtio' and (a.gic_version!='3' or a.profile!='core' or a.dtb):
+    p.error('virtio console qualification requires ACPI, GICv3 and the core profile')
 a.output.mkdir(parents=True)
 a.output = a.output.resolve()
 esp = a.output/'esp'
 shutil.copytree(a.esp,esp)
 serial = a.output/'serial.log'
 qmp = a.output/'qmp.sock'
-command = ['qemu-system-aarch64','-accel',a.accel,'-M',f'virt,acpi=off,gic-version={a.gic_version}',
+acpi='on' if a.console=='virtio' else 'off'
+firmware_serial = a.output/'firmware-serial.log' if a.console=='virtio' else serial
+command = ['qemu-system-aarch64','-accel',a.accel,'-M',f'virt,acpi={acpi},gic-version={a.gic_version}',
            '-cpu','host' if a.accel=='hvf' else 'cortex-a72','-m','512',
            '-bios',str(a.firmware),'-drive',f'format=raw,file=fat:rw:{esp}',
-           '-device','ramfb','-display','none','-no-reboot','-serial',f'file:{serial}',
+           '-device','ramfb','-display','none','-no-reboot','-serial',f'file:{firmware_serial}',
            '-qmp',f'unix:{qmp},server=on,wait=off']
+if a.console=='virtio':
+    command += ['-chardev',f'file,id=vmconsole,path={serial}',
+                '-device','virtio-serial-pci,disable-legacy=on,id=vmconsole',
+                '-device','virtconsole,chardev=vmconsole,bus=vmconsole.0,name=aros.console']
 if a.dtb:
     shutil.copyfile(a.dtb,a.output/'input.dtb')
     command += ['-dtb',str(a.output/'input.dtb')]
@@ -94,7 +103,7 @@ with (a.output/'host.log').open('w') as log:
             try: proc.wait(timeout=5)
             except subprocess.TimeoutExpired: proc.kill();proc.wait()
 verdict={'result':'PASS' if passed else 'FAIL','reason':reason,'backend':a.accel,
-         'profile':a.profile, 'desktop_checked':a.profile == 'wanderer' and passed,
+         'profile':a.profile, 'console':a.console, 'desktop_checked':a.profile == 'wanderer' and passed,
          'seconds':round(time.monotonic()-started,2),'hardware_virtualization':a.accel=='hvf',
          'gic_version':int(a.gic_version),'timer_required':a.require_timer,'irq_chain_required':a.require_irq_chain,
          'bundle_sha256':hashlib.sha256((esp/'AROS/GEN0.BND').read_bytes()).hexdigest()}

@@ -442,3 +442,14 @@ ou obtenir un canal indépendant VZ ; cinq PASS ne résolvent pas ce timeout.
 Pont PCI final : validation supplémentaire des chevauchements ECAM/GIC,
 make test PASS, VZ artifacts/vz-pci-final PASS ; disque SHA256
 98a21eac43c02a18e8aade4264bc571f9c0a1b29d5ecb4feca6a8c96737121f3.
+
+## Console virtio sous superviseur HVF
+
+Le runner --console virtio active ACPI et un contrôleur PCI moderne, avec le
+même EFI, le même pont FDT et le même code de console que VZ. Démarrage complet
+PASS dans artifacts/hvf-virtio-console, avec toutes les preuves noyau. Les
+fenêtres PCI viennent aussi du firmware QEMU, avec des adresses différentes.
+Contrôle de capture indépendant : timeout volontaire 0,7 s dans
+artifacts/hvf-virtio-console-capture-control, FAIL attendu et registers.txt
+présent (PC firmware 0x5fd5de04). Ce contrôle valide l'accès superviseur avant
+la panne ; il ne reproduit pas le timeout VZ ni ne donne son instruction fautive.

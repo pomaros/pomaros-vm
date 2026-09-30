@@ -157,3 +157,19 @@ python3 tools/run-qemu.py --esp build/fresh-wanderer --output artifacts/fresh-de
 This uses QEMU's framebuffer. It does not qualify the VZ virtio GPU or input
 devices. The desktop's source and binary identities are in package provenance;
 qualification results are recorded in the handoff log.
+
+## Supervising the early virtio console
+
+Run the VZ firmware bridge and the same guest console transport under QEMU/HVF:
+
+```sh
+python3 tools/run-qemu.py --esp ESP --profile core --console virtio \
+  --require-timer --require-irq-chain --output artifacts/virtio-console-NEW
+```
+
+This selects ACPI, GICv3 and a modern PCI virtio console. Guest output is in
+`serial.log`; PL011 firmware output is retained separately in
+`firmware-serial.log`. On failure the runner stops the guest and captures CPU
+registers through QMP, independently of virtio. A deliberately short timeout
+checks this capture path but is not a guest fault reproduction. The ordinary
+framebuffer lane retains `--console pl011` and firmware FDT discovery.
