@@ -796,3 +796,41 @@ matériel physique n'est revendiqué pour ce commit. SMP inchangé.
 Build complet `make -j8 kernel-virtio` PASS dans clean-core après le build ciblé ;
 SHA256 du pilote `e647b20dfbe79c333dff9da7ed1ff72f82ab12dba82115d46875e6b6469f4a57`.
 Revue 216, tests hôte dans le commit VM `f61ba3d`.
+
+
+## Pont PCI résident de la VM — 30 septembre
+
+Core `2f8860c6c3` ajoute vmpci.hidd dans arch/aarch64-all/hidds/vmpci.
+Il réutilise le HIDD ECAM générique et possède sa racine PCI, son instance,
+les mappings et le callback DSB SY pour toute la durée de vie de la VM
+(noexpunge). Il accepte seulement l'arbre firmware `aros,virtualization`,
+limite l'accès ECAM au bus racine zéro et réserve le slot de la console virtio.
+Les fenêtres viennent de l'API OpenFirmware ; la classe ECAM vérifie leur
+étendue, alignement et absence de recouvrement avant admission EL0. Le stage2
+avait déjà vérifié les apertures contre la RAM. Cette admission dépend de ce
+profil VM et n'est pas une politique de mapping générique pour Apple ou Pi.
+Les adresses matérielles ne sont pas codées en dur. DMA/IRQ restent refusés.
+
+Le module ferme les dépendances et rétablit les permissions supervisor si
+l'installation échoue après admission. Le callback permanent réside dans
+vmpci.hidd, jamais dans PCIPROBE. Le chemin optionnel --pci-hidd effectue le
+test temporaire existant, installe le module, ferme sa bibliothèque puis quitte.
+Le noyau décharge ce premier PCIPROBE, en recharge une nouvelle instance avec
+l'argument resident, et exige l'énumération exacte et une écriture/relecture
+du mot command PCI (valeur inchangée) pour chaque périphérique non-console.
+Ce deuxième programme ne recharge pas vmpci : une installation absente ne
+peut donc pas être masquée par le test.
+
+VZ `artifacts/vz-pci-resident` et HVF `artifacts/hvf-pci-resident` PASS ;
+bundle `ec818b53665132fd2e8693826ba38b689ac12092fd5526cca4f0f9517a82aa5e`,
+disque `d1badd1c57d8517b5bd2a7d08129afa80f1ea0b76039e3eb3850dca4987dbed7`.
+vmpci.hidd SHA256 `808d59703dce49f88aeec5ce6cc5d136027d811a7ac9e919c630e2532758eafd`.
+`make test` PASS ; build noyau/stage2 et module ciblé PASS.
+Contrôle négatif `artifacts/vz-pci-resident-negative` : l'ancienne image avec
+preuve de reset mais sans pont résident est refusée par les nouveaux marqueurs.
+
+Cela qualifie le pont permanent dans le profil PCI optionnel. Le package par
+défaut et le bureau VZ restent à raccorder. Prochaine limite : allocations DMA
+avec contrat de traduction/cohérence, puis routage MSI et transferts virtio.
+Aucune preuve de stockage persistant, GPU, entrée ni matériel physique ici.
+La revue 216 du démarrage virtio est approuvée. SMP toujours réservé à bsek.

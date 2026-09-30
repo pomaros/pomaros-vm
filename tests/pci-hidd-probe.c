@@ -13,6 +13,7 @@
 #include "ecam/pciecam.h"
 #include "pci_mapping.h"
 #include "status.h"
+#include <string.h>
 #undef OOPBase
 #undef UtilityBase
 struct Library *OOPBase;
@@ -23,7 +24,8 @@ APTR OpenFirmwareBase;
 APTR KernelBase;
 static OOP_AttrBase device_attr;
 static unsigned enumerated,console_seen,expected,mapped_common,mapping_failed;
-static int check_mappings;
+static int check_mappings,check_resident;
+static unsigned resident_checked;
 static OOP_Object *driver;
 static struct PCIECAMConfig host;
 static OOP_MethodID read_base;
@@ -149,6 +151,11 @@ AROS_UFH3(static IPTR, count_device,
     OOP_GetAttr(device,device_attr+aoHidd_PCIDevice_ProductID,&product);
     if(vendor==0x1af4) {
         ++enumerated;
+        if(check_resident) {
+            uint16_t command=config_read(device,4,2);
+            config_write_word(device,4,command);
+            if(config_read(device,4,2)==command) ++resident_checked;
+        }
         if(check_mappings) hex("[VM] virtio product",product);
         if(product==0x1043) ++console_seen;
         if(check_mappings) { if(map_common(device)) ++mapped_common; else ++mapping_failed; }
@@ -193,7 +200,20 @@ static int register_bridge(struct TagItem *tags)
     return expected && before==expected && mapped_common==expected && !mapping_failed &&
         !enumerated && !console_seen;
 }
-int main(void)
+static int resident_bridge(void)
+{
+    device_attr=OOP_ObtainAttrBase((CONST_STRPTR)IID_Hidd_PCIDevice);
+    OOP_Object *pci=OOP_NewObject(NULL,(CONST_STRPTR)CLID_Hidd_PCI,NULL);
+    if(!device_attr || !pci) return 0;
+    struct Hook hook={0};hook.h_Entry=(HOOKFUNC)count_device;
+    struct pHidd_PCI_EnumDevices enumerate={
+        OOP_GetMethodID((CONST_STRPTR)IID_Hidd_PCI,moHidd_PCI_EnumDevices),&hook,NULL};
+    check_resident=1;
+    OOP_DoMethod(pci,(OOP_Msg)&enumerate);
+    OOP_DisposeObject(pci);OOP_ReleaseAttrBase((CONST_STRPTR)IID_Hidd_PCIDevice);
+    return expected && enumerated==expected && resident_checked==expected && !console_seen;
+}
+int main(int argc,char **argv)
 {
     mark("[VM] PCI HIDD load begin\n");
     OOPBase=OpenLibrary((CONST_STRPTR)"oop.library",0);
@@ -231,6 +251,12 @@ int main(void)
     }
     host.complete_config_write=complete_write;
     Supervisor((APTR)reserve_console);
+    if(argc==2 && !strcmp(argv[1],"resident")) {
+        /* Do not load vmpci here: its bridge must survive the prior command. */
+        if(!resident_bridge()) return 91;
+        mark("[VM] PCI resident bridge after command unload PASS\n");
+        return 0;
+    }
     OOP_AttrBase attr=OOP_ObtainAttrBase((CONST_STRPTR)IID_Hidd_PCIECAM);
     if(!attr) return 87;
     struct TagItem tags[]={{attr+aoHidd_PCIECAM_Config,(IPTR)&host},{TAG_DONE,0}};
@@ -246,8 +272,11 @@ int main(void)
     mark("[VM] PCI subsystem enumerate + remove PASS\n");
     mark("[VM] virtio common config via MapPCI PASS\n");
     mark("[VM] virtio reset acknowledged PASS\n");
-    /* Keep libraries resident, as a driver startup would. No instance retains
-     * this command's completion callback after disposal. */
+    /* The permanent module supplies its own callback and mappings. */
+    struct Library *resident=OpenLibrary((CONST_STRPTR)"DEVS:Drivers/vmpci.hidd",0);
+    if(!resident) return 92;
+    CloseLibrary(resident); /* noexpunge, retained registration */
+    mark("[VM] PCI resident install PASS\n");
     mark("[VM] PCI HIDD class + reserved console PASS\n");
     return 0;
 }

@@ -193,13 +193,21 @@ completion barrier before registering this class with the PCI subsystem.
 
 To qualify real shared-library loading and OOP configuration methods, add
 `--pci-hidd` when packaging the headless profile. This installs PCIPROBE and
-four libraries in SYS, all recorded in provenance. Run VZ or QEMU with
+five libraries in SYS, all recorded in provenance. Run VZ or QEMU with
 `--require-pci-hidd`; otherwise a normal headless startup does not assert this
 extra proof. The command disposes its driver instance before unloading, while
 libraries remain resident. It additionally registers and removes the flat root bridge through the PCI
 subsystem, comparing its enumeration against direct ECAM discovery. The probe
 grants EL0 access to the first ECAM bus temporarily and restores supervisor
-permissions after removal. It does not leave a persistent bridge or enable DMA.
+permissions after removal. After the temporary test, it loads `vmpci.hidd`, which owns a permanent root
+bridge and its callback. The kernel unloads the installer command and runs a
+fresh command to verify enumeration and configuration writes through the
+retained bridge. The permanent module keeps its admitted mappings for the VM
+lifetime and reserves the boot console. DMA and peripheral IRQs are refused.
+Build it with `make -C "$HOME/Build/macaros-vm/clean-core" -j8 kernel-hidd-vmpci`;
+this target is limited to the VM profile. Both resident markers are required
+by `--require-pci-hidd`. The default package without that option does not load
+the platform driver.
 
 The PCI qualification also maps every visible virtio common configuration
 through the driver's MapPCI method and reads its queue count. It temporarily

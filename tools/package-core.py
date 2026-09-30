@@ -55,7 +55,8 @@ if a.pci_hidd:
     subprocess.run([str(root / 'tools/build-abi-probe'), '--sdk', str(sdk),
         '--crosstools', str(a.toolchain.resolve()), '--profile', 'pci', str(pci_probe)], check=True)
     pci_files = [(rel, sdk/'AROS'/rel) for rel in ['Libs/oop.library',
-        'Devs/Drivers/hiddclass.hidd','Devs/Drivers/pci.hidd','Devs/Drivers/pciecam.hidd']]
+        'Devs/Drivers/hiddclass.hidd','Devs/Drivers/pci.hidd','Devs/Drivers/pciecam.hidd',
+        'Devs/Drivers/vmpci.hidd']]
 ramdisk = output / 'SYS.img'
 image_command = ['python3', str(root / 'tools/make-fat12-image.py'), '--abi-probe', str(probe)]
 if a.pci_hidd:
