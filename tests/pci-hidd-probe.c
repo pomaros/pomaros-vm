@@ -276,6 +276,7 @@ static int inspect_xhci(OOP_Object *device)
     return length>=32 && length<bytes && version>=0x100 && (structural>>24)!=0;
 }
 /* Read configuration only; no network queues or packets are submitted. */
+int test_network_packets(OOP_Object *,struct Library *);
 static int inspect_network(OOP_Object *device)
 {
     const struct VirtioPCIAccess io={device,transport_read,transport_bar,transport_map,transport_unmap};
@@ -287,8 +288,12 @@ static int inspect_network(OOP_Object *device)
     ULONG selector=*(volatile ULONG *)(common+0);
     *(volatile ULONG *)(common+0)=0;complete_write();
     ULONG features=*(volatile ULONG *)(common+4);
+    hex("[VM] virtio network offered low",features);
+    *(volatile ULONG *)(common+0)=1;complete_write();
+    hex("[VM] virtio network offered high",*(volatile ULONG *)(common+4));
     *(volatile ULONG *)(common+0)=selector;complete_write();
     int okay=0;
+    hex("[VM] virtio network config bytes",mapping.bytes[3]);
     if((features&(1u<<5)) && mapping.bytes[3]>=6) {
         for(unsigned attempt=0;attempt<8;++attempt) {
             UBYTE generation=common[21],mac[6];complete_write();
@@ -339,7 +344,10 @@ AROS_UFH3(static IPTR, count_device,
                 else ++dma_failed;
             }
             if(product==0x1041) {
-                if(inspect_network(device))mark("[VM] virtio network configuration PASS\n");
+                if(inspect_network(device)) {
+                    mark("[VM] virtio network configuration PASS\n");
+                    if(!test_network_packets(device,OOPBase))++dma_failed;
+                }
                 else ++dma_failed;
             }
             if(product==0x1044) {

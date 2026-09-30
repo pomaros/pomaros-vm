@@ -165,3 +165,10 @@ build/xhci-cancel-test: tests/xhci-cancel.c $(XHCI_SOURCE)/xhci_cancel.c $(XHCI_
 .PHONY: test-xhci-cancel
 test-xhci-cancel: build/xhci-cancel-test
 	build/xhci-cancel-test
+
+.PHONY: test-virtio-net
+test-virtio-net: build/virtio-net-queue-test
+	build/virtio-net-queue-test
+build/virtio-net-queue-test: tests/virtio-net-queue.c $(VIRTIO_SOURCE)/net_transport.c $(VIRTIO_SOURCE)/net_transport.h | build
+	clang -std=gnu11 -Wall -Wextra -Werror -Wno-ignored-attributes -Wno-cast-function-type-mismatch -fsanitize=address,undefined -Wl,-dead_strip \
+	 -I$(VIRTIO_SOURCE) -idirafter $(AROS_VM_SDK)/AROS/Developer/include $< -o $@

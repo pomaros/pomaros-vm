@@ -22,6 +22,7 @@
 #include "virtio_queue.h"
 #include "virtio_debug.h"
 static unsigned fail, stop_fail, maps, unmaps, queues, frees, stops, callbacks, published, restored;
+static unsigned config_bytes = 24, config_address = 8;
 static struct virtio_Controller controller;
 static OOP_Class klass;
 static IPTR parent(OOP_Class *cl,OOP_Object *o,OOP_Msg msg)
@@ -55,11 +56,18 @@ static void dispose(OOP_Object *o) { OOP_MethodID m=2;VirtIO__Root__Dispose(&kla
 #define GM_UNIQUENAME(n) n
 const char LibName[]="virtio.device";
 #include "virtio_controllerclass.c"
-BOOL virtio_hw_map(device_t d) { if(fail==1)return FALSE;++maps;d->dev_CommonCfg=(void *)1;return TRUE; }
-void virtio_hw_unmap(device_t d) { if(d->dev_CommonCfg){assert(stops && !stop_fail);++unmaps;}d->dev_CommonCfg=NULL; }
+BOOL virtio_hw_map(device_t d) { if(fail==1)return FALSE;++maps;d->dev_CommonCfg=(void *)1;d->dev_DeviceCfg=(void *)(IPTR)config_address;d->dev_PCIMapping.bytes[3]=config_bytes;return TRUE; }
+void virtio_hw_unmap(device_t d) { if(d->dev_CommonCfg){assert((stops && !stop_fail) || config_bytes<8 || (config_address&7));++unmaps;}d->dev_CommonCfg=NULL; }
 BOOL virtio_hw_reset(device_t d) { (void)d;return fail!=2; }
 BOOL virtio_hw_stop(device_t d) { (void)d;++stops;return !stop_fail; }
-BOOL virtio_hw_negotiate_features(device_t d,UQUAD f) { (void)d;(void)f;return fail!=3; }
+BOOL virtio_hw_negotiate_features(device_t d,UQUAD f)
+{
+    (void)d;
+    assert(!!(f & ((UQUAD)1 << VIRTIO_BLK_F_BLK_SIZE)) == (config_bytes >= 24));
+    assert(!!(f & ((UQUAD)1 << VIRTIO_BLK_F_GEOMETRY)) == (config_bytes >= 20));
+    assert(f & ((UQUAD)1 << VIRTIO_BLK_F_FLUSH));
+    return fail!=3;
+}
 void virtio_hw_read_blk_config(device_t d) { (void)d; }
 struct virtio_queue *virtio_alloc_queue(device_t d,int q,int size)
 { (void)d;(void)q;(void)size;if(fail==4)return NULL;++queues;return calloc(1,sizeof(struct virtio_queue)); }
@@ -70,6 +78,8 @@ BOOL Hidd_VirtIOBus_Start(OOP_Object *o,struct VirtIOBase *b) { (void)o;(void)b;
 int main(void)
 {
     struct VirtIOBase base={0};klass.UserData=&base;klass.cl_DoSuperMethod=parent;
+    for(config_address=8;config_address<=9;++config_address)
+    for(config_bytes=0;config_bytes<=25;++config_bytes)
     for(unsigned which=1;which<=7;++which) {
         for(unsigned stuck=0;stuck<=1;++stuck) {
             __typeof__(*(device_t)0) dev={0};dev.dev_VirtIOBase=&base;
@@ -79,6 +89,10 @@ int main(void)
             struct TagItem tags[]={{aHidd_DriverData,(IPTR)&dev},{TAG_DONE,0}};
             struct pRoot_New msg={1,tags};
             OOP_Object *o=VirtIO__Root__New(&klass,NULL,&msg);
+            if(which!=1 && (config_bytes<8 || (config_address&7))) {
+                assert(!o && !stops && !queues && !restored && maps==1 && unmaps==1);
+                continue;
+            }
             if(which==7) {
                 assert(o && callbacks==1 && published==1 && !stops && !frees);
                 dispose(o);assert(!frees && !unmaps); /* Published bus retained. */

@@ -2222,3 +2222,55 @@ has been attempted. Full stage-six goal remains open; SMP untouched.
   RX/TX et l'interface SANA-II pour la pile existante. La négociation actuelle
   virtio_hw_negotiate_features contient des masques spécifiques au bloc :
   les séparer avant de la réutiliser pour le réseau. Pas de SMP/M1.
+
+
+## Virtio-net : premier aller-retour réel avec le NAT VZ
+
+- Core `dfdfdd688a` (série depuis `e0523981fb`) : transport RX/TX réutilisant
+  mapping PCI, reset borné/confirmé et allocation des queues virtio existants.
+  Deux queues de8, buffers DMA propres2048octets, une émission en vol copiée,
+  recyclage RX après copie ; vérification des indices, IDs, doublons et longueurs.
+  Close ne libère rien si le reset n'est pas confirmé. API à propriétaire unique,
+  contexte tâche, polling explicite. Pas encore de device SANA-II résident.
+- Les masques de features et les bornes de configuration bloc8/20/24octets,
+  alignement8, sont dans le contrôleur bloc. Le transport commun ne doit pas
+  interpréter des numéros de features selon le type disque pour une carte réseau.
+  Le test réel du constructeur couvre tailles0..25, adresses alignée/non alignée,
+  échecs de démarrage, reset refusé et rétention du bus publié, sous ASan/UBSan.
+- Première ouverture refusée par VZ : features acceptées candidates100000020,
+  status03 après tentative FEATURES_OK. Configuration réseau17octets, offre
+  basse300119ab/haute5 ; la borne bloc8octets n'expliquait donc pas ce refus.
+  `vz-network-packets-negotiation` isole chaque ajout sans queue ni DRIVER_OK :
+  bit3(MTU) accepté, bits16/28/29/34 isolés refusés. Pas besoin de packed rings.
+  Le transport négocie MTU et lit MAC/MTU dans une génération stable ; MTU1500
+  observé. Les limites de trame suivent le MTU ; valeurs >1500 non supportées.
+- Particularités VZ mesurées (`vz-network-packets-completion`, `...-rx-header`) :
+  num_buffers=0 sans MRG_RXBUF, flags6 sur des trames reçues sans offload négocié.
+  Virtio1.2 demande num_buffers=1. Tolérance explicite0/1 seulement dans ce mode
+  où un descripteur contient toute la trame ; aucune chaîne multibuffer.
+  Les indications checksum/RSC sont ignorées et les checksums sont vérifiés par
+  le consommateur. NEEDS_CSUM reste refusé, ainsi que GSO et num_buffers>1.
+  Référence : https://docs.oasis-open.org/virtio/virtio/v1.2/virtio-v1.2.html
+- Probe DHCP (RFC2131) : broadcast DISCOVER, identifiant de transaction dérivé
+  du compteur invité, réponse OFFER portant la même MAC/transaction, adresse
+  proposée non nulle, bornes IPv4/UDP/options, checksum IPv4 et UDP si présent.
+  Il n'acquiert pas un bail et ne remplace pas AROSTCP. Le runner exige aussi
+  toute la séquence de démarrage, la MAC persistée et exactement un marqueur.
+- `vz-network-packets-qualified` PASS1,29s. Bundle
+  c02a5d12e5f750c98924aa207e10956af9e338930c10d25d694771152fb6c0eb,
+  disque66d6aa092c6c17952ab6be152d72c2d15300021c5eaae7a3ff3eb012f1ef32af,
+  lanceur87e436bd4b27df54c2a720597c7f78d5ea23b739ea37c75c05e2c73c3f1c72b6.
+  Commande : `python3 tools/run-vz.py --disk build/network-packets-qualified.img
+  --output artifacts/NEW-RUN --require-pci-hidd --require-network-packets --timeout 30`.
+- Contre-épreuve `vz-network-packets-negative` : ancienne image de configuration,
+  FAIL attendu1,30s, `network-packets-not-run`. Nouvelle image sans carte réseau,
+  `vz-network-packets-disabled`, PASS1,30s. Modèles de queues réelles
+  `make test-virtio-net` :18scénarios ASan/UBSan, copie TX, batch RX, wrap16bits,
+  MTU et complétions invalides ; ce modèle n'exerce pas l'ouverture PCI.
+  Reconstruction incrémentale kernel-virtio et virtiogfx PASS, probe -Werror PASS.
+- Les deux builds complets figés03275b8c5e ont terminé apple-wanderer-payloads
+  et exécutent les cibles de pilotes supplémentaires. Aucune comparaison finale
+  encore faite. Leur source reste figée, distincte des nouveaux commits réseau.
+- Suite : SANA-II + AROSTCP en réutilisant ce transport, IRQ réseau, endurance
+  et chemins d'annulation/fermeture, puis clipboard et fichiers. Pas de SMP/M1.
+  Aucun résultat présent ne qualifie un IOMMU ou un DMA matériel non cohérent.

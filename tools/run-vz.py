@@ -15,6 +15,7 @@ root=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser()
 p.add_argument('--require-desktop-session',type=int,metavar='SECONDS')
 p.add_argument('--require-network-config',action='store_true')
+p.add_argument('--require-network-packets',action='store_true')
 p.add_argument('--no-input-events',action='store_true',help='negative control: withhold host input events')
 p.add_argument('--require-input',action='store_true')
 p.add_argument('--require-usb-desktop',action='store_true')
@@ -34,6 +35,7 @@ p.add_argument('--disk',type=Path,required=True)
 p.add_argument('--output',type=Path,required=True)
 p.add_argument('--timeout',type=float,default=45)
 a=p.parse_args()
+if a.require_network_packets: a.require_network_config=True
 if a.require_network_config and not a.require_pci_hidd: p.error('--require-network-config requires --require-pci-hidd')
 if a.no_input_events and not a.require_input: p.error('--no-input-events requires --require-input')
 if a.require_input and not (a.require_usb_desktop and a.require_desktop_session):
@@ -77,6 +79,7 @@ if a.desktop_startup:
 if a.require_desktop_session is not None:
     markers += ['[KI] shell launched','[KI] hold bounded','[KI] hold complete']
 if a.require_network_config: markers += ['[VM] virtio network configuration PASS']
+if a.require_network_packets: markers += ['[VM] virtio network DHCP exchange PASS']
 if a.require_input: markers += ['[VM] input observer ready','[VM] window keyboard and pointer PASS']
 if a.require_usb_desktop: markers += ['[VM] desktop two HID bindings PASS']
 if a.require_pci_hidd:
@@ -114,6 +117,8 @@ with log.open('w') as out:
                 (a.output/'state/input.request').write_text('window-keyboard-pointer-v1\n')
                 input_requested=True
             if 'FAIL:' in text: reason='guest-failure';break
+            if a.require_network_packets and '[B2Q] AROS startup contract PASS' in text and '[VM] virtio network DHCP exchange PASS' not in text:
+                reason='network-packets-not-run';break
             if a.require_usb_desktop and '[KI] desktop stable' in text and '[VM] desktop two HID bindings PASS' not in text:
                 reason='desktop-without-hid-bindings';break
             if a.require_desktop_session is not None and '[B2Q] AROS startup contract PASS' in text and '[KI] hold complete' not in text:
@@ -153,7 +158,7 @@ if a.require_gpu_scanout and not pixels_verified and reason=='timeout' and all(t
 boot=subprocess.run(['mtype','-i',str(disk),'::BOOT.LOG'],capture_output=True)
 (a.output/'firmware.log').write_bytes(boot.stdout)
 verdict={'result':'PASS' if passed else 'FAIL','reason':reason,
-         'network_config_verified':passed and a.require_network_config,'network_packets_verified':False,'input_events_withheld':a.no_input_events,'desktop_session_seconds':a.require_desktop_session,'desktop_session_verified':passed and a.require_desktop_session is not None,
+         'network_config_verified':passed and a.require_network_config,'network_packets_verified':passed and a.require_network_packets,'input_events_withheld':a.no_input_events,'desktop_session_seconds':a.require_desktop_session,'desktop_session_verified':passed and a.require_desktop_session is not None,
          'backend':'Virtualization.framework','graphics':a.require_gpu or a.desktop_startup,'usb_input_exposed':a.usb_input,'xhci_mapping_required':a.usb_input and a.require_pci_hidd,'input_verified':passed and a.require_input,'usb_hid_bindings_verified':passed and a.require_usb_desktop,'xhci_driver_required':a.require_xhci_driver,'xhci_enumeration_required':a.require_xhci_enumeration,'usb_child_descriptors_verified':passed and a.require_xhci_enumeration,'usb_transfers_verified':False,'desktop_startup':a.desktop_startup,'desktop_pixels_verified':False,'gpu_query_required':a.require_gpu,'gpu_scanout_required':a.require_gpu_scanout,'pixels_verified':pixels_verified,'storage_phase':a.storage_phase,'filesystem_phase':a.filesystem_phase,
          'pci_hidd_required':a.require_pci_hidd,'msi_frame_required':a.require_msi_frame,'msi_irq_required':a.require_msi_irq,'virtio_device_required':a.require_virtio_device,
          'seconds':round(time.monotonic()-start,2),
