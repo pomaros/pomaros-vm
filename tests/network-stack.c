@@ -21,7 +21,19 @@ int test_network_stack(void)
     if(!lock)return -1;
     UnLock(lock);
     mark("[VM] AROSTCP startup begin\n");
-    if(SystemTags((CONST_STRPTR)"SYS:System/Network/AROSTCP/C/AROSTCP",SYS_Asynch,TRUE,TAG_DONE)==-1)return 0;
+    /* The headless profile has DOS but no Shell. Start the existing executable
+     * as a normal CLI process, with its program directory and owned seglist. */
+    BPTR segment=LoadSeg((CONST_STRPTR)"SYS:System/Network/AROSTCP/C/AROSTCP");
+    BPTR home=Lock((CONST_STRPTR)"SYS:System/Network/AROSTCP/C",ACCESS_READ);
+    if(!segment || !home || !CreateNewProcTags(NP_Seglist,segment,
+            NP_FreeSeglist,TRUE,NP_Cli,TRUE,NP_HomeDir,home,
+            NP_Name,(IPTR)"AROSTCP",NP_Arguments,(IPTR)"\n",
+            NP_StackSize,262144,TAG_DONE)) {
+        bug("[VM] AROSTCP process creation error=%ld\n",(long)IoErr());
+        if(segment)UnLoadSeg(segment);
+        if(home)UnLock(home);
+        return 0;
+    }
     for(unsigned tick=0;tick<500 && !SocketBase;++tick) {
         SocketBase=OpenLibrary((CONST_STRPTR)"bsdsocket.library",0);
         if(!SocketBase)Delay(1);

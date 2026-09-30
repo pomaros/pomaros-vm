@@ -18,12 +18,20 @@ p.add_argument('--file',action='append',default=[])
 a=p.parse_args()
 if a.output.exists():p.error('output must not exist')
 epoch=int(datetime.datetime(2026,8,29,tzinfo=datetime.timezone.utc).timestamp())
-env=dict(os.environ,TZ='UTC',LC_ALL='C')
+# macOS mtools under the C locale extracts the seed's VFAT AROS.boot as
+# AROS.boot_, breaking the DOS boot signature. Keep UTF-8 names end to end.
+env=dict(os.environ,TZ='UTC',LC_ALL='en_US.UTF-8')
 def run(args):
     return subprocess.run(args,env=env,check=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE).stdout
 with tempfile.TemporaryDirectory() as tmp:
     stage=Path(tmp)
     run(['mcopy','-s','-i',str(a.seed),'::*',str(stage)])
+    for entry in run(['mdir','-b','-s','-i',str(a.seed),'::*']).decode('utf-8').splitlines():
+        if entry.endswith('/'):continue
+        if not entry.startswith('::/'):raise ValueError('unexpected seed listing: '+entry)
+        extracted=stage/entry[3:]
+        if not extracted.is_file() or extracted.read_bytes()!=run(['mtype','-i',str(a.seed),entry]):
+            raise ValueError('seed extraction changed a filename or content: '+entry)
     for spec in a.file:
         rel,sep,src=spec.partition('=');path=PurePosixPath(rel)
         if not sep or not rel or path.is_absolute() or '..' in path.parts:

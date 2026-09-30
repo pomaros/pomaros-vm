@@ -2417,3 +2417,35 @@ ses fichiers correspondent aux sources. Cette image corrigée n'a pas encore
 DOS sur les trois échecs handler / verrou du volume / signature de boot.
 Compilation en cours dans `artifacts/dos-boot-diagnostics-build.log`.
 Reprendre avec cette version diagnostique pour identifier l'échec restant.
+
+## Image SYS agrandie : signature de boot retrouvée
+
+Le build DOS diagnostique est terminé (core 1d4506efb2). Le run
+`vz-network-stack-dosdiag` donne explicitement : signature rejetée sur SYS0,
+erreur 205. Reproduction hôte isolée : mcopy extrait `AROS.boot` en
+`AROS.boot_` sous `LC_ALL=C`, mais conserve le nom sous `en_US.UTF-8`.
+La comparaison précédente des fichiers après staging ne pouvait pas détecter
+ce renommage : elle comparait déjà le nom altéré. Correction : locale UTF-8,
+puis contrôle des noms ET des contenus de chaque fichier extrait depuis
+l'inventaire du seed avant d'ajouter les fichiers réseau.
+
+`vz-network-stack-utf8` franchit le boot DOS, les tests ABI, PCI, DHCP brut et
+SANA-II : le problème de démarrage SYS est corrigé. Il échoue ensuite au
+lancement d'AROSTCP via SystemTags, qui dépend d'un Shell absent du profil
+minimal. La sonde lance désormais le binaire directement avec LoadSeg et
+CreateNewProcTags, un CLI et son répertoire programme explicite.
+`vz-network-stack-process` démarre le processus mais n'obtient pas
+bsdsocket.library (échec borné 14,87 s). L'inspection ELF révèle une dépendance
+Intuition obligatoire : `__aros_libreq_IntuitionBase`, apportée par le
+requester d'erreur. Celui-ci est changé pour ouvrir Intuition localement
+lorsqu'une erreur doit être affichée et utiliser la console série en son
+absence. Compilation dans `artifacts/arostcp-headless-build.log` ; vérifier
+la disparition du symbole obligatoire puis reprendre le contrôle réseau.
+Aucune adresse IP de la pile n'est encore qualifiée.
+
+La reconstruction hôte de l'image d'avant correction de locale était bien
+identique (SHA256 6b17ff7b45f25413c95e9e3b285a56f59d1d4cdc33cc85340f26d09bcce259fc,
+`artifacts/network-sys-repro.json`). Cette preuve de déterminisme ne prouvait
+pas la validité du nom de signature. L'image UTF-8 corrigée a pour SHA256 SYS
+7d42a74bcd188af8f10bf7e0c3187b29c9192de91d61c809921ace45024be02b ; son boot réel
+est la preuve pertinente pour la correction.
