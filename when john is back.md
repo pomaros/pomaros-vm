@@ -2269,8 +2269,24 @@ has been attempted. Full stage-six goal remains open; SMP untouched.
   MTU et complétions invalides ; ce modèle n'exerce pas l'ouverture PCI.
   Reconstruction incrémentale kernel-virtio et virtiogfx PASS, probe -Werror PASS.
 - Les deux builds complets figés03275b8c5e ont terminé apple-wanderer-payloads
-  et exécutent les cibles de pilotes supplémentaires. Aucune comparaison finale
-  encore faite. Leur source reste figée, distincte des nouveaux commits réseau.
+  puis échoué au même endroit : virtiogfx, interface/Hidd_Bus.h manquant.
+  Résultats terminaux `repro-fixed-build-results.json` (1176,45/1176,76s).
+  Le mmake du GPU ne déclarait que les includes graphiques, malgré le transport
+  virtio qui importe les types storage/bus/PCI/timer. Core5be666ebbe ajoute
+  ces dépendances et les entrées source partagées aux dépendances des objets.
+  Vérification vierge en cours, pas encore de comparaison reproductible.
+- Troisième paire : clone figé aros-core-vm-repro-v3-20261001 à5be666ebbe,
+  sorties neuves repro-v3-a/b-20261001. Superviseur et manifestes conservés
+  sous artifacts/repro-v3-*. GPU demandé en premier pour exercer directement
+  ses dépendances, puis Wanderer et pilotes. Les anciennes sources et preuves
+  restent intactes ; aucun objet des essais précédents n'est réutilisé.
 - Suite : SANA-II + AROSTCP en réutilisant ce transport, IRQ réseau, endurance
   et chemins d'annulation/fermeture, puis clipboard et fichiers. Pas de SMP/M1.
   Aucun résultat présent ne qualifie un IOMMU ou un DMA matériel non cohérent.
+
+- Régression combinée `vz-network-block-regression` PASS1,43s : même invité
+  avec DHCP et vrai virtio.device, lecture CMD_READ terminée par MSI-X.
+  Disque d5e2c8c8a1f98b51163fc37ca6d3d896e63fefb03276ea6d67d3d1d942194a18,
+  bundle 9b56ee958effcc1774764ea6421f3a3cfe2ae2dad5653208ed2f5740159df2b5.
+  Cela exerce aussi le constructeur bloc après déplacement des bornes de
+  configuration hors du transport commun.
