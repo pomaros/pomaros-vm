@@ -13,7 +13,7 @@ unless a concrete blocker is documented.
 | 3. VZ desktop and input | Wanderer appears under Virtualization.framework and accepts keyboard/pointer input through guest drivers | Wanderer renders verified pixels through the resident virtio graphics HIDD under HVF (EFI regression also passes). The same desktop guest passes startup/foreground checks under VZ. VZ pixel capture remains unverified; GPU completion is polled. VZ input exposes Apple PCI xHCI (not virtio-input); capability mapping and actual driver OpenDevice/query pass after removing the legacy INTx-line admission restriction. Poseidon enumerates the root hub and reads two child descriptors under VZ after PCI-owned payload integration and observed-bit PORTSC acknowledgment. The desktop SYS startup loads Poseidon/HID and two configured child HID bindings pass with Wanderer startup. A bounded 30-second desktop session with shell, 15 ticks and completed startup passes under VZ. A targeted VZ-view event sequence reaches an Intuition window through USB/HID (key down/up, button down/up, two coordinate-checked moves and native-width tablet button attributes). Physical input, prolonged use and cancellation/teardown lifetime remain unqualified. |
 | 4. Persistent storage | Guest writes, flushes, remounts and verifies data after a full VM restart; controlled interruption recovery | Boot images and acknowledged virtio reset/start/stop probes pass in VZ/HVF. Shared virtio block transport/queue reads a boot sector in VZ/HVF. Shared MSI-X queue routing passes in VZ; full device startup and IRQ-backed CMD_READ pass in VZ. Isolated 4 KiB write/FLUSH/readback and fresh-VM persistence pass in VZ; Mounted FAT mkdir/write/rename/flush and fresh-VM file verification pass; One abrupt open-file write workload passes SIGKILL, read-only FAT consistency and fresh-VM durable-file verification; interruption coverage and sustained IO remain limited. |
 | 5. Complete reproducible build | Empty build directory produces guest, SDK, commands and launcher; independent rebuild comparison | Fresh complete core and Wanderer packages boot. Packaging is deterministic. Two independent complete builds have not been compared byte for byte. |
-| 6. Prolonged use and integration | Sustained desktop/storage/network exercise; clipboard text and images in both directions; usable file exchange | Raw virtio-net TX/RX with a transaction-checked DHCP discover/offer passes in VZ NAT. SANA-II, the guest IP stack and integration services remain. An independently captured early-console TX timeout path is corrected and eight VZ boots pass; prolonged reliability still requires supervision. |
+| 6. Prolonged use and integration | Sustained desktop/storage/network exercise; clipboard text and images in both directions; usable file exchange | Raw virtio-net TX/RX with a transaction-checked DHCP discover/offer passes in VZ NAT. Resident SANA-II OpenDevice/query/configuration/read cancellation/close/reopen passes in VZ. Packet traffic through SANA-II, the guest IP stack and integration services remain. An independently captured early-console TX timeout path is corrected and eight VZ boots pass; prolonged reliability still requires supervision. |
 
 Next implementation boundary: VZ desktop visual/input acceptance and GPU IRQ completion, with
 sustained filesystem IO and broader interruption coverage still required. Controller/bus startup failure
@@ -31,9 +31,10 @@ remain distinct from VM and host-parser results.
 VZ network configuration admission passes (guest MAC equals persisted host MAC).
 The separate `--require-network-packets` gate proves a raw DHCP discover/offer
 exchange through owned DMA buffers and validates IPv4/UDP checksums where supplied.
-The older configuration-only image fails that gate. No resident network driver,
-AROSTCP connectivity, DHCP lease acquisition or sustained traffic is qualified
-by this probe. The separate `--require-network-irq` gate also requires an actual
+The older configuration-only image fails that gate. The separate `--require-sana-device` gate proves resident driver query,
+configuration, pending-read cancellation and two complete open/close cycles.
+Neither gate proves SANA-II packet traffic, AROSTCP connectivity, DHCP lease
+acquisition or sustained traffic. The separate `--require-network-irq` gate also requires an actual
 network callback before processing completions. Both queues share the registered
 PCI vector; packet draining stays in task context. The transport supports MTU up
 to 1500 and requires
