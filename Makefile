@@ -59,3 +59,10 @@ PCI_SOURCE := $(AROS_CORE_SOURCE)/rom/hidds/pci
 build/pci-ecam-access-test: tests/pci-ecam-access.c $(PCI_SOURCE)/ecam/access.h | build
 	clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined \
 	 -I$(PCI_SOURCE) $< -o $@
+
+.PHONY: test-pci-ecam-class
+test-pci-ecam-class: build/pci-ecam-class-test
+	build/pci-ecam-class-test
+build/pci-ecam-class-test: tests/pci-ecam-class.c $(PCI_SOURCE)/ecam/pciecam_class.c $(PCI_SOURCE)/ecam/pciecam.h $(PCI_SOURCE)/ecam/access.h | build
+	clang -std=c11 -Wall -Wextra -Werror -Wno-ignored-attributes -fsanitize=address,undefined \
+	 -I$(PCI_SOURCE)/ecam -idirafter $(AROS_VM_SDK)/AROS/Developer/include $< -o $@

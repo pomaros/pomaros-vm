@@ -183,3 +183,10 @@ The Wanderer package retains its separate CLI probe and resident profile.
 With the fresh SDK available, run `make test-openfirmware` for the FDT-to-resource
 constructor under ASan/UBSan, including failure at every allocation. This target
 is separate from the SDK-independent host test suite (`make test`).
+
+The generic PCI ECAM class can be built independently with
+`make -C "$HOME/Build/macaros-vm/clean-core" -j8 kernel-hidd-pciecam`.
+`make test-pci-ecam-class` uses the actual class methods and SDK structures under
+host sanitizers; it does not qualify class loading or device enumeration in a
+guest. The VM platform must supply admitted mappings and a configuration-write
+completion barrier before registering this class with the PCI subsystem.

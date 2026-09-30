@@ -531,3 +531,30 @@ implémenté. Il faut une admission de mapping explicite ou une opération
 Supervisor sérialisée. La découverte commune doit réutiliser OpenFirmware,
 les classes PCI et les translations validées, sans importer les hypothèses
 PLIC/Sv39/DesignWare du pilote RISC-V. Revue OpenFirmware #208 approuvée.
+
+
+## Classe PCI ECAM — 30 septembre
+
+Core `578315e343` ajoute le véritable module OOP `pciecam.hidd`, sous
+`rom/hidds/pci/ecam`. Il dérive de Hidd_PCIDriver et garde la classe générique
+AROS de périphérique PCI. Les six méthodes de configuration utilisent les
+accès ECAM qualifiés. Le constructeur copie un descriptif de mappings déjà
+admis par la plateforme ; il vérifie les plages et recouvrements. `MapPCI`
+traduit une plage entière, sans dépassement. Les slots racine réservés à la
+plateforme sont invisibles aux lectures et protégés des écritures, pour ne pas
+reprendre la console active. La classe de base PCI a aussi reçu une vérification
+NULL après l’allocation de son instance.
+
+Le contrat impose un callback plateforme de complétion des écritures de
+configuration avant accès MMIO dans une autre région, suite à la note de revue
+#209 (approuvée). Le pilote ne reprend pas les allocations DMA par défaut ni
+l’hypothèse d’une interruption INTx ; ces opérations refusent en attendant leur
+admission explicite. Le code partagé n’embarque aucune instruction Apple/SMP.
+
+Le module compile pour AROS AArch64. `make test-pci-ecam-class` exécute les
+méthodes réelles sous ASan/UBSan, avec seulement l’allocation OOP parente et le
+lookup Utility remplacés côté hôte : réservation, écriture, traduction,
+refus hors plage, échec d’allocation, barrière après store accepté. Cela ne
+prouve pas encore son chargement ni l’énumération OOP dans l’invité. Prochaine
+étape : fournir les mappings et réserver le BDF de console depuis le binding
+VM, charger les classes et vérifier l’énumération réelle avant virtio GPU.
