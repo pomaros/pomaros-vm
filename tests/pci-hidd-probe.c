@@ -26,7 +26,8 @@ APTR KernelBase;
 static OOP_AttrBase device_attr;
 static unsigned enumerated,console_seen,expected,mapped_common,mapping_failed;
 static int check_mappings,check_resident;
-static unsigned resident_checked,dma_checked,dma_failed;
+static unsigned resident_checked,dma_checked,dma_failed,block_checked;
+int test_block_queue(OOP_Object *,struct Library *);
 static OOP_Object *driver;
 static struct PCIECAMConfig host;
 static OOP_MethodID read_base;
@@ -216,6 +217,9 @@ AROS_UFH3(static IPTR, count_device,
             uint16_t command=config_read(device,4,2);
             config_write_word(device,4,command);
             if(config_read(device,4,2)==command) ++resident_checked;
+            if(product==0x1042 || product==0x1001) {
+                if(test_block_queue(device,OOPBase)) ++block_checked;else ++dma_failed;
+            }
             if(product==0x1044) {
                 if(entropy_dma(device)) ++dma_checked;else ++dma_failed;
             }
@@ -275,7 +279,7 @@ static int resident_bridge(void)
     check_resident=1;
     OOP_DoMethod(pci,(OOP_Msg)&enumerate);
     OOP_DisposeObject(pci);OOP_ReleaseAttrBase((CONST_STRPTR)IID_Hidd_PCIDevice);
-    return expected && enumerated==expected && resident_checked==expected && !console_seen && dma_checked==1 && !dma_failed;
+    return expected && enumerated==expected && resident_checked==expected && !console_seen && dma_checked==1 && block_checked==1 && !dma_failed;
 }
 int main(int argc,char **argv)
 {
@@ -321,6 +325,7 @@ int main(int argc,char **argv)
         if(!resident_bridge()) return 91;
         mark("[VM] PCI resident bridge after command unload PASS\n");
         mark("[VM] virtio entropy DMA completion PASS\n");
+        mark("[VM] virtio block queue sector read PASS\n");
         return 0;
     }
     OOP_AttrBase attr=OOP_ObtainAttrBase((CONST_STRPTR)IID_Hidd_PCIECAM);

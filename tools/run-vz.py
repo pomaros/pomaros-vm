@@ -37,7 +37,8 @@ if a.require_pci_hidd:
                 '[VM] virtio reset acknowledged PASS',
                 '[VM] PCI resident install PASS',
                 '[VM] PCI resident bridge after command unload PASS',
-                '[VM] virtio entropy DMA completion PASS']
+                '[VM] virtio entropy DMA completion PASS',
+                '[VM] virtio block queue sector read PASS']
 passed=False;reason='timeout';start=time.monotonic()
 with log.open('w') as out:
     proc=subprocess.Popen([str(root/'build/macaros-vm'),str(disk),str(a.output/'state'),'--headless'],stdout=out,stderr=subprocess.STDOUT)

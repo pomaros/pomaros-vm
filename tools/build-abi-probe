@@ -106,6 +106,11 @@ trap 'find "$temporary_output" -depth -delete 2>/dev/null || true' \
     EXIT HUP INT TERM
 export COMPILER_PATH="$sdk_tools:$crosstools/bin"
 
+# Additional source is only the actual virtio block queue qualification.
+set --
+if [ "$profile" = pci ]; then
+    set -- "$project_root/tests/virtio-block-queue.c"
+fi
 "$clang" \
     --target=aarch64-unknown-aros \
     -mcmodel=large -fno-pic -fno-pie -femulated-tls \
@@ -116,7 +121,7 @@ export COMPILER_PATH="$sdk_tools:$crosstools/bin"
     -isystem "$posix_include_dir" -isystem "$stdc_include_dir" \
     -nostartfiles -nodefaultlibs \
     -L"$library_dir" -L"$crosstools/lib/generic" \
-    "$library_dir/startup.o" "$source_file" -o "$temporary_output" \
+    "$library_dir/startup.o" "$source_file" "$@" -o "$temporary_output" \
     -Wl,--allow-multiple-definition \
     -Wl,--start-group -ldos -lexec -laros -lautoinit -llibinit -lutility \
     -lamiga -larossupport -lpthread -lposixc -lstdcio -lstdc \

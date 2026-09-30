@@ -896,3 +896,52 @@ Revue 218. Suite bloc : q_Reqs/header/status et données doivent appartenir aux
 allocations DMA, vérifier les erreurs de traduction, remplacer les seules
 barrières compilateur et traiter les longueurs de complétion. MSI reste une
 qualification indépendante avant les requêtes asynchrones.
+
+
+## Queue bloc réelle et lecture de secteur — 30 septembre
+
+Core `eaa7e42a5e` : virtio_queue alloue désormais les métadonnées de requête
+(header/status) via AllocPCIMem et une copie DMA des données par requête. Les
+écritures copient l'entrée avant publication ; les lectures ne copient vers
+l'appelant qu'après une complétion réussie de longueur exacte. Les adresses
+CPU sont traduites directement par le HIDD, sans lui repasser le résultat
+physique de CachePreDMA. Les traductions base/fin sont vérifiées, y compris
+le sentinel -1 et les débordements, avant de publier un descripteur.
+
+Les seules barrières compilateur sont remplacées par des barrières matérielles
+(DSB SY sur AArch64). Le pilote exige une mémoire DMA cohérente ; un port natif
+non cohérent devra fournir une politique explicite avant activation. Les queues
+sont bornées à 32768 entrées. Les complétions conservent l'identifiant 32 bits
+(l'ancien UWORD pouvait convertir 65536 en zéro). Une tête inconnue/inactive ou
+un saut impossible d'indice marque q_Broken et bloque les soumissions ; les
+buffers sont conservés jusqu'au reset. La récupération et la réponse aux IO
+encore pendantes dans ce cas restent à intégrer au contrôleur.
+
+Le contrat de longueur utilisé est celui des queues/blocs modernes de
+[Virtio 1.2](https://docs.oasis-open.org/virtio/virtio/v1.2/virtio-v1.2.html) :
+lecture réussie = données + statut ; écriture/flush = statut. Erreurs ou
+longueurs nulles/tronquées/excessives ne donnent jamais io_Actual positif et
+ne recopient pas les données. FreeQueue exige un device arrêté et des
+utilisateurs logiciels retirés ; il libère aussi les copies DMA restantes.
+
+`make test-virtio-queue` ASan/UBSan PASS, compilant le vrai virtio_queue.c :
+DMA non identitaire, allocations refusées, six positions de traduction refusées
+sans publication/fuite, lecture réussie, lecture tronquée/null/excessive sans
+altération de l'appelant, copie d'écriture, réponses hors ordre, wrap 65535→0,
+identifiant 32 bits invalide et refus de réutiliser la queue cassée.
+`make test-virtio-lifecycle` reste PASS.
+
+Le nouveau tests/virtio-block-queue.c compile virtio_hw.c et virtio_queue.c
+sans les réimplémenter. Le programme prépare un device temporaire sur le HIDD
+résident, négocie VERSION_1, lit LBA0 par une queue de huit entrées, attend au
+plus une seconde via le compteur architectural, exige la réponse Exec correcte,
+512 octets et la signature 55aa du disque de boot isolé. Reset acquitté avant
+libération. Pas d'IRQ demandée, pas d'écriture disque dans ce test.
+
+`artifacts/vz-pci-block-queue` et `artifacts/hvf-pci-block-queue` PASS.
+Bundle `162675ea4125a415a7d811f00ec7f92b3b6c6b4dc83bd44b0f43cda024d57f40` ;
+disque VZ `bf829c01659b25fdc32b7d3c236db32691ca780f82ff6947ae45613cce442f3c`.
+Le marqueur de lecture bloc est obligatoire avec --require-pci-hidd. Ce sont
+les vrais corps de transport/queue mais pas encore le chargement de tout
+virtio.device et de ses unités DOS. Suite : MSI/IRQ, écriture/flush sur disque
+jetable, redémarrage et persistance. Revue 218 du DMA approuvée. SMP intact.

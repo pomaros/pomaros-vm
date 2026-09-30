@@ -11,12 +11,12 @@ unless a concrete blocker is documented.
 | 1. Interrupts and time | Kernel timer waits, scheduler mask semantics and standard IRQ handler registration/removal on the VM controllers | VZ and HVF GIC2/GIC3 pass. Real peripheral interrupt acknowledgement still belongs to driver qualification. Single CPU only. |
 | 2. Portable hardware description | Retained firmware tree exposed through existing AROS APIs; shared bounded discovery; explicit mappings and driver admission | FDT reader, ACPI bridge, ECAM/windows and OpenFirmware API pass. PCI HIDD loading, registration/removal and MapPCI register reads pass in VZ/HVF. Resident bridge survives installer command unload in VZ/HVF; Owned-buffer DMA and polled virtio entropy completion pass in VZ/HVF; peripheral IRQ admission remains. No Pi hardware qualification claimed. |
 | 3. VZ desktop and input | Wanderer appears under Virtualization.framework and accepts keyboard/pointer input through guest drivers | Wanderer works under HVF/ramfb. VZ GPU and input are outstanding. |
-| 4. Persistent storage | Guest writes, flushes, remounts and verifies data after a full VM restart; controlled interruption recovery | Boot images and acknowledged virtio reset/start/stop probes pass in VZ/HVF. Writable runtime block-driver path and persistence/crash qualification remain. |
+| 4. Persistent storage | Guest writes, flushes, remounts and verifies data after a full VM restart; controlled interruption recovery | Boot images and acknowledged virtio reset/start/stop probes pass in VZ/HVF. Shared virtio block transport/queue reads a boot sector in VZ/HVF. Full device startup, writes and persistence/crash qualification remain. |
 | 5. Complete reproducible build | Empty build directory produces guest, SDK, commands and launcher; independent rebuild comparison | Fresh complete core and Wanderer packages boot. Packaging is deterministic. Two independent complete builds have not been compared byte for byte. |
 | 6. Prolonged use and integration | Sustained desktop/storage/network exercise; clipboard text and images in both directions; usable file exchange | Network and integration services remain. Intermittent early virtio-console diagnostic loss remains unresolved and must retain independent supervision. |
 
-Next implementation boundary: peripheral IRQ/MSI admission and adaptation of
-the block queues to the explicit DMA buffer policy. Controller/bus startup failure
+Next implementation boundary: peripheral IRQ/MSI admission, full virtio.device
+startup and isolated block write/flush/restart qualification. Controller/bus startup failure
 unwind is host-tested; published-bus hot removal remains unsupported. The transport uses MapPCI and bounded acknowledged
 reset; full virtio.device operation is not yet qualified. Preserve access widths (especially command/status writes),
 validate BARs against declared apertures, and do not enable DMA or assume INTx

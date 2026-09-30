@@ -232,3 +232,11 @@ completion with an architectural-counter deadline, then waits for reset
 acknowledgement before freeing the DMA buffer. QEMU's PCI profile adds an
 entropy device to match VZ. The mandatory DMA completion marker proves this
 bounded queue transfer; it does not prove peripheral IRQs or block I/O.
+
+`make test-virtio-queue` runs the actual block queue implementation under host
+sanitizers with simulated non-identity DMA. The PCI guest probe also compiles
+`virtio_hw.c` and `virtio_queue.c` unchanged and reads sector zero of its isolated
+boot disk, checking completion length, the AROS reply and the boot signature.
+The required block-read marker is separate from entropy completion. This is a
+polled shared-driver-code test, not loading the complete virtio.device or
+qualifying writes, filesystem persistence or interrupts.
