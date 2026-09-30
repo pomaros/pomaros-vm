@@ -11,6 +11,7 @@ import subprocess
 import time
 root=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser()
+p.add_argument('--filesystem-phase',choices=['write','restart'])
 p.add_argument('--storage-phase',choices=['write','restart'])
 p.add_argument('--require-pci-hidd',action='store_true')
 p.add_argument('--require-virtio-device',action='store_true')
@@ -20,6 +21,7 @@ p.add_argument('--disk',type=Path,required=True)
 p.add_argument('--output',type=Path,required=True)
 p.add_argument('--timeout',type=float,default=45)
 a=p.parse_args()
+if a.filesystem_phase and not a.require_virtio_device: p.error('--filesystem-phase requires --require-virtio-device')
 if a.storage_phase and not a.require_virtio_device: p.error('--storage-phase requires --require-virtio-device')
 if a.require_virtio_device and not a.require_msi_irq: p.error('--require-virtio-device requires --require-msi-irq')
 if a.require_msi_irq and not a.require_msi_frame: p.error('--require-msi-irq requires --require-msi-frame')
@@ -53,6 +55,8 @@ if a.require_virtio_device: markers += ['[VM] full virtio.device unit open PASS'
 if a.storage_phase:
     markers += ['[VM] storage FLUSH negotiated PASS']
     markers += (['[VM] storage write flush PASS','[VM] storage write readback PASS'] if a.storage_phase=='write' else ['[VM] storage restart read PASS'])
+if a.filesystem_phase:
+    markers += ['[VM] filesystem mount PASS', '[VM] filesystem '+('write flush' if a.filesystem_phase=='write' else 'restart')+' PASS']
 passed=False;reason='timeout';start=time.monotonic()
 with log.open('w') as out:
     proc=subprocess.Popen([str(root/'build/macaros-vm'),str(disk),str(a.output/'state'),'--headless'],stdout=out,stderr=subprocess.STDOUT)
@@ -71,7 +75,7 @@ with log.open('w') as out:
 boot=subprocess.run(['mtype','-i',str(disk),'::BOOT.LOG'],capture_output=True)
 (a.output/'firmware.log').write_bytes(boot.stdout)
 verdict={'result':'PASS' if passed else 'FAIL','reason':reason,
-         'backend':'Virtualization.framework','graphics':False,'storage_phase':a.storage_phase,
+         'backend':'Virtualization.framework','graphics':False,'storage_phase':a.storage_phase,'filesystem_phase':a.filesystem_phase,
          'pci_hidd_required':a.require_pci_hidd,'msi_frame_required':a.require_msi_frame,'msi_irq_required':a.require_msi_irq,'virtio_device_required':a.require_virtio_device,
          'seconds':round(time.monotonic()-start,2),
          'input_disk_sha256':hashlib.sha256(a.disk.read_bytes()).hexdigest(),

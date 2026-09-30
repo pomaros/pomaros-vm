@@ -1188,3 +1188,44 @@ IO or crash recovery. Next mount a filesystem on an explicitly isolated region
 or second disk, exercise real files across restart, then controlled interruption.
 VZ desktop/input, clean-build comparison and networking/clipboard/file exchange
 remain outstanding; stage six is not complete. SMP remains reserved to bsek.
+
+## Mounted FAT files survive a fresh VM
+
+`tools/run-filesystem-vz.py` extends a copy of the validated 64 MiB boot image
+to 80 MiB, with a separately mformatted 16 MiB FAT volume containing SEED.TXT.
+At that exact geometry the guest registers VMTEST0: using MakeDosNode, a
+DosEnvec confined to the appended sectors, and the resident FAT SegList from
+FileSystem.resource. It verifies the seed before creating DATA/PENDING.BIN,
+writes 64 KiB in sixteen blocks, closes, renames to KEPT.BIN and compares all
+bytes and EOF. Inhibit(VMTEST0:, DOSTRUE) drains/detaches FAT, then an explicit
+CMD_UPDATE completes with negotiated FLUSH. The next fresh VM reads the existing
+file. Host mtools independently verifies payload/seed and absence of the old
+name after both phases. Input disk is preserved; no physical device is used.
+
+First run `vz-filesystem-restart` stopped in early IRQ diagnostics before any
+PCI/filesystem code. This is consistent with the unresolved intermittent
+virtio-console symptom, not a FAT finding. Same bundle under HVF/QMP
+`hvf-filesystem-startup` passed early IRQ and polled block checks, then failed
+opening the complete driver as expected without the VZ MSI route; this is
+not a passing filesystem run and does not explain the VZ symptom.
+`vz-filesystem-restart-2` and `vz-filesystem-diag` reached mount/mkdir/write/
+rename/content, then Inhibit returned 218: the test had named both device and
+volume VMTEST, so DOS resolved a volume rather than the required device. It
+also passed TRUE instead of DOS's DOSTRUE. Separate VMTEST0 device and VMTEST
+volume plus DOSTRUE fixed the test; no core patch was needed.
+
+Final `artifacts/vz-filesystem-fixed` PASS both VMs and independent host checks.
+Input `e35ffbcf02ef64b5d040fbee9d00ba3cac1b79e172bedd937574e153d6cb21b3`;
+bundle `0f4dec04fe63b31c9211034767a68d04fc8569a17d428f4234bef80c5d16b12a`;
+PCIPROBE `60ce5681963901aa88d84ee400e968aac184b8e74aa0d289e69185a4a876635c`.
+File SHA256 in both phases:
+`1942de172742ea4cc88bacca1802a39924147e552ff0a36397597ad066c3e94f`.
+A flipped byte at file offset 60001 is rejected by the restart guest in
+`artifacts/vz-filesystem-corrupt`. Prior two-VM block gate also PASS in
+`artifacts/vz-filesystem-block-regression`; actual IO/queue/lifecycle sanitizer
+checks and Python syntax checks PASS. Core stays at `7769f704f7`.
+
+Reviews 223/224/225 approved. Next qualify interruption during writes and
+sustained filesystem IO; this clean-close/restart test is not crash recovery.
+VZ desktop/input, reproducible independent rebuild and stage-six integration
+remain open. SMP remains reserved to bsek.

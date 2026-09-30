@@ -5,6 +5,10 @@
 #define __OOP_NOMETHODBASES__
 #include <proto/exec.h>
 #include <proto/dos.h>
+#include <proto/expansion.h>
+#include <dos/filehandler.h>
+#include <dos/dosextens.h>
+#include <resources/filesysres.h>
 #include <exec/memory.h>
 #include <devices/trackdisk.h>
 #include <string.h>
@@ -69,6 +73,74 @@ static int storage_test(struct IOStdReq *io,UBYTE *buffer)
     for(unsigned i=0;i<4096;++i)if(buffer[i]!=pattern(i))return 0;
     mark("[VM] storage write readback PASS\n");return 1;
 }
+static int filesystem_test(struct IOStdReq *io,UBYTE *buffer)
+{
+    struct virtio_Unit *unit=(void *)io->io_Unit;
+    if(!(unit->au_Bus->ab_Dev->dev_Features&((UQUAD)1<<VIRTIO_BLK_F_FLUSH)))return 0;
+    struct Library *ExpansionBase=OpenLibrary((CONST_STRPTR)"expansion.library",0);
+    if(!ExpansionBase)return 0;
+    IPTR pp[4+DE_BOOTBLOCKS+1]={0};
+    pp[0]=(IPTR)"VMTEST0";pp[1]=(IPTR)"virtio.device";
+    pp[4+DE_TABLESIZE]=DE_BOOTBLOCKS;pp[4+DE_SIZEBLOCK]=128;
+    pp[4+DE_NUMHEADS]=1;pp[4+DE_SECSPERBLOCK]=1;pp[4+DE_BLKSPERTRACK]=1;
+    pp[4+DE_LOWCYL]=TEST_BASE/512;pp[4+DE_HIGHCYL]=80*1024*1024/512-1;
+    pp[4+DE_NUMBUFFERS]=32;pp[4+DE_BUFMEMTYPE]=MEMF_PUBLIC;
+    pp[4+DE_MAXTRANSFER]=0x100000;pp[4+DE_MASK]=~(IPTR)1;
+    pp[4+DE_DOSTYPE]=ID_FAT16_DISK;
+    struct DeviceNode *node=MakeDosNode(pp);
+    CloseLibrary(ExpansionBase);
+    if(!node)return 0;
+    struct FileSysResource *fs=OpenResource((CONST_STRPTR)"FileSystem.resource");
+    if(fs) {
+        Forbid();
+        struct FileSysEntry *entry=(void *)fs->fsr_FileSysEntries.lh_Head;
+        for(;entry->fse_Node.ln_Succ;entry=(void *)entry->fse_Node.ln_Succ)
+            if(entry->fse_DosType==ID_FAT16_DISK && (entry->fse_PatchFlags&0x80)) {
+                node->dn_SegList=entry->fse_SegList;
+                node->dn_GlobalVec=entry->fse_GlobalVec;break;
+            }
+        Permit();
+    }
+    if(!node->dn_SegList || !AddDosEntry((void *)node)) { FreeVec(node);return 0; }
+    mark("[VM] filesystem mount begin\n");
+    BPTR file=Open((CONST_STRPTR)"VMTEST0:SEED.TXT",MODE_OLDFILE);
+    static const char seed[]="MACAROS-VM-FILESYSTEM-TEST-V1\n";
+    if(!file)return 0;
+    LONG bytes=Read(file,buffer,4096);Close(file);
+    if(bytes!=sizeof(seed)-1 || memcmp(buffer,seed,sizeof(seed)-1))return 0;
+    mark("[VM] filesystem mount PASS\n");
+    int existing=0;
+    file=Open((CONST_STRPTR)"VMTEST:DATA/KEPT.BIN",MODE_OLDFILE);
+    if(file)existing=1;
+    else {
+        BPTR dir=CreateDir((CONST_STRPTR)"VMTEST:DATA");if(!dir) { number("[VM] mkdir error",IoErr());return 0; }UnLock(dir);
+        mark("[VM] filesystem mkdir PASS\n");
+        file=Open((CONST_STRPTR)"VMTEST:DATA/PENDING.BIN",MODE_NEWFILE);if(!file)return 0;
+        for(unsigned block=0;block<16;++block) {
+            for(unsigned i=0;i<4096;++i)buffer[i]=pattern(i+4096*block);
+            if(Write(file,buffer,4096)!=4096) { number("[VM] write error",IoErr());Close(file);return 0; }
+        }
+        mark("[VM] filesystem wrote bytes\n");
+        if(!Close(file)) { number("[VM] close error",IoErr());return 0; }
+        if(!Rename((CONST_STRPTR)"VMTEST:DATA/PENDING.BIN",(CONST_STRPTR)"VMTEST:DATA/KEPT.BIN")) { number("[VM] rename error",IoErr());return 0; }
+        mark("[VM] filesystem rename PASS\n");
+        file=Open((CONST_STRPTR)"VMTEST:DATA/KEPT.BIN",MODE_OLDFILE);if(!file)return 0;
+    }
+    int okay=1;
+    for(unsigned block=0;block<16 && okay;++block) {
+        if(Read(file,buffer,4096)!=4096) { okay=0;break; }
+        for(unsigned i=0;i<4096;++i)if(buffer[i]!=pattern(i+4096*block))okay=0;
+    }
+    if(okay && Read(file,buffer,1)!=0)okay=0;
+    Close(file);if(!okay) { mark("[VM] filesystem content mismatch\n");return 0; }
+    mark("[VM] filesystem content PASS\n");
+    /* Inhibit drains the filesystem cache before the explicit device flush. */
+    if(!Inhibit((CONST_STRPTR)"VMTEST0:",DOSTRUE)) { number("[VM] inhibit error",IoErr());return 0; }
+    int result=transfer(io,CMD_UPDATE,0,NULL,0);
+    if(result!=1)return result;
+    mark(existing?"[VM] filesystem restart PASS\n":"[VM] filesystem write flush PASS\n");
+    return 1;
+}
 /* -1: optional package absent; 0: failed; 1: actual device read succeeded. */
 int test_virtio_device(void)
 {
@@ -108,7 +180,11 @@ int test_virtio_device(void)
         if(result<0)return 0;
         okay=result;
     }
-
+    if(okay && (uint64_t)geometry.dg_TotalSectors*geometry.dg_SectorSize==80UL*1024*1024) {
+        result=filesystem_test(io,buffer);
+        if(result<0)return 0;
+        okay=result;
+    }
 done:
     if(opened) CloseDevice((struct IORequest *)request);
     if(request) DeleteIORequest((struct IORequest *)request);

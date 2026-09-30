@@ -300,3 +300,19 @@ bytes. A second fresh VM reads the resulting image and must report the restart
 proof, followed by another host byte check. Each VM has its own state directory.
 The input image is preserved. This proves block persistence across VM restart,
 not filesystem recovery or survival of host power loss.
+
+For a mounted FAT filesystem over the installed virtio driver:
+
+```sh
+python3 tools/run-filesystem-vz.py --disk DISK.img --output artifacts/filesystem-NEW
+```
+
+This preserves the 64 MiB input and appends a separately formatted 16 MiB FAT
+volume containing an opt-in seed. The guest registers `VMTEST0:` using the
+resident FAT handler and a bounded DosEnvec; its volume name is `VMTEST:`.
+It verifies the seed, creates a directory, writes 64 KiB, closes and renames
+the file, and checks every byte. Inhibit uses the device name and DOSTRUE to
+flush/detach the volume; a negotiated device FLUSH follows. A fresh second VM
+must read the existing file. Host mtools independently checks contents, seed
+and disappearance of the pre-rename name after each VM. Corruption is an error,
+not a request to recreate the file. This gate does not inject interruption.
