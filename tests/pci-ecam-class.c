@@ -55,6 +55,9 @@ int main(void)
     assert(!PCIECAM__Hidd_PCIDriver__AllocPCIMem(&cl,object,NULL));
     assert(!PCIECAM__Hidd_PCIDriver__AddInterrupt(&cl,object,NULL));
     assert(PCIECAM__Hidd_PCIDriver__CPUtoPCI(&cl,object,NULL)==(void *)-1);
+    host.config.first_bus=1;host.config.last_bus=1;
+    assert(!PCIECAM__Root__New(&cl,NULL,&newmsg));
+    host.config.first_bus=0;host.config.last_bus=0;
     host.window_count=2;host.windows[1]=host.windows[0];
     assert(!PCIECAM__Root__New(&cl,NULL,&newmsg));
     host.window_count=1;host.windows[0].cpu=UINT64_MAX-4095;

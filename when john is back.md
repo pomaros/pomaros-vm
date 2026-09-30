@@ -558,3 +558,7 @@ refus hors plage, échec d’allocation, barrière après store accepté. Cela n
 prouve pas encore son chargement ni l’énumération OOP dans l’invité. Prochaine
 étape : fournir les mappings et réserver le BDF de console depuis le binding
 VM, charger les classes et vérifier l’énumération réelle avant virtio GPU.
+
+La classe refuse aussi un premier bus non nul : le scanner PCI AROS commence
+actuellement au bus zéro. Le helper ECAM reste capable d’adresser un premier
+bus non nul, mais ne pas confondre cette propriété avec la capacité du scanner.
