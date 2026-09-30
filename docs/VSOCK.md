@@ -7,7 +7,7 @@ separate network binding for the same application services.
 
 The APL core `rom/devs/virtio/vsock_transport.c` reuses the shared PCI mapping,
 DMA allocator, split queues and acknowledged reset. Its wire contract is
-[OASIS Virtio 1.2, section 5.10](https://docs.oasis-open.org/virtio/virtio/v1.2/virtio-v1.2.html#x1-35800010).
+[OASIS Virtio 1.2, section 5.10](https://docs.oasis-open.org/virtio/virtio/v1.2/virtio-v1.2.html#x1-43600010).
 The transport exposes bounded packet send/receive, CID discovery and optional
 interrupt registration. Three queues cover receive, transmit and reset events.
 One task owns the context; packets are copied into owned DMA buffers. Receive
