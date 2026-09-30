@@ -2528,3 +2528,37 @@ Revue 264 approuve le contrôle UDP et propose de viser l'adresse vmnet du Mac
 sans conclure que le défaut soit résolu. Revue 265 AFS+ : claude-next lit déjà
 le dma-bounce ; signalé le Mask 32 bits du boot node comme cause possible,
 sans duplication ni prise du M1.
+
+## Flux vsock : crédits, fragmentation et deux connexions de 64 Kio
+
+Core 8d9695cdb5 ajoute vsock_stream.c/.h, moteur portable sans OS, deux rings
+fixes de 16 Kio, crédits validés, compteurs modulo 32 bits, acceptation TX
+transactionnelle, fermeture et RST. Les données portent les crédits actualisés
+pour éviter de priver TX quand RX progresse. f95496c9a0 conserve une erreur
+latente après émission RST ; cette dernière modification est compilée et
+vérifiée sur hôte, sans troisième run VZ. Le moteur n'est PAS encore un
+service résident ni une API device AROS.
+
+La sonde transfère deux fois 64 Kio, ports invités distincts, chunks applicatifs
+de 997 octets, comparaison intégrale. Premier run vz-vsock-bulk FAIL 4,51 s :
+la sonde sortait dès CLOSED alors que 14689 octets restaient dans RX. Le moteur
+conservait les données ; correction du consommateur pour vider RX après fermeture.
+Deuxième run vz-vsock-bulk-drain : deux marqueurs hôte, marqueur invité des deux
+flux et startup complet, mais verdict original FAIL timeout à 30,07 s : le
+scorer attendait à tort UNE occurrence du marqueur hôte. Verdict conservé.
+
+Correction du scorer : contrat partagé tools/vz_contract.py, exactement DEUX
+marqueurs hôte et un invité. tests/vsock-contract.py sur le journal conservé :
+42 contrôles PASS (chaque marqueur absent/dupliqué est refusé). Preuve limitée
+au contrat des marqueurs, pas une réécriture rétroactive du verdict VM.
+Artefact artifacts/vsock-bulk-contract-replay.json. Disque du deuxième run :
+4b3d9af32fa12d632808979bcedd175e41a34745d1f0295777b2091d8b179bd9 ; lanceur :
+0570a8820b39cfde1300acc344978e599359743a19dc893ea13c06d48f8151a1.
+
+15 cas ASan/UBSan PASS dans artifacts/vsock-stream-test.log : backpressure,
+crédits, fragmentation, wrap, malformed, shutdown, lecture après fermeture.
+Swift et invité warnings-as-errors PASS. Deux boots seulement ; aucune répétition
+pour transformer la preuve existante en nouveau vert. Revue 266 approuvée.
+Prochaine étape : propriétaire résident (IRQ/scheduling, device/IO, annulation
+et durée de vie), puis services fichiers et clipboard texte/images. Le défaut
+UDP via adresse Wi-Fi et les autres critères STAGE6 restent ouverts.

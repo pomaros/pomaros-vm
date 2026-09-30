@@ -186,3 +186,10 @@ test-virtio-vsock: build/virtio-vsock-queue-test
 build/virtio-vsock-queue-test: tests/virtio-vsock-queue.c $(VIRTIO_SOURCE)/vsock_transport.c $(VIRTIO_SOURCE)/vsock_transport.h | build
 	clang -std=gnu11 -Wall -Wextra -Werror -Wno-ignored-attributes -Wno-cast-function-type-mismatch -fsanitize=address,undefined -Wl,-dead_strip \
 	 -I$(VIRTIO_SOURCE) -idirafter $(AROS_VM_SDK)/AROS/Developer/include $< -o $@
+
+.PHONY: test-vsock-stream
+test-vsock-stream: build/vsock-stream-test
+	build/vsock-stream-test
+build/vsock-stream-test: tests/vsock-stream.c $(VIRTIO_SOURCE)/vsock_stream.c $(VIRTIO_SOURCE)/vsock_stream.h | build
+	clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -fno-sanitize-recover=all \
+	 -I$(VIRTIO_SOURCE) tests/vsock-stream.c $(VIRTIO_SOURCE)/vsock_stream.c -o $@

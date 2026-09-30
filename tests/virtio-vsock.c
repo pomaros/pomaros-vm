@@ -2,62 +2,60 @@
 // Copyright (c) 2026 John Knipper
 #include <proto/exec.h>
 #include <proto/dos.h>
+#include <exec/memory.h>
 #include <string.h>
 #include "vsock_transport.c"
+#include "vsock_stream.c"
 static void socket_mark(const char *s) { while(*s)RawPutChar(*s++); }
-/* One bounded stream with 32 bytes of receive credit. The production owner
- * will supply stream buffering, reconnection and service framing separately. */
+static int emit_packet(void *context,const uint8_t *packet,size_t bytes)
+{ return VirtioVsockSend(context,packet,bytes); }
+static UBYTE pattern(UQUAD seed,unsigned offset)
+{ return (UBYTE)(seed>>(8*(offset%8)))^(UBYTE)(offset*37+offset/251); }
 int test_vsock(OOP_Object *object,struct Library *oop)
 {
-    struct VirtioVsock *v=NULL;int okay=0;
+    struct VirtioVsock *v=NULL;struct VsockStream *s=NULL;int okay=0;
     if(!VirtioVsockOpen(oop,object,&v))goto done;
-    UBYTE packet[4096],challenge[32],reply[32];unsigned received=0;
-    UQUAD counter;__asm__ volatile("mrs %0,cntvct_el0":"=r"(counter));
-    for(unsigned i=0;i<32;++i)challenge[i]=(UBYTE)(counter>>(8*(i%8)))^(UBYTE)(i*37);
-    struct VirtioVsockHeader h={0};
-    h.src_cid=VirtioVsockCID(v);h.dst_cid=2;h.src_port=49152;h.dst_port=4050;
-    h.type=1;h.op=1;h.buf_alloc=32;
-    memcpy(packet,&h,sizeof(h));
-    if(VirtioVsockSend(v,packet,sizeof(h))!=1)goto done;
-    BOOL connected=FALSE,sent=FALSE;ULONG peer_credit=0;unsigned control=0;
-    for(unsigned tick=0;tick<250;++tick) {
-        LONG n=VirtioVsockReceive(v,packet,sizeof(packet));
-        if(n<0)goto done;
-        if(n) {
-            struct VirtioVsockHeader r;memcpy(&r,packet,sizeof(r));
-            if(r.src_cid!=2 || r.src_port!=4050 || r.dst_port!=49152 || r.type!=1)goto done;
-            if(r.op==2 && !connected && !r.len) { connected=TRUE;peer_credit=r.buf_alloc; }
-            else if(r.op==5 && connected && sent && r.len<=32-received) {
-                memcpy(reply+received,packet+sizeof(r),r.len);received+=r.len;
-                if(received==32) { okay=!memcmp(reply,challenge,32);break; }
-            } else if(r.op==6 && !r.len)peer_credit=r.buf_alloc;
-            else if(r.op==7 && !r.len)control=6;
-            else goto done;
+    s=AllocMem(sizeof(*s),MEMF_PUBLIC|MEMF_CLEAR);if(!s)goto done;
+    for(unsigned session=0;session<2;++session) {
+        UBYTE packet[4096],data[997];unsigned sent=0,received=0;
+        UQUAD seed;__asm__ volatile("mrs %0,cntvct_el0":"=r"(seed));
+        if(!VsockStreamInit(s,VirtioVsockCID(v),49152+session,2,4050))goto done;
+        for(unsigned tick=0;tick<500;++tick) {
+            /* Bound drain work and keep RX independent from TX backpressure. */
+            for(unsigned batch=0;batch<8;++batch) {
+                LONG n=VirtioVsockReceive(v,packet,sizeof(packet));if(n<0)goto done;
+                if(!n)break;
+                if(VsockStreamFeed(s,packet,n)!=1)goto done;
+            }
+            size_t n=VsockStreamRead(s,data,sizeof(data));
+            if(n>65536-received)goto done;
+            for(unsigned i=0;i<n;++i)if(data[i]!=pattern(seed,received+i))goto done;
+            received+=n;
+            if(sent<65536) {
+                unsigned want=65536-sent;if(want>sizeof(data))want=sizeof(data);
+                for(unsigned i=0;i<want;++i)data[i]=pattern(seed,sent+i);
+                sent+=VsockStreamWrite(s,data,want);
+            }
+            if(sent==65536 && received==65536 && !s->tx_count)VsockStreamShutdown(s);
+            if(VsockStreamPump(s,emit_packet,v)<0 || s->failed)goto done;
+            /* A closed stream can still contain data already delivered by its peer. */
+            if(s->state==VS_CLOSED && !s->rx_count)break;
+            Delay(1);
         }
-        LONG ready=VirtioVsockPollTX(v);if(ready<0)goto done;
-        if(ready && control) {
-            h.op=control;h.len=0;memcpy(packet,&h,sizeof(h));
-            if(VirtioVsockSend(v,packet,sizeof(h))!=1)goto done;control=0;
-        } else if(ready && connected && !sent && peer_credit>=32) {
-            h.op=5;h.len=32;memcpy(packet,&h,sizeof(h));memcpy(packet+sizeof(h),challenge,32);
-            if(VirtioVsockSend(v,packet,sizeof(h)+32)!=1)goto done;sent=TRUE;
+        if(sent!=65536 || received!=65536 || s->state!=VS_CLOSED) {
+            bug("[VM] vsock incomplete sent=%u received=%u state=%u\n",sent,received,s->state);
+            goto done;
         }
-        Delay(1);
-    }
-    /* Explicit reset ends this qualification flow before transport reset. */
-    if(okay) {
         for(unsigned tick=0;tick<50 && VirtioVsockPollTX(v)==0;++tick)Delay(1);
-        h.op=3;h.len=0;h.fwd_cnt=received;memcpy(packet,&h,sizeof(h));
-        if(VirtioVsockSend(v,packet,sizeof(h))!=1)okay=0;
-        for(unsigned tick=0;tick<50 && VirtioVsockPollTX(v)==0;++tick)Delay(1);
-        if(VirtioVsockPollTX(v)!=1)okay=0;
+        if(VirtioVsockPollTX(v)!=1)goto done;
     }
+    okay=1;
 done:
+    if(s)FreeMem(s,sizeof(*s));
     if(!VirtioVsockClose(v)) {
         socket_mark("[VM] vsock DMA quarantine FAIL\n");
-        /* Code/context remain resident until the external deadline stops VM. */
         for(;;)Delay(50);
     }
-    socket_mark(okay?"[VM] vsock host stream exchange PASS\n":"[VM] vsock host stream exchange FAIL\n");
+    socket_mark(okay?"[VM] vsock two 64KiB streams PASS\n":"[VM] vsock two 64KiB streams FAIL\n");
     return okay;
 }
