@@ -64,6 +64,10 @@ static void cache_post(void *p,ULONG *n,ULONG flags)
 #define CachePreDMA(p,n,f) cache_pre(p,n,f)
 #undef CachePostDMA
 #define CachePostDMA(p,n,f) cache_post(p,n,f)
+#define DMAFLAGS_PREREAD 0
+#define DMAFLAGS_PREWRITE DMA_ReadFromRAM
+#define DMAFLAGS_POSTREAD (1UL << 31)
+#define DMAFLAGS_POSTWRITE ((1UL << 31) | DMA_ReadFromRAM)
 #include "xhci_dma.c"
 static void reset(void)
 {
@@ -153,15 +157,35 @@ int main(void)
     xhciReleasePCIPayload(&hc,&io,0,UHDIR_IN,NULL);
     assert(!pre && !post);reset();
 
+    /* Actual scheduler entry points preserve CPU domain for InsertTRB, while
+     * the allocation cookie owns the full PCI/cache lifetime. */
+    hc.hc_Flags=HCF_ADDR64;n=64;
+    void *cpu=xhciPrepareDMABuffer(&hc,&io,&n,UHDIR_OUT,&cookie);
+    assert(cpu==owned && cpu!=(void *)bus_base && cookie);
+    assert(translate(cpu)==(void *)bus_base && memcmp(cpu,data,n)==0);
+    xhciReleaseDMABuffer(&hc,&io,n,UHDIR_OUT,cookie);reset();
+    n=64;cpu=xhciPrepareDMABuffer(&hc,&io,&n,UHDIR_IN,&cookie);
+    assert(cpu==owned && cookie);memset(cpu,0x42,n);
+    xhciReleaseDMABuffer(&hc,&io,7,UHDIR_IN,cookie);
+    assert(data[0]==0x42 && data[6]==0x42 && post==1 && last_post==64);reset();
+    memcpy(saved,data,sizeof(data));n=64;
+    cpu=xhciPrepareDMABuffer(&hc,&io,&n,UHDIR_IN,&cookie);assert(cpu);
+    memset(cpu,0x11,n);
+    xhciDiscardPreparedDMABuffer(&hc,&io,cpu,n,UHDIR_IN,cookie);
+    assert(!memcmp(saved,data,sizeof(data)) && post==1 && last_post==64);reset();
+    n=0;cookie=(void *)1;
+    assert(xhciPrepareDMABuffer(&hc,&io,&n,UHDIR_IN,&cookie)==data && !cookie);
+    xhciReleaseDMABuffer(&hc,&io,0,UHDIR_IN,cookie);reset();
+
     /* Platform devices must use their own address-space contract. */
     hc.hc_Flags=HCF_PLATFORM|HCF_ADDR64;n=64;
     assert(!xhciPreparePCIPayload(&hc,&io,&n,UHDIR_OUT,&cookie) && !cookie);
     assert(!pre && !post);reset();
     /* Unpublished CPU-addressed preparations balance cache, without copy-back. */
     void *unpublished=calloc(1,64);assert(unpublished);
-    xhciDiscardPreparedDMABuffer(unpublished,64,UHDIR_IN,unpublished);
+    xhciDiscardPreparedDMABuffer(&hc,&io,unpublished,64,UHDIR_IN,unpublished);
     assert(post==1 && last_post==64 && post_flags==(1UL<<31));reset();
-    xhciDiscardPreparedDMABuffer(data,32,UHDIR_OUT,NULL);
+    xhciDiscardPreparedDMABuffer(&hc,&io,data,32,UHDIR_OUT,NULL);
     assert(post==1 && last_post==32 && post_flags==((1UL<<31)|DMA_ReadFromRAM));reset();
     puts("xhci-dma result=PASS real-payload,nonidentity,partial-IN,zero-actual,oversize,failures,32bit,platform-rejected");
     return 0;

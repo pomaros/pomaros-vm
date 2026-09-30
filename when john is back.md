@@ -1978,3 +1978,39 @@ has been attempted. Full stage-six goal remains open; SMP untouched.
   `68d0fc614781c546c43c65895c595c90d872111c4977b24dd4caf534aeaa2df1`,
   disque `06277b86e450ef613e052848ed487e1212d93d1a1b566af3e78bf104320f5ec9`.
   Les étapes 3 et 6 ne sont pas validées. Aucun essai matériel M1 ou Pi.
+
+## Deux périphériques USB énumérés sous VZ
+
+- Core `2e5bf1debe` raccorde les payloads PCI-owned à la préparation, à la
+  libération après complétion et au rollback non publié. La primitive garde
+  son résultat bus pour validation ; le wrapper retourne le buffer CPU du
+  cookie. InsertTRB effectue donc exactement une traduction CPU → bus.
+  Les wrappers sont regroupés dans xhci_dma.c pour tester le vrai code.
+  Le chemin HCF_PLATFORM reste distinct. Aucun nouveau support SMP.
+- Ce raccordement ne résolvait pas l'arrêt VZ : les traces
+  `vz-xhci-enumeration-event-trace`, `address-trace`, `port-trace`, puis
+  `port-write` montrent les commandes Address Device achevées avant l'arrêt,
+  sans publication d'un TRB de données. L'écriture précise fautive est
+  ClearFeature(C_PORT_ENABLE=17), PORTSC 0x500014a0 : valeur lue 0x603,
+  valeur écrite 0x40200 ; l'écriture ne revient pas.
+- Core `de67f956d2` limite les bits RW1C demandés aux bits observés dans
+  PORTSC. L'IRQ peut avoir déjà acquitté le matériel tout en conservant
+  l'événement dans la carte logicielle pour Poseidon ; cette carte est bien
+  acquittée indépendamment. VZ n'accepte pas l'acquittement PEC redondant
+  observé ici. Ce résultat ne décrit pas le comportement d'un contrôleur
+  physique. Référence de registre consultée : [Intel xHCI, PORTSC](https://www.intel.com/content/dam/www/public/us/en/documents/technical-specifications/extensible-host-controler-interface-usb-xhci.pdf).
+- `vz-xhci-enumeration-observed-ack` PASS 8,14 s avec traces. Core final
+  `fc39873111` retire toutes les traces temporaires ;
+  `vz-xhci-enumeration-clean` PASS 7,42 s, descripteurs enfants
+  05ac:8105 et 05ac:8106. Gates PCI/MSI/bloc/GPU/startup également PASS.
+  Bundle `124c51839ee24f68da9037b1e517ce2fd0ff21c17050fe32051dcbe029fa2ffd`,
+  disque `a28ed77be5569aa3b264cf25c2e85c3b0f4f4b959b7a1d3cb6e75e6e67087a93`.
+- ASan/UBSan : tests xhci-dma, ring, request et completion PASS. Le test DMA
+  exerce les vrais wrappers, le retour CPU distinct du bus, copie IN partielle,
+  rollback sans copie IN et requête sans données. Publication/indices de ring
+  et complétion restent couverts par leurs tests existants.
+- Revues 246 et 247 approuvées ; revues 248 (payload) et 249 (PORTSC) demandées.
+  Prochain chemin d'usage : charger la classe HID, recevoir les événements
+  clavier/pointeur et les livrer au bureau VZ. Les deux descripteurs ne prouvent
+  pas cette livraison. AbortIO/NAK/flush/RTISO/déconnexion restent ouverts avant
+  qualification prolongée. Réseau, clipboard et échanges restent à réaliser.

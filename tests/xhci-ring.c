@@ -67,8 +67,8 @@ static APTR xhciPrepareDMABuffer(struct PCIController *hc,struct IOUsbHWReq *io,
     if(prep_short)*bytes/=2;
     return io->iouh_Data;
 }
-static void xhciDiscardPreparedDMABuffer(APTR cpu,ULONG bytes,UWORD direction,APTR bounce)
-{ (void)bytes;(void)direction;assert(cpu && !bounce && !depth && !writes);++discards; }
+static void xhciDiscardPreparedDMABuffer(struct PCIController *hc,struct IOUsbHWReq *io,APTR cpu,ULONG bytes,UWORD direction,APTR bounce)
+{ (void)hc;(void)io;(void)bytes;(void)direction;assert(cpu && !bounce && !depth && !writes);++discards; }
 static unsigned doorbells,auto_complete,completion_pending,completions;
 static struct IOUsbHWReq *published_io;
 static struct List *published_list;
