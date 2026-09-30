@@ -13,12 +13,15 @@ from types import SimpleNamespace
 
 root = Path(__file__).resolve().parents[1]
 p = argparse.ArgumentParser(description=__doc__)
+p.add_argument('--pci-hidd', action='store_true')
 p.add_argument('--build', type=Path, required=True)
 p.add_argument('--output', type=Path, required=True)
 p.add_argument('--profile', choices=['headless', 'wanderer'], default='headless')
 p.add_argument('--toolchain', type=Path, default=Path.home() / 'aros-crosstools')
 p.add_argument('--efi', type=Path, default=root / 'build/uefi/BOOTAA64.EFI')
 a = p.parse_args()
+if a.pci_hidd and a.profile != 'headless':
+    p.error('--pci-hidd requires headless profile')
 build = a.build.resolve()
 sdk = build / 'bin/apple-aarch64'
 output = a.output.resolve()
@@ -46,8 +49,18 @@ probe = output / 'ABIPROBE'
 subprocess.run([str(root / 'tools/build-abi-probe'), '--sdk', str(sdk),
                 '--crosstools', str(a.toolchain.resolve()),
                 '--profile', 'platform' if a.profile == 'headless' else 'cli', str(probe)], check=True)
+pci_probe = output / 'PCIPROBE'
+pci_files = []
+if a.pci_hidd:
+    subprocess.run([str(root / 'tools/build-abi-probe'), '--sdk', str(sdk),
+        '--crosstools', str(a.toolchain.resolve()), '--profile', 'pci', str(pci_probe)], check=True)
+    pci_files = [(rel, sdk/'AROS'/rel) for rel in ['Libs/oop.library',
+        'Devs/Drivers/hiddclass.hidd','Devs/Drivers/pci.hidd','Devs/Drivers/pciecam.hidd']]
 ramdisk = output / 'SYS.img'
 image_command = ['python3', str(root / 'tools/make-fat12-image.py'), '--abi-probe', str(probe)]
+if a.pci_hidd:
+    image_command += ['--file', f'PCIPROBE={pci_probe}']
+    for rel, path in pci_files: image_command += ['--file', f'{rel}={path}']
 if programs:
     image_command += ['--wanderer', str(programs[0])]
 subprocess.run(image_command + [str(ramdisk)], check=True)
@@ -66,7 +79,7 @@ subprocess.run(['python3', str(root / 'tools/boot_generation.py'), 'create',
                 '--bundle', str(destination), '--sequence', '1', '--slot', '0',
                 '--state', 'accepted', '--output', str(output / 'AROS/BOOT0.ID')], check=True)
 shutil.copyfile(efi, output / 'EFI/BOOT/BOOTAA64.EFI')
-inputs = [stage2, efi, probe, ramdisk] + [path for _, path in components] + programs
+inputs = ([pci_probe] if a.pci_hidd else []) + [path for _, path in pci_files] + [stage2, efi, probe, ramdisk] + [path for _, path in components] + programs
 manifest = {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in inputs}
 (output / 'provenance.json').write_text(json.dumps({
     'profile': a.profile, 'build': str(build), 'seed_bundle': None,

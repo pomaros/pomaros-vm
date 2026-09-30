@@ -58,6 +58,9 @@ case "$profile" in
     tls)
         source_file="$project_root/tests/abi-corpus/tls-concurrency-probe.c"
         ;;
+    pci)
+        source_file="$project_root/tests/pci-hidd-probe.c"
+        ;;
     platform)
         source_file="$project_root/tests/platform-probe.c"
         ;;

@@ -11,6 +11,7 @@ import subprocess
 import time
 root=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser()
+p.add_argument('--require-pci-hidd',action='store_true')
 p.add_argument('--disk',type=Path,required=True)
 p.add_argument('--output',type=Path,required=True)
 p.add_argument('--timeout',type=float,default=45)
@@ -29,6 +30,7 @@ markers=['[VM] OpenFirmware FDT + PCI config PASS',
          '[B2S] DOS takeover + SYS namespace sentinel PASS',
          '[B2A] portable ABI + emulated TLS + streams + W^X/unload PASS',
          '[B2Q] AROS startup contract PASS']
+if a.require_pci_hidd: markers.append('[VM] PCI HIDD class + reserved console PASS')
 passed=False;reason='timeout';start=time.monotonic()
 with log.open('w') as out:
     proc=subprocess.Popen([str(root/'build/macaros-vm'),str(disk),str(a.output/'state'),'--headless'],stdout=out,stderr=subprocess.STDOUT)
@@ -48,6 +50,7 @@ boot=subprocess.run(['mtype','-i',str(disk),'::BOOT.LOG'],capture_output=True)
 (a.output/'firmware.log').write_bytes(boot.stdout)
 verdict={'result':'PASS' if passed else 'FAIL','reason':reason,
          'backend':'Virtualization.framework','graphics':False,
+         'pci_hidd_required':a.require_pci_hidd,
          'seconds':round(time.monotonic()-start,2),
          'input_disk_sha256':hashlib.sha256(a.disk.read_bytes()).hexdigest(),
          'launcher_sha256':hashlib.sha256((root/'build/macaros-vm').read_bytes()).hexdigest()}

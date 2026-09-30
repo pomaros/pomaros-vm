@@ -19,5 +19,6 @@
   "fat-handler": "L/fat-handler",
   "appleboot.device": "Devs/appleboot.device",
   "dos.library": "Libs/dos.library",
-  "iffparse.library": "Libs/iffparse.library"
+  "iffparse.library": "Libs/iffparse.library",
+  "lddemon.resource": "Devs/lddemon.resource"
 }

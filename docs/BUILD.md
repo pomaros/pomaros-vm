@@ -174,7 +174,7 @@ registers through QMP, independently of virtio. A deliberately short timeout
 checks this capture path but is not a guest fault reproduction. The ordinary
 framebuffer lane retains `--console pl011` and firmware FDT discovery.
 
-The headless package now contains 23 entries, including `openfirmware.resource`.
+The headless package now contains 24 entries, including `openfirmware.resource` and `lddemon.resource`.
 Its ABI command also checks the existing OpenFirmware APIs and reads PCI vendor
 IDs through a supervisor callback. ECAM remains inaccessible from EL0. VZ always
 requires this platform proof; use `--require-platform` for the QEMU core profile.
@@ -190,3 +190,10 @@ The generic PCI ECAM class can be built independently with
 host sanitizers; it does not qualify class loading or device enumeration in a
 guest. The VM platform must supply admitted mappings and a configuration-write
 completion barrier before registering this class with the PCI subsystem.
+
+To qualify real shared-library loading and OOP configuration methods, add
+`--pci-hidd` when packaging the headless profile. This installs PCIPROBE and
+four libraries in SYS, all recorded in provenance. Run VZ or QEMU with
+`--require-pci-hidd`; otherwise a normal headless startup does not assert this
+extra proof. The command disposes its driver instance before unloading, while
+libraries remain resident. It does not register hardware in the PCI subsystem.

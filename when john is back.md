@@ -562,3 +562,39 @@ VM, charger les classes et vérifier l’énumération réelle avant virtio GPU.
 La classe refuse aussi un premier bus non nul : le scanner PCI AROS commence
 actuellement au bus zéro. Le helper ECAM reste capable d’adresser un premier
 bus non nul, mais ne pas confondre cette propriété avec la capacité du scanner.
+
+
+## Chargement réel des classes PCI — 30 septembre
+
+Core `9d2b9f3c9a` / `ecceb24d1a` : le profil sans écran inclut maintenant
+`lddemon.resource`, chargé après DOS par le mécanisme standard AROS. Son absence
+expliquait l’échec initial de OpenLibrary(oop.library) malgré la présence du
+fichier. Le profil possède 22 résidents (24 entrées bundle), avec contrôles
+exacts OpenFirmware à l’indice 6 et LDDemon à 21. Les profils natifs gardent
+leurs vérifications propres. `apple-boot-payloads` dépend du chargeur.
+
+Le test optionnel PCIPROBE est exécuté après la mesure ABI de chargement /
+déchargement ; ses bibliothèques restent résidentes, sans affaiblir la mesure
+ABI précédente. Le packaging `--pci-hidd` inclut et hache oop.library,
+hiddclass.hidd, pci.hidd et pciecam.hidd. OpenLibrary passe par LDDemon normal.
+Le programme crée l’objet OOP, lit les IDs par la méthode du HIDD, vérifie que
+la console réservée reste invisible, puis détruit l’objet avant son propre
+UnLoadSeg (donc aucun callback dans du code libéré).
+
+PASS `hvf-pci-hidd-loader` et `vz-pci-hidd-qualified`, avec
+`pci_hidd_required=true`. Bundle
+`9a80334b91bfc8cf629e024387c37fde45a97a76fd3639dd0c58835e38f69399` ; disque VZ
+`0fff41e0139f60954d7f0aae96b9e289078de34d38b7d9cbeec2c3694c14441d`.
+Contre-épreuve `vz-pci-hidd-negative` : sans PCIPROBE le démarrage AROS passe,
+mais le runner exigeant ce test refuse bien le résultat.
+
+Premier essai conservé `hvf-pci-hidd-load` : timeout avant main, PC indépendant
+capturé par QMP. Il manquait les options CLI __nowbsupport/__nostdiowin du
+programme de test ; corrigées, main est atteint. Les essais suivants ont
+identifié le manque de LDDemon. Revue du HIDD #210 approuvée.
+
+Limite : les lectures OOP se font encore sous Supervisor sur ECAM EL1-only.
+Ce n’est pas encore l’enregistrement du pont avec HIDD_PCI_AddHardwareDriver.
+Il reste à donner aux pilotes leurs mappings admis, réserver le BDF de console
+et enregistrer le pont pour l’énumération complète, puis apporter DMA/IRQ et
+virtio GPU/entrées/stockage. SMP intact, étape 6 toujours ouverte.
