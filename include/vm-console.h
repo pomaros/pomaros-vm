@@ -159,9 +159,37 @@ static inline int vm_console_init(struct VMConsole *s)
 fail:
     s->failed=1; return 0;
 }
+#ifndef VM_CONSOLE_TICKS
+static inline uint64_t vm_console_ticks(void)
+{
+    uint64_t value;__asm__ volatile("mrs %0,cntvct_el0":"=r"(value));return value;
+}
+#define VM_CONSOLE_TICKS() vm_console_ticks()
+#endif
+#ifndef VM_CONSOLE_FREQUENCY
+static inline uint64_t vm_console_frequency(void)
+{
+    uint64_t value;__asm__ volatile("mrs %0,cntfrq_el0":"=r"(value));return value;
+}
+#define VM_CONSOLE_FREQUENCY() vm_console_frequency()
+#endif
+/* A timeout does not revoke device ownership or prove a broken queue. Keep
+ * the descriptor/buffer intact and drain it before a later write reuses it. */
+static inline int vm_console_drain(struct VMConsole *s)
+{
+    uint64_t start=VM_CONSOLE_TICKS(),limit=VM_CONSOLE_FREQUENCY();
+    if(!limit)return 0;
+    while(s->used_index!=s->index) {
+        if(VM_CONSOLE_TICKS()-start>=limit)return 0;
+        __asm__ volatile("dmb sy" ::: "memory");
+    }
+    __asm__ volatile("dmb sy" ::: "memory");
+    if(s->used_ring[(uint16_t)(s->index-1)%8].id!=0) { s->failed=1;return 0; }
+    return 1;
+}
 static inline int vm_console_write(struct VMConsole *s,const char *text,size_t length)
 {
-    if (!vm_console_init(s)) return 0;
+    if (!vm_console_init(s) || !vm_console_drain(s)) return 0;
     while(length) {
         size_t n=length>sizeof(s->bytes)?sizeof(s->bytes):length;
         for(size_t i=0;i<n;++i) s->bytes[i]=(uint8_t)text[i];
@@ -173,12 +201,7 @@ static inline int vm_console_write(struct VMConsole *s,const char *text,size_t l
         __asm__ volatile("dsb sy" ::: "memory");
         VMREG(uint16_t,s->doorbell,0)=1;
         s->reserved=7;
-        for(unsigned spin=0;s->used_index!=s->index;++spin) {
-            if(spin==10000000) { s->failed=1;return 0; }
-            __asm__ volatile("dmb sy" ::: "memory");
-        }
-        __asm__ volatile("dmb sy" ::: "memory");
-        if (s->used_ring[(s->index-1)%8].id!=0) { s->failed=1;return 0; }
+        if(!vm_console_drain(s))return 0;
         text+=n;length-=n;
     }
     return 1;

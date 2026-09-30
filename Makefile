@@ -123,3 +123,9 @@ test-virtio-io: build/virtio-io-test
 build/virtio-io-test: tests/virtio-io.c $(VIRTIO_SOURCE)/virtio_io.c $(VIRTIO_SOURCE)/virtio_intern.h | build
 	clang -std=gnu11 -Wall -Wextra -Werror -Wno-ignored-attributes -Wno-unused-parameter -fsanitize=address,undefined -fno-sanitize-recover=all \
 	 -I$(VIRTIO_SOURCE) -idirafter $(AROS_VM_SDK)/AROS/Developer/include $< -o $@
+
+.PHONY: test-console-timeout
+test-console-timeout: build/console-timeout-test
+	build/console-timeout-test
+build/console-timeout-test: tests/console-timeout.c include/vm-console.h | build
+	clang -std=gnu11 -Wall -Wextra -Werror -fsanitize=address,undefined -fno-sanitize-recover=all $< -o $@

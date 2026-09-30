@@ -1264,3 +1264,54 @@ may be absent/partial; the already flushed reference must remain exact. Broader
 interruption and sustained IO remain, as do VZ GPU/input, independent clean-build
 comparison and networking/clipboard/file exchange. The early console issue
 needs independent debugging before sustained-use acceptance. SMP untouched.
+
+## Early-console loss: independently captured late TX completion
+
+Read-only inspection of the previously failed
+`vz-filesystem-crash/baseline/write/system.img` found the complete correct
+64 KiB KEPT.BIN despite its console stopping during early IRQ diagnostics.
+This proves that run continued through filesystem IO; it was not a whole-CPU
+freeze. A diagnostic filesystem test now snapshots the retained VMConsole
+record through Supervisor and saves CONSOLE.BIN before FAT flush. This path
+uses disk IO independently of the failing console. The record is raw diagnostic
+state tied to the exact header/package, not an external stable ABI.
+
+Snapshot candidate bundle `6263400457d09dde168f8f3c7c62aa137cb6a2c53e991d2f7281ebc07892fe1e`
+passed six two-VM runs (vz-console-snapshot and suffixes2..6), then
+`artifacts/vz-console-snapshot-7` reproduced the silence. Extracted
+`write-console-state.bin`: initialized1, failed1, stage7, published/available/
+used index517, last used slot4 id0. No further descriptor was published once
+failed latched. The old TX loop marks failed permanently when its ten-million
+spin budget expires; a valid later completion cannot clear it. Initialized1
+and stage7 exclude initialization failure; the intact id0 excludes the other
+TX failure branch. This is evidence of a late valid completion after the TX
+wait gave up, not inference from silence alone.
+
+Core `c200c678ee` and matching VM header replace that TX spin count with a
+one-second architectural-counter deadline. Timeout retains the published
+buffer/descriptor, without latching permanent failure; a subsequent write must
+drain it before reuse. Invalid completion id remains fatal. Completion indexing
+also casts before subtract/wrap selection, keeping index0's previous slot at7.
+The actual shared-header sanitizer test injects a clock and proves timeout,
+no overwrite while pending, delayed completion/recovery, 16-bit wrap and bad-id
+refusal. This is a single-CPU early polling console; no SMP work was done.
+
+Core `d49ffc2e5c` adds the missing stage2_fdt_map.o dependency on vmconsole.h.
+The first build had updated kernel but not bootstrap; that unrun candidate was
+superseded. Firmware, bootstrap and kernel were then rebuilt coherently. Full
+make test and test-console-timeout PASS with fatal UBSan; core and EFI builds
+PASS. Final disk `bbc692cd62917c22257a201acbc5a41dffd8dcb770d0027070e6ed2201544eeb`;
+bundle `3598968a63ce48d4907ddfba6d5d99a0b82661983bbd96f4b8f6df94e1801e0e`;
+PCIPROBE `a92928f54f6e64ca9ec138020e25267ce0d3afb22507de3c87f3b4fd9756e094`.
+`artifacts/vz-console-recovery-1..4` PASS (eight VMs); all independent disk
+snapshots show initialized1/failed0 and used index equals published index.
+`artifacts/hvf-console-recovery` PASS with virtio console, timer/IRQ/platform/PCI
+checks; its package omits the complete device because QEMU ITS routing remains
+unimplemented. HVF bundle `4cbed314feb57d3ac6a8e12f07a9d8e85e433c1edbf21744eab0afbe0e6639e3`.
+
+The captured permanent-disable path is fixed; eight successful boots do not
+prove all console failures impossible. Initialization/control-queue spin bounds
+were not changed, and a timeout can still omit later text while a descriptor
+is pending. Keep independent snapshots/supervision during prolonged tests.
+Next return to sustained IO and VZ graphics/input rather than treat this finite
+sample as completion of stage six. Review227 approved; SMP remains bsek's work.

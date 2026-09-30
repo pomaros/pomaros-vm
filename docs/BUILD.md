@@ -336,3 +336,21 @@ verify the reference; host mtools verifies it before and after recovery.
 PASS requires the observed workload, forced termination, clean read-only FAT
 check and intact durable file. It does not require a complete interrupted file,
 pinpoint an in-flight DMA write, or establish host-power-loss durability.
+
+The filesystem guest also saves `CONSOLE.BIN`, a read-only snapshot of the
+retained VMConsole record obtained in supervisor mode, before flushing the
+volume. Extract it independently of console output with mtools:
+
+```sh
+mcopy -i artifacts/RUN/write/system.img@@67108864 ::CONSOLE.BIN /tmp/console.bin
+```
+
+Interpret the record with the exact `include/vm-console.h` and package provenance
+from that run; it is a diagnostic structure, not a versioned external format.
+A log timeout with intact files proves continued guest work, not a CPU freeze.
+`make test-console-timeout` tests the shared TX implementation with an injected
+clock: measured deadline, retained buffer ownership after timeout, delayed
+completion and subsequent writes, 16-bit wrap, and invalid-descriptor rejection.
+The TX deadline is one architectural-counter second per drain attempt. A timeout
+cannot authorize descriptor reuse or permanently poison an otherwise valid
+queue. Initialization/control-queue deadlines are separate from this TX test.

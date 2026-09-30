@@ -6,6 +6,9 @@
 #include <proto/exec.h>
 #include <proto/dos.h>
 #include <proto/expansion.h>
+#include <proto/openfirmware.h>
+#include "../include/vm-console.h"
+extern APTR OpenFirmwareBase;
 #include <dos/filehandler.h>
 #include <dos/dosextens.h>
 #include <resources/filesysres.h>
@@ -72,6 +75,30 @@ static int storage_test(struct IOStdReq *io,UBYTE *buffer)
     if(result!=1)return result;
     for(unsigned i=0;i<4096;++i)if(buffer[i]!=pattern(i))return 0;
     mark("[VM] storage write readback PASS\n");return 1;
+}
+static uintptr_t console_address;
+static struct VMConsole console_snapshot;
+static IPTR snapshot_console(void)
+{
+    const volatile struct VMConsole *state=(void *)console_address;
+    if(state->magic!=VM_CONSOLE_MAGIC)return 0;
+    volatile const UBYTE *src=(void *)state;UBYTE *dst=(void *)&console_snapshot;
+    for(unsigned i=0;i<sizeof(console_snapshot);++i)dst[i]=src[i];
+    return 1;
+}
+static int save_console_snapshot(void)
+{
+    void *root=OF_OpenKey("/");
+    void *prop=root?OF_FindProperty(root,"aros,vm-console-state"):NULL;
+    if(!prop || OF_GetPropLen(prop)!=8)return 0;
+    const UBYTE *bytes=OF_GetPropValue(prop);console_address=0;
+    for(unsigned i=0;i<8;++i)console_address=(console_address<<8)|bytes[i];
+    if(!console_address || (console_address&4095) || !Supervisor((APTR)snapshot_console))return 0;
+    BPTR file=Open((CONST_STRPTR)"VMTEST:CONSOLE.BIN",MODE_NEWFILE);
+    if(!file)return 0;
+    LONG written=Write(file,&console_snapshot,sizeof(console_snapshot));
+    LONG closed=Close(file);
+    return written==sizeof(console_snapshot) && closed;
 }
 static int filesystem_test(struct IOStdReq *io,UBYTE *buffer,int crash)
 {
@@ -150,6 +177,7 @@ static int filesystem_test(struct IOStdReq *io,UBYTE *buffer,int crash)
         }
         mark("[VM] crash workload unexpectedly finished\n");return 0;
     }
+    if(!save_console_snapshot())return 0;
     /* Inhibit drains the filesystem cache before the explicit device flush. */
     if(!Inhibit((CONST_STRPTR)"VMTEST0:",DOSTRUE)) { number("[VM] inhibit error",IoErr());return 0; }
     int result=transfer(io,CMD_UPDATE,0,NULL,0);
