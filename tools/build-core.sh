@@ -13,6 +13,11 @@ build=${AROS_BUILD:-"$HOME/Build/macaros-vm/core"}
     echo 'Refusing a shared native core branch; select the isolated VM checkout.' >&2
     exit 1
 }
+# A stale generated makefile silently selects the native x18 task-anchor ABI.
+if ! grep -q -- '-DAROS_VM_GUEST=1' "$build/arch/aarch64-apple/kernel/mmakefile"; then
+    echo 'Regenerate the isolated kernel makefile for the VM profile; see docs/BUILD.md.' >&2
+    exit 1
+fi
 # Refresh generated public headers in this isolated build, never the native build.
 cp "$core"/arch/aarch64-apple/include/aros/apple/*.h "$build/bin/apple-aarch64/gen/include/aros/apple/"
 cd "$build"

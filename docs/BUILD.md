@@ -8,7 +8,7 @@ metatargets to reuse the existing cross toolchain.
 The initial local setup uses:
 
 - core source: `~/Source/aros-core-vm`, branch `codex-macaros-vm` in the private
-  `jonx/aros-apple-core` repository, qualified revision `1669b1a090`;
+  `jonx/aros-apple-core` repository, qualified revision `39446191f2`;
 - configured build: `~/Build/macaros-vm/core`, APFS clone of the qualified
   native build, with generated include flags redirected to this checkout;
 - guest C/assembly target: AArch64 ELF, no `-ffixed-x18`;
@@ -16,7 +16,11 @@ The initial local setup uses:
 - host target: macOS arm64, Apple's calling convention.
 
 A copied generated `arch/aarch64-apple/mmakefile` must match the guest source's
-bootstrap flags, including the explicit `AROS_VM_GUEST=1` profile. The build
+bootstrap flags, including the explicit `AROS_VM_GUEST=1` profile. The generated
+`arch/aarch64-apple/kernel/mmakefile` must also include its conditional
+`USER_CPPFLAGS += -DAROS_VM_GUEST=1`; the helper refuses a stale kernel makefile.
+This selects task-owned x18 in the scheduler and the three-task canary proof.
+The build
 helper selects it; the default physical Apple profile still reserves x18. An out-of-tree
 source shadow or an include flag pointing to a different checkout is invalid.
 

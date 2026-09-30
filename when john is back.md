@@ -155,3 +155,33 @@ GIC initialise un seul CPU ; la découverte de plusieurs CPU ne signifie pas
 que SMP est prêt. Les gates DT0/DT2 de la roadmap complète restent distincts de
 ces preuves de composants. Le build depuis un clone neuf et le bureau permanent
 restent du travail explicite, pas des capacités déjà livrées.
+
+## x18 dans le vrai ordonnanceur VM
+
+Le passage suivant a révélé une limite des premières preuves : elles couvraient
+le bootstrap et les interruptions, mais le dispatcher Apple remplaçait encore
+x18 par le pointeur de tâche. Le core `39446191f2` corrige le profil VM :
+
+- Sauvegarde/restauration de x18 avec tous les autres registres de tâche.
+- Diagnostic d'exception via `SysBase->ThisTask`, sans traiter x18 arbitraire
+  comme une adresse de tâche. Ce chemin reste mono-CPU ; TPIDR_EL1/per-CPU est
+  un travail ultérieur du plan commun.
+- Preuve existante du boot et de deux tâches enrichie de trois valeurs x18
+  distinctes, vérifiées après six commutations. Le profil physique garde son
+  ABI et sa preuve d'ancre ; aucun run M1 physique effectué ici.
+
+Contrôle avant/après : avec la nouvelle preuve et l'ancien dispatcher,
+`artifacts/x18-dispatch-negative` échoue en phase 10, retour 0x24, statut de
+preuve nul malgré six dispatches et les deux nettoyages. Après correction :
+`artifacts/x18-dispatch-vz` PASS (0,66 s), `artifacts/x18-dispatch-hvf` PASS
+(6,97 s, Wanderer 800x600). Bundle headless SHA256
+`010543be74a31168300e81187473038127dff5fcc9756ce3663da63c06ca65f3` ;
+bundle Wanderer `8aecb185eac3236bebe6f88d12c34cccf0f7a2476cc1a77eee20e766c97d6bd2`.
+Le bundle reconstruit après nettoyage du code est identique octet pour octet.
+`make test` passe également (HVF x18 et contrôle négatif, lecteurs ASan/UBSan,
+11 cas du pont VZ, synchronisation des en-têtes).
+
+La revue 197 du lecteur/GIC est approuvée par claude-next. Ses précisions non
+bloquantes sur fournisseurs implicites, IRQ spéciales et groupes GIC sont dans
+le core `5d010c5112`. Le grand jalon suivant reste le raccordement IRQ/timer
+au noyau VM, puis le bureau interactif ; les probes ne le remplacent pas.
