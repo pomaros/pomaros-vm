@@ -41,3 +41,14 @@ build/gic-contract-test: tests/gic-contract.c $(GIC_CONTRACT_SOURCES) | build
 	clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined \
 	 -I$(AROS_CORE_SOURCE)/arch/aarch64-apple/include \
 	 -I$(AROS_CORE_SOURCE)/arch/aarch64-apple/bootstrap $< $(GIC_CONTRACT_SOURCES) -o $@
+
+AROS_VM_SDK ?= $(HOME)/Build/macaros-vm/clean-core/bin/apple-aarch64
+OF_SOURCE := $(AROS_CORE_SOURCE)/rom/openfirmware
+.PHONY: test-openfirmware
+test-openfirmware: build/openfirmware-fdt-test
+	dtc -q -I dts -O dtb tests/fdt/portable.dts -o build/openfirmware-fixture.dtb
+	build/openfirmware-fdt-test build/openfirmware-fixture.dtb
+build/openfirmware-fdt-test: tests/openfirmware-fdt.c $(OF_SOURCE)/of_fdt.c $(OF_SOURCE)/of_intern.h $(FDT_SOURCES) $(FDT_DIR)/early_fdt.c | build
+	clang -std=c11 -Wall -Wextra -Werror -Wno-ignored-attributes -fsanitize=address,undefined \
+	 -I$(OF_SOURCE) -idirafter $(AROS_VM_SDK)/AROS/Developer/include \
+	 -I$(FDT_DIR) -I$(FDT_DIR)/libfdt $< $(FDT_DIR)/early_fdt.c $(FDT_SOURCES) -o $@

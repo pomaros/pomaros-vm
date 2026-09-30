@@ -44,7 +44,8 @@ for path in [stage2, efi] + [path for _, path in components] + programs:
 output.mkdir(parents=True)
 probe = output / 'ABIPROBE'
 subprocess.run([str(root / 'tools/build-abi-probe'), '--sdk', str(sdk),
-                '--crosstools', str(a.toolchain.resolve()), str(probe)], check=True)
+                '--crosstools', str(a.toolchain.resolve()),
+                '--profile', 'platform' if a.profile == 'headless' else 'cli', str(probe)], check=True)
 ramdisk = output / 'SYS.img'
 image_command = ['python3', str(root / 'tools/make-fat12-image.py'), '--abi-probe', str(probe)]
 if programs:

@@ -473,3 +473,35 @@ L'étape suivante est l'exposition du FDT retenu à openfirmware.resource puis
 l'adaptateur ECAM de pci.hidd. Le code RISC-V pcidt fournit déjà le modèle de
 classes réutilisable, mais ses hypothèses Sv39 et PLIC ne doivent pas migrer
 sur AArch64. Aucun travail SMP ; cette étape reste mono-CPU.
+
+
+## OpenFirmware utilisable dans l’invité — 30 septembre
+
+Core `3dfe4b14a3`, `cca1aaf1a9`, `a662121517` : construction de l’API
+OpenFirmware existante à partir du FDT conservé, profil résident VM et
+propagation explicite du profil VM au stage2 autonome. Le build normal inclut
+maintenant la ressource. Aucun changement SMP.
+
+Preuves : `vz-openfirmware-qualified`, `hvf-openfirmware-qualified` (ACPI et
+console virtio), `hvf-openfirmware-fdt-gic2` (tree QEMU et PL011) passent le
+contrat de démarrage, timer, chaîne IRQ, ABI et recherche OpenFirmware suivie
+d’une lecture des identifiants PCI. Bundle
+`97c5c5aae48389698ca78192ee9af0dee03b482c41aa72ec8a35e24994fcfdc6`.
+Le test hôte ASan/UBSan vérifie 21 nœuds et les 72 échecs d’allocation possibles,
+sans fuite. La métadonnée est allouée, les noms/valeurs empruntent le blob
+immuable conservé. Le chemin historique Pi n’est pas supprimé.
+
+Le premier probe lisait ECAM depuis EL0 : faute de permission attendue observée
+sous VZ (`vz-openfirmware`, ESR 0x9200000f, FAR 0x40000000). Le probe final utilise
+Supervisor, sans ouvrir les mappings aux applications. Le profil résident a
+ensuite révélé un contrôle stage2 périmé puis l’absence du define VM dans ses
+flags propres ; corrigés, sans désactiver le contrôle d’ordre.
+
+Un essai HVF du probe négatif a aussi perdu sa sortie virtio après `[`. QMP a
+capturé le PC dans la boucle WFE de sortie d’échec du stage2 (RETURN 0x25 dans
+x20), pas dans une boucle de transmission. Cela donne une contre-épreuve utile
+au silence VZ intermittent déjà conservé ; sa cause n’est pas encore établie.
+
+Restent le PCI HIDD et l’admission des mappings/DMA/IRQ, puis les pilotes VZ
+GPU et entrées. Ces lectures de configuration ne prouvent aucun transfert DMA,
+aucune interruption de périphérique, aucun bureau VZ. L’étape 6 reste ouverte.

@@ -6,7 +6,7 @@ set -eu
 
 usage()
 {
-    echo "usage: build-abi-probe [--profile cli|tls|workbench] [--sdk SDK_ROOT] [--sdk-tools DIR] [--crosstools DIR] OUTPUT" >&2
+    echo "usage: build-abi-probe [--profile cli|tls|workbench|platform] [--sdk SDK_ROOT] [--sdk-tools DIR] [--crosstools DIR] OUTPUT" >&2
     exit 2
 }
 
@@ -57,6 +57,9 @@ case "$profile" in
         ;;
     tls)
         source_file="$project_root/tests/abi-corpus/tls-concurrency-probe.c"
+        ;;
+    platform)
+        source_file="$project_root/tests/platform-probe.c"
         ;;
     workbench)
         source_file="$project_root/tests/abi-corpus/workbench-probe.c"

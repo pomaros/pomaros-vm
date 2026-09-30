@@ -124,7 +124,7 @@ python3 tools/package-core.py --build "$HOME/Build/macaros-vm/clean-core" \
 python3 tools/make-disk.py --esp build/fresh-headless --output build/fresh-headless.img
 python3 tools/run-vz.py --disk build/fresh-headless.img --output artifacts/fresh-vz
 python3 tools/run-qemu.py --esp build/fresh-headless --profile core \
-  --require-timer --require-irq-chain --output artifacts/fresh-hvf
+  --require-timer --require-irq-chain --require-platform --output artifacts/fresh-hvf
 ```
 
 The output directory must not exist. The helper uses the prebuilt cross
@@ -173,3 +173,13 @@ This selects ACPI, GICv3 and a modern PCI virtio console. Guest output is in
 registers through QMP, independently of virtio. A deliberately short timeout
 checks this capture path but is not a guest fault reproduction. The ordinary
 framebuffer lane retains `--console pl011` and firmware FDT discovery.
+
+The headless package now contains 23 entries, including `openfirmware.resource`.
+Its ABI command also checks the existing OpenFirmware APIs and reads PCI vendor
+IDs through a supervisor callback. ECAM remains inaccessible from EL0. VZ always
+requires this platform proof; use `--require-platform` for the QEMU core profile.
+The Wanderer package retains its separate CLI probe and resident profile.
+
+With the fresh SDK available, run `make test-openfirmware` for the FDT-to-resource
+constructor under ASan/UBSan, including failure at every allocation. This target
+is separate from the SDK-independent host test suite (`make test`).

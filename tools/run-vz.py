@@ -19,7 +19,8 @@ if a.output.exists(): p.error('output must not exist')
 a.output.mkdir(parents=True);a.output=a.output.resolve()
 disk=a.output/'system.img';shutil.copyfile(a.disk,disk)
 log=a.output/'console.log'
-markers=['[VM] GIC + CNTV deadline ready',
+markers=['[VM] OpenFirmware FDT + PCI config PASS',
+         '[VM] GIC + CNTV deadline ready',
          '[VM] timer.device three waits PASS',
          '[VM] IRQ handler chain PASS',
          '[KI] dispatch masks: disabled 0x00000000000000c0 plain 0x0000000000000040 PASS',

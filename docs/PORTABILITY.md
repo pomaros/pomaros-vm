@@ -84,3 +84,15 @@ with other controllers fail the map contract. A console fully contained in a
 PCI window shares that mapping. Port I/O has no mapping in this profile.
 These mappings provide reachability; runtime driver admission and DMA ownership
 are separate contracts.
+
+`openfirmware.resource` now materializes its existing node/property representation
+from `KRN_FlattenedDeviceTree` when no legacy `KRN_OpenFirmwareTree` is supplied.
+It uses the shared bounded reader and borrows names/values from the retained
+immutable blob; only metadata is allocated. Every allocation failure unwinds the
+whole partial tree. The legacy Pi boot-tree path remains available. This is
+architecture-neutral C; the acceptance runs cover VM guests, not a Pi boot.
+
+The runtime proof opens the resource, searches a compatible PCI node through its
+public vectors and reads vendor IDs from the mapped ECAM in supervisor mode.
+It does not register a PCI HIDD, allocate BARs, enable bus mastering or establish
+DMA/interrupt ownership. Those are the next driver integration boundaries.

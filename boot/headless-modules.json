@@ -5,6 +5,7 @@
   "pmgr.resource": "Devs/pmgr.resource",
   "utility.library": "Libs/utility.library",
   "rtkit.resource": "Devs/rtkit.resource",
+  "openfirmware.resource": "Devs/openfirmware.resource",
   "aros.library": "Libs/aros.library",
   "bootloader.resource": "Devs/bootloader.resource",
   "task.resource": "Devs/task.resource",
