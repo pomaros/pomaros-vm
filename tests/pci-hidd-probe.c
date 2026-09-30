@@ -30,6 +30,7 @@ static unsigned resident_checked,dma_checked,dma_failed,block_checked;
 int test_block_queue(OOP_Object *,struct Library *,int);
 int test_virtio_device(void);
 int test_virtionet_device(void);
+int test_network_stack(void);
 int test_gpu_query(OOP_Object *,struct Library *);
 static OOP_Object *driver;
 static struct PCIECAMConfig host;
@@ -465,6 +466,7 @@ int main(int argc,char **argv)
         if(full>0) mark("[VM] full virtio.device IRQ read PASS\n");
         if(!test_xhci_device())return 95;
         if(!test_virtionet_device())return 96;
+        if(!test_network_stack())return 97;
         return 0;
     }
     OOP_AttrBase attr=OOP_ObtainAttrBase((CONST_STRPTR)IID_Hidd_PCIECAM);

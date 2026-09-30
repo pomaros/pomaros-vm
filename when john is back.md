@@ -2378,3 +2378,42 @@ Commande : `python3 tools/run-vz.py --disk build/sana-lifecycle.img
 Un positif et un négatif suffisent pour cette étape ; compilation de la pile
 existante AROSTCP lancée, journal `artifacts/arostcp-build.log`. Aucun trafic IP
 AROSTCP ni bail DHCP complet n'est encore qualifié.
+
+## Deux builds indépendants : comparaison des produits terminée
+
+Les deux builds v3 figés sur core `5be666ebbe244fd6c7077d38870082e6d922acb8`
+ont terminé leurs huit cibles avec retour 0 (1920,16 s et 2014,15 s).
+`artifacts/repro-v3-build-results.json` conserve leurs étapes. Comparaison
+SHA256 de tout le répertoire produit `AROS/` (SDK inclus) et du binaire stage2 :
+18 069 fichiers dans chaque build, zéro absent, zéro différence.
+`artifacts/repro-v3-products-comparison.json` conserve les deux inventaires.
+Ce résultat exclut le lanceur macOS, l'EFI et les ajouts réseau postérieurs à
+la révision figée ; il ne clôt donc pas à lui seul toute l'étape 5.
+
+## Intégration de la pile IP existante
+
+AROSTCP (environ 710 Kio) et dhclient (environ 1 Mio) compilent pour le SDK VM,
+sans modification de leur implémentation (`arostcp-build.log`,
+`dhclient-build.log`). Le profil expérimental `--network-stack` les installe
+sous `SYS:System/Network/AROSTCP`, avec vn0 sur virtionet.device et DHCP.
+La sonde attend bsdsocket.library puis interroge vn0 via SIOCGIFADDR ; une
+adresse nulle, loopback ou IPv4LL ne valide pas ce contrôle. Aucun succès de
+cette sonde n'est encore revendiqué.
+
+L'ensemble dépasse l'ancienne image SYS de 1,44 Mo. L'expansion FAT16 de
+16 Mio conserve les fichiers et vérifie leur contenu via mtype. Premier
+passage VZ : échec 0x410 avant DOS, dû à une géométrie BPB dont le nombre de
+secteurs n'est pas un multiple du cylindre accepté par appleboot.device.
+Géométrie corrigée à 1 tête / 32 secteurs : le deuxième passage franchit ce
+contrôle puis échoue 0x507 lors de l'initialisation DOS, toujours avant IP.
+Artefacts `vz-network-stack` et `vz-network-stack-geometry`. La cause de 0x507
+reste à établir ; aucune réussite réseau ne découle de ces essais.
+
+Une anomalie distincte était visible via fsck : mtools produit une entrée
+VFAT devant le label de volume. L'expansion la retire ; l'image
+`build/network-stack-label/SYS.img` passe `fsck_msdos -n` (code 0), et tous
+ses fichiers correspondent aux sources. Cette image corrigée n'a pas encore
+été essayée dans VZ. Pas de troisième redémarrage aveugle : ajout de diagnostics
+DOS sur les trois échecs handler / verrou du volume / signature de boot.
+Compilation en cours dans `artifacts/dos-boot-diagnostics-build.log`.
+Reprendre avec cette version diagnostique pour identifier l'échec restant.

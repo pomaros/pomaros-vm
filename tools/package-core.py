@@ -17,6 +17,7 @@ p.add_argument('--virtio-gpu', action='store_true')
 p.add_argument('--pci-hidd', action='store_true')
 p.add_argument('--virtio-device', action='store_true')
 p.add_argument('--virtionet-device', action='store_true')
+p.add_argument('--network-stack', action='store_true')
 p.add_argument('--startup-sequence', type=Path)
 p.add_argument('--desktop-session', help='1..3600 seconds or forever; omitted for boot proof')
 p.add_argument('--input-probe',action='store_true')
@@ -29,6 +30,8 @@ p.add_argument('--profile', choices=['headless', 'wanderer'], default='headless'
 p.add_argument('--toolchain', type=Path, default=Path.home() / 'aros-crosstools')
 p.add_argument('--efi', type=Path, default=root / 'build/uefi/BOOTAA64.EFI')
 a = p.parse_args()
+if a.network_stack:
+    a.virtionet_device=True
 if a.input_probe and (not a.usb_desktop or a.desktop_session is None):
     p.error('--input-probe requires --usb-desktop and --desktop-session')
 if a.desktop_session is not None:
@@ -104,6 +107,18 @@ if a.virtio_device:
         'Devs/Drivers/storage.hidd','Devs/virtio.device']]
 if a.virtionet_device:
     pci_files += [('Devs/Networks/virtionet.device',sdk/'AROS/Devs/Networks/virtionet.device')]
+if a.network_stack:
+    for name in ['AROSTCP','dhclient']:
+        pci_files.append(('System/Network/AROSTCP/C/'+name,sdk/'AROS/System/Network/AROSTCP/C'/name))
+    # Keep the standard tree: DHCP defaults and AROSTCP ProgramDir agree.
+    configs={
+        'general.config':'USELOOPBACK=YES\nDEBUGSANA=NO\nGATEWAY=NO\nHOSTNAME=macaros-vm\nOPENGUI=NO\n',
+        'interfaces':'vn0 DEV=DEVS:Networks/virtionet.device UNIT=0 IP=DHCP NOTRACKING UP\n',
+        'netdb':'WITH interfaces PREFIX=I\n',
+    }
+    for name,content in configs.items():
+        config_file=output/('net-'+name);config_file.write_text(content)
+        pci_files.append(('System/Network/AROSTCP/db/'+name,config_file))
 if a.xhci_driver:
     pci_files += [(rel,sdk/'AROS'/rel) for rel in ['Libs/poseidon.library','Devs/USBHardware/pcixhci.device']]
     request = output/'XHCITEST.REQ'
@@ -122,7 +137,9 @@ ramdisk = output / 'SYS.img'
 image_command = ['python3', str(root / 'tools/make-fat12-image.py'), '--abi-probe', str(probe)]
 if a.pci_hidd:
     image_command += ['--file', f'PCIPROBE={pci_probe}']
-for rel, path in pci_files: image_command += ['--file', f'{rel}={path}']
+for rel, path in pci_files:
+    if not (a.network_stack and rel.startswith('System/Network/')):
+        image_command += ['--file', f'{rel}={path}']
 if a.startup_sequence:
     startup=output/'Startup-Sequence'
     shutil.copyfile(a.startup_sequence,startup)
@@ -144,8 +161,14 @@ if a.usb_desktop:
     pci_files += [('VMUSB',usb_command),('Startup-Sequence',startup)]
 if programs:
     image_command += ['--wanderer', str(programs[0])]
-subprocess.run(image_command + [str(ramdisk)], check=True)
-subprocess.run(image_command + ['--verify', str(ramdisk)], check=True)
+seed=output/'SYS-seed.img' if a.network_stack else ramdisk
+subprocess.run(image_command + [str(seed)], check=True)
+subprocess.run(image_command + ['--verify', str(seed)], check=True)
+if a.network_stack:
+    expand=['python3',str(root/'tools/expand-system-image.py'),'--seed',str(seed),'--output',str(ramdisk)]
+    for rel,path in pci_files:
+        if rel.startswith('System/Network/'):expand += ['--file',f'{rel}={path}']
+    subprocess.run(expand,check=True)
 bundle = runpy.run_path(str(root / 'tools/arosbundle'))
 args = SimpleNamespace(kernel=stage2, kernel_name='aros-apple-stage2',
                        kernel_memory_size=16 * 1024 * 1024, component=components,
@@ -165,7 +188,7 @@ shutil.copyfile(efi, output / 'EFI/BOOT/BOOTAA64.EFI')
 inputs = ([output/'AROS/SESSION.CFG'] if a.desktop_session is not None else []) + ([pci_probe] if a.pci_hidd else []) + [path for _, path in pci_files] + [stage2, efi, probe, ramdisk] + [path for _, path in components] + programs
 manifest = {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in inputs}
 (output / 'provenance.json').write_text(json.dumps({
-    'profile': a.profile, 'input_probe': a.input_probe, 'desktop_session': a.desktop_session, 'usb_desktop': a.usb_desktop, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,
+    'profile': a.profile, 'network_stack': a.network_stack, 'virtionet_device': a.virtionet_device, 'input_probe': a.input_probe, 'desktop_session': a.desktop_session, 'usb_desktop': a.usb_desktop, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,
     'source_revision': revision, 'configure_command': configure_command,
     'inputs': manifest, 'bundle_sha256': hashlib.sha256(data).hexdigest(),
 }, indent=2) + '\n')
