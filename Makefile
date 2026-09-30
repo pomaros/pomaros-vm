@@ -129,3 +129,11 @@ test-console-timeout: build/console-timeout-test
 	build/console-timeout-test
 build/console-timeout-test: tests/console-timeout.c include/vm-console.h | build
 	clang -std=gnu11 -Wall -Wextra -Werror -fsanitize=address,undefined -fno-sanitize-recover=all $< -o $@
+
+XHCI_SOURCE := $(AROS_CORE_SOURCE)/rom/usb/pcixhci
+build/xhci-dma-test: tests/xhci-dma.c $(XHCI_SOURCE)/xhci_dma.c | build
+	clang -std=gnu11 -Wall -Wextra -Werror -Wno-unused-parameter -Wno-ignored-attributes -fsanitize=address,undefined -fno-sanitize-recover=all \
+	 -I$(XHCI_SOURCE) -idirafter $(HOME)/Build/macaros-vm/clean-core/bin/apple-aarch64/AROS/Developer/include $< -o $@
+.PHONY: test-xhci-dma
+test-xhci-dma: build/xhci-dma-test
+	build/xhci-dma-test

@@ -1534,3 +1534,50 @@ Core source revision remains7ea36d0966; SMP untouched.
 Poseidon and its SDK link library also built successfully. Binary hashes are
 in artifacts/usb-build-products.json; no runtime USB qualification is claimed.
 All build and guest processes ended.
+
+
+## xHCI owned payload primitive and lifetime audit (stage 3, incomplete)
+
+Core `d16c1de1a2` adds xhciPreparePCIPayload/xhciReleasePCIPayload in
+rom/usb/pcixhci/xhci_dma.c. Preparation allocates through the owning PCI HIDD,
+checks bus translation at 4 KiB intervals and the final byte, rejects overflow,
+noncontiguous mappings and unsupported 64-bit extents, copies OUT and prepares
+cache ownership. Release balances the prepared cache extent even for zero
+actual bytes and bounds IN copies; invalid lengths/direction report HOSTERROR.
+The completion cookie is CPU metadata, not the address submitted to hardware.
+Platform controllers are explicitly rejected by this PCI-specific primitive.
+
+`make test-xhci-dma` PASS under AddressSanitizer and UndefinedBehaviorSanitizer,
+using the actual core source and mocked Exec/PCI services. Covers nonidentity
+bus translation, partial IN with untouched tail, zero-actual release, excessive
+completion length, changed request extent/direction, metadata/PCI allocation
+failure, first/interior/final translation failures, short cache preparation,
+32-bit limits and integer overflow, null/invalid input and platform rejection.
+This does not simulate a running controller or prove abort retirement.
+`kernel-usb-pcixhci` rebuild PASS; diagnostic endpoint dequeue reads now use
+`deq.addr_lo/addr_hi`, eliminating the ctx[2]/ctx[3] out-of-bounds warnings.
+Exact source/test/device hashes: artifacts/xhci-owned-payload.json.
+
+The new primitive is deliberately NOT called by the scheduler yet. Wiring it
+into the existing release sites exposed unsafe DMA lifetime assumptions:
+
+- xhciFinishRequest clears ringio back-pointers and frees the buffer while its
+  own comment explicitly allows TRBs to remain until a later endpoint stop.
+- cmdAbortIO calls this path with interrupts disabled; the NAK timeout interrupt
+  also replies/frees through xhciAbortRequest. A synchronous command wait there
+  would be invalid. Cancellation must be handed to task context.
+- xhciQueueData_IO publishes TRBs one at a time, may fail halfway, and its caller
+  releases the buffer on failure. Submission needs reservation/atomic publish,
+  or retirement of the published prefix before release.
+- Endpoint teardown ignores stop/reset completion codes before freeing rings.
+  An unacknowledged stop must retain DMA memory, never pretend retirement.
+- Completion error mapping can overwrite a payload validation error; integrating
+  this API must preserve the validation result through the final reply.
+
+Next: repair these retirement/publication paths with failure-injection tests,
+then connect owned payloads, bound runtime/doorbell offsets inside BAR0 (review
+234), check interrupt installation failure, and qualify controller startup,
+USB enumeration and keyboard/pointer delivery. These are code-audit findings,
+not observed VM USB crashes. No USB transfer or input acceptance is claimed.
+The old scheduler remains unchanged; do not ship it as VZ USB support. SMP
+untouched; goal/task71 stay active.
