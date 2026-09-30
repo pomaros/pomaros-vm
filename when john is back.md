@@ -2338,3 +2338,8 @@ has been attempted. Full stage-six goal remains open; SMP untouched.
   hardware/virtio.h et hidd/virtio.h sont identiques aux sources. Preuve
   artifacts/virtio-headers-direct-verdict.json. Les v3 continuent sur leur
   source figée5be666ebbe ; aucune comparaison binaire complète encore faite.
+- Comparaison partielle v3 après fin des deux cibles GPU : virtiogfx.hidd
+  identique octet pour octet,51736octets, SHA256
+  3942e7a54c6aeb85453a91ef4b5500bba2444d5f035e1814043bf606151cf86e.
+  Preuve artifacts/repro-v3-gpu-comparison.json ; cela ne compare pas encore
+  les builds complets, toujours actifs. Revue259 approuvée ; revue260 IRQ ouverte.
