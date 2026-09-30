@@ -792,3 +792,7 @@ sur échec, ressources libérées seulement après reset, quarantaine conservée
 sur refus, succès conservé sur Dispose. Ce test ne prouve ni l'ordonnancement
 réel des tâches/IRQ ni les transferts DMA. Aucun nouveau résultat invité ou
 matériel physique n'est revendiqué pour ce commit. SMP inchangé.
+
+Build complet `make -j8 kernel-virtio` PASS dans clean-core après le build ciblé ;
+SHA256 du pilote `e647b20dfbe79c333dff9da7ed1ff72f82ab12dba82115d46875e6b6469f4a57`.
+Revue 216, tests hôte dans le commit VM `f61ba3d`.
