@@ -413,3 +413,32 @@ Wanderer : artifacts/hvf-fresh-wanderer et artifacts/hvf-fresh-wanderer-gic2.
 Ce bureau utilise le framebuffer QEMU ; le GPU VZ attend son pilote.
 La prochaine étape est la description PCI et les mappings MMIO/DMA explicites,
 puis les périphériques virtio. Aucun travail SMP engagé.
+
+## PCI décrit par le firmware, anomalie VZ conservée ouverte
+
+Le pont EFI transmet désormais les fenêtres allouées par Configuration() du
+root bridge, avec bus-range et ECAM. VZ annonce deux fenêtres de 1 Mio :
+0x50000000 et 0x100000000. Aucune adresse de fenêtre n'est figée dans le code.
+Le parseur refuse troncatures, translations non prises en charge et
+chevauchements ; tests ASan/UBSan. Cette description ne prouve pas encore le
+mapping par le noyau ni les IRQ/DMA des périphériques.
+
+Premier run artifacts/vz-pci-root PASS. Avec journal des fenêtres ajouté,
+artifacts/vz-pci-root-2 finit en timeout après un caractère « [ » suivant les
+messages Exec, sans preuve permettant de distinguer perte de console et arrêt
+CPU. Le même disque passe ensuite cinq fois : artifacts/vz-pci-repeat-0..4,
+4cdd07c1f0050c9a0f5b1441dbeb094e95c45a39ce09fb3e1f1c475915c6ca33.
+HVF avec le même EFI passe (artifacts/hvf-pci-root), mais utilise PL011 plutôt
+que la console virtio VZ. L'anomalie intermittente reste ouverte.
+
+Tentatives de capture indépendantes archivées : le stub GDB privé VZ refuse
+le démarrage (VZErrorDomain Code=1, artifacts/vz-pci-supervised) ; la sauvegarde
+publique, bien que validateSaveRestoreSupport réussisse, refuse save avec
+permission denied (artifacts/vz-capture-control-running). Ces essais ont été
+retirés du lanceur ; aucune modification de SIP ni d'entitlements privés.
+Le prochain diagnostic doit reproduire la console virtio sous HVF supervisé
+ou obtenir un canal indépendant VZ ; cinq PASS ne résolvent pas ce timeout.
+
+Pont PCI final : validation supplémentaire des chevauchements ECAM/GIC,
+make test PASS, VZ artifacts/vz-pci-final PASS ; disque SHA256
+98a21eac43c02a18e8aade4264bc571f9c0a1b29d5ecb4feca6a8c96737121f3.

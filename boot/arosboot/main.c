@@ -5,8 +5,8 @@
 #include "allocation_tracker.h"
 #include "bundle_loader.h"
 #include <aros/apple/bootinfo.h>
+#include <libfdt.h>
 
-#define FDT_MAGIC UINT32_C(0xd00dfeed)
 #define FDT_MAX_SIZE (16U * 1024U * 1024U)
 #define MEMORY_MAP_ATTEMPTS 8U
 #define HANDOFF_STACK_SIZE (64U * 1024U)
@@ -115,6 +115,25 @@ static void print_hex64(struct EFI_SYSTEM_TABLE *system, uint64_t value)
         text[2 + shift] = digits[(value >> ((15U - shift) * 4U)) & 0xfU];
     text[18] = '\0';
     print_ascii(system, text);
+}
+
+/* Record the firmware bridge in the boot artifact before relinquishing UEFI. */
+static void print_pci_tree(struct EFI_SYSTEM_TABLE *system, const void *tree)
+{
+    int node=fdt_path_offset(tree,"/pcie"),bytes;
+    const fdt32_t *ranges=fdt_getprop(tree,node,"ranges",&bytes);
+    if(!ranges || bytes<0 || bytes%28) return;
+    for(int at=0;at<bytes/4;at+=7) {
+        print_ascii(system,"AROSBOOTAA64: PCI aperture flags=");
+        print_hex64(system,fdt32_to_cpu(ranges[at]));
+        print_ascii(system," bus=");
+        print_hex64(system,((uint64_t)fdt32_to_cpu(ranges[at+1])<<32)|fdt32_to_cpu(ranges[at+2]));
+        print_ascii(system," cpu=");
+        print_hex64(system,((uint64_t)fdt32_to_cpu(ranges[at+3])<<32)|fdt32_to_cpu(ranges[at+4]));
+        print_ascii(system," bytes=");
+        print_hex64(system,((uint64_t)fdt32_to_cpu(ranges[at+5])<<32)|fdt32_to_cpu(ranges[at+6]));
+        print_ascii(system,"\r\n");
+    }
 }
 
 static void clean_range_to_poc(uint64_t physical, uint64_t size)
@@ -582,8 +601,10 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, struct EFI_SYSTEM_TABLE *system)
     if (status == EFI_NOT_FOUND) {
         extern EFI_STATUS arosboot_vz_platform(struct EFI_SYSTEM_TABLE *, struct AROSBootInfo *);
         status = arosboot_vz_platform(system,boot_info);
-        if (!EFI_ERROR(status))
+        if (!EFI_ERROR(status)) {
             print_ascii(system,"AROSBOOTAA64: ACPI platform bridge + virtio console prepared\r\n");
+            print_pci_tree(system,(const void *)(uintptr_t)boot_info->fdt_physical);
+        }
     }
     if (EFI_ERROR(status)) {
         print_ascii(system, "AROSBOOTAA64: FDT unavailable, status=");

@@ -19,7 +19,7 @@ static uint32_t table_size(const uint8_t *p) {
     uint32_t n=(uint32_t)little(p+4,4);
     return n>=36 && n<=65536 && checksum(p,n)?n:0;
 }
-static uint64_t find_ecam(struct EFI_SYSTEM_TABLE *system,uint64_t *rsdp_address) {
+static uint64_t find_ecam(struct EFI_SYSTEM_TABLE *system,uint64_t *rsdp_address, uint32_t *last_bus) {
     static const struct EFI_GUID guid={0x8868e871,0xe4f1,0x11d3,{0xbc,0x22,0,0x80,0xc7,0x3c,0x88,0x81}};
     for(EFI_UINTN i=0;i<system->number_of_table_entries;++i) {
         struct EFI_CONFIGURATION_TABLE *e=&system->configuration_table[i];
@@ -41,10 +41,92 @@ static uint64_t find_ecam(struct EFI_SYSTEM_TABLE *system,uint64_t *rsdp_address
             for(uint32_t off=44;off<n;off+=16) {
                 if(little(t+off+8,2)==0 && t[off+10]==0) {
                     *rsdp_address=(uintptr_t)r;
+                    *last_bus=t[off+11];
                     return little(t+off,8);
                 }
             }
         }
+    }
+    return 0;
+}
+/* UEFI root bridge Configuration() supplies allocated apertures. Read those
+ * before ExitBootServices rather than guessing apertures from endpoint BARs.
+ * Protocol pointers/buffers are firmware-owned, as are ACPI table pointers. */
+struct VZPCIRange { uint64_t bus, cpu, size; uint32_t flags; };
+struct VZPCI {
+    uint64_t ecam;
+    uint32_t first_bus, last_bus, count;
+    struct VZPCIRange ranges[8];
+};
+struct VZRootBridge {
+    void *parent, *poll_mem, *poll_io, *mem_read, *mem_write;
+    void *io_read, *io_write, *pci_read, *pci_write, *copy_mem;
+    void *map, *unmap, *allocate_buffer, *free_buffer, *flush;
+    void *get_attributes, *set_attributes;
+    EFI_STATUS (EFIAPI *configuration)(struct VZRootBridge *, void **);
+    uint32_t segment;
+};
+_Static_assert(offsetof(struct VZRootBridge,configuration)==136,"root bridge ABI");
+_Static_assert(offsetof(struct VZRootBridge,segment)==144,"root bridge segment ABI");
+static int parse_pci_resources(const uint8_t *data, size_t bytes, struct VZPCI *out) {
+    struct VZPCI value;
+    memset(&value,0,sizeof(value));
+    unsigned buses=0;
+    for(size_t at=0;at<bytes;) {
+        if(data[at]==0x79) {
+            if(bytes-at<2 || !buses || !value.count) return 0;
+            /* A zero end-tag checksum means checksum validation is omitted. */
+            if(data[at+1] && !checksum(data,(uint32_t)(at+2))) return 0;
+            memcpy(out,&value,sizeof(value));return 1;
+        }
+        if(bytes-at<46 || data[at]!=0x8a || little(data+at+1,2)!=43) return 0;
+        const uint8_t *d=data+at;
+        uint64_t bits=little(d+6,8),base=little(d+14,8),limit=little(d+22,8);
+        uint64_t translation=little(d+30,8),span=little(d+38,8);
+        if(!span || base>limit || span-1!=limit-base || base>UINT64_MAX-span) return 0;
+        if(d[3]==2) {
+            if(buses++ || translation || base!=0 || limit>255) return 0;
+            value.first_bus=(uint32_t)base;value.last_bus=(uint32_t)limit;
+        } else if(d[3]==0) {
+            /* VZ currently supplies identity memory apertures. Refuse other
+             * translations until their direction and DMA contract are bound. */
+            if(!base || translation || (d[5]&~7U) || (bits!=32 && bits!=64) || (base&4095) || (span&4095) ||
+                (bits==32 && limit>UINT32_MAX) || value.count==8) return 0;
+            for(unsigned i=0;i<value.count;++i)
+                if(base<value.ranges[i].bus+value.ranges[i].size &&
+                    value.ranges[i].bus<base+span) return 0;
+            struct VZPCIRange *r=&value.ranges[value.count++];
+            r->bus=r->cpu=base;r->size=span;
+            r->flags=bits==64?0x03000000:0x02000000;
+            if((d[5]&6)==6) r->flags|=0x40000000;
+        } else if(d[3]!=1) return 0;
+        /* I/O port apertures have no consumer in this VM profile. */
+        at+=46;
+    }
+    return 0;
+}
+static int find_pci_resources(struct EFI_SYSTEM_TABLE *system, struct VZPCI *out) {
+    static const struct EFI_GUID guid={0x2f707ebb,0x4a1a,0x11d4,{0x9a,0x38,0,0x90,0x27,0x3f,0xc1,0x4d}};
+    typedef EFI_STATUS(EFIAPI *Locate)(uint32_t,const struct EFI_GUID *,void *,EFI_UINTN *,EFI_HANDLE **);
+    typedef EFI_STATUS(EFIAPI *Free)(void *);
+    EFI_HANDLE *handles=NULL;EFI_UINTN count=0;
+    struct EFI_BOOT_SERVICES *bs=system->boot_services;
+    EFI_STATUS status=((Locate)bs->locate_handle_buffer)(2,&guid,NULL,&count,&handles);
+    if(EFI_ERROR(status)) return 0;
+    struct VZRootBridge *bridge=NULL;
+    if(count==1) status=bs->handle_protocol(handles[0],&guid,(void **)&bridge);
+    ((Free)bs->free_pool)(handles);
+    if(count!=1 || EFI_ERROR(status) || !bridge || bridge->segment || !bridge->configuration) return 0;
+    void *resources=NULL;
+    status=bridge->configuration(bridge,&resources);
+    if(EFI_ERROR(status) || !resources) return 0;
+    /* The protocol has no length output. Bound the firmware descriptor walk
+     * before passing its exact span to the independently tested parser. */
+    const uint8_t *data=resources;
+    for(size_t at=0;at<32*46;) {
+        if(data[at]==0x79) return parse_pci_resources(data,at+2,out);
+        if(data[at]!=0x8a || little(data+at+1,2)!=43) return 0;
+        at+=46;
     }
     return 0;
 }
@@ -161,7 +243,7 @@ static int find_console(uint64_t ecam,struct VMConsole *state) {
 }
 /* Bounded sequential writer shared with the reference FDT implementation.
  * Firmware discovery ends here; the kernel consumes the resulting FDT. */
-static int make_tree(void *memory, int capacity, const struct VMConsole *console, uint64_t rsdp, const struct VZInterrupts *irq)
+static int make_tree(void *memory, int capacity, const struct VMConsole *console, uint64_t rsdp, const struct VZInterrupts *irq, const struct VZPCI *pci)
 {
     fdt64_t reg[2]={cpu_to_fdt64(console->region_start),
         cpu_to_fdt64(console->region_end-console->region_start)};
@@ -200,6 +282,32 @@ static int make_tree(void *memory, int capacity, const struct VMConsole *console
         FDT_STEP(fdt_property(memory,"interrupt-names","phys\0virt",10));
         FDT_STEP(fdt_end_node(memory));
     }
+    if(pci) {
+        fdt64_t config[2]={cpu_to_fdt64(pci->ecam),
+            cpu_to_fdt64(((uint64_t)pci->last_bus+1)<<20)};
+        fdt32_t buses[2]={cpu_to_fdt32(pci->first_bus),cpu_to_fdt32(pci->last_bus)};
+        fdt32_t ranges[8*7];
+        for(unsigned i=0;i<pci->count;++i) {
+            const struct VZPCIRange *r=&pci->ranges[i];
+            ranges[7*i]=cpu_to_fdt32(r->flags);
+            ranges[7*i+1]=cpu_to_fdt32((uint32_t)(r->bus>>32));
+            ranges[7*i+2]=cpu_to_fdt32((uint32_t)r->bus);
+            ranges[7*i+3]=cpu_to_fdt32((uint32_t)(r->cpu>>32));
+            ranges[7*i+4]=cpu_to_fdt32((uint32_t)r->cpu);
+            ranges[7*i+5]=cpu_to_fdt32((uint32_t)(r->size>>32));
+            ranges[7*i+6]=cpu_to_fdt32((uint32_t)r->size);
+        }
+        FDT_STEP(fdt_begin_node(memory,"pcie"));
+        FDT_STEP(fdt_property_string(memory,"compatible","pci-host-ecam-generic"));
+        FDT_STEP(fdt_property_string(memory,"device_type","pci"));
+        FDT_STEP(fdt_property_u32(memory,"#address-cells",3));
+        FDT_STEP(fdt_property_u32(memory,"#size-cells",2));
+        FDT_STEP(fdt_property_u32(memory,"linux,pci-domain",0));
+        FDT_STEP(fdt_property(memory,"reg",config,sizeof(config)));
+        FDT_STEP(fdt_property(memory,"bus-range",buses,sizeof(buses)));
+        FDT_STEP(fdt_property(memory,"ranges",ranges,(int)pci->count*28));
+        FDT_STEP(fdt_end_node(memory));
+    }
     FDT_STEP(fdt_begin_node(memory,"console"));
     FDT_STEP(fdt_property_string(memory,"compatible","aros,virtio-console"));
     FDT_STEP(fdt_property(memory,"reg",reg,sizeof(reg)));
@@ -212,9 +320,22 @@ static int make_tree(void *memory, int capacity, const struct VMConsole *console
 #undef FDT_STEP
 }
 EFI_STATUS arosboot_vz_platform(struct EFI_SYSTEM_TABLE *system,struct AROSBootInfo *info) {
-    uint64_t rsdp=0,ecam=find_ecam(system,&rsdp);
+    uint32_t ecam_last=0;
+    uint64_t rsdp=0,ecam=find_ecam(system,&rsdp,&ecam_last);
     struct VZInterrupts interrupts;
-    if(!ecam || (ecam&0xfffff) || !find_interrupts(rsdp,&interrupts)) return EFI_NOT_FOUND;
+    struct VZPCI pci;
+    if(!ecam || (ecam&0xfffff) || !find_interrupts(rsdp,&interrupts) ||
+        !find_pci_resources(system,&pci) || pci.last_bus>ecam_last ||
+        ecam>UINT64_MAX-(((uint64_t)pci.last_bus+1)<<20)) return EFI_NOT_FOUND;
+    pci.ecam=ecam;
+    uint64_t ecam_end=ecam+(((uint64_t)pci.last_bus+1)<<20);
+    for(unsigned i=0;i<pci.count;++i) {
+        const struct VZPCIRange *r=&pci.ranges[i];
+        if((r->cpu<ecam_end && ecam<r->cpu+r->size) ||
+           (r->cpu<interrupts.distributor+65536 && interrupts.distributor<r->cpu+r->size) ||
+           (r->cpu<interrupts.redistributors+interrupts.redistributor_bytes &&
+            interrupts.redistributors<r->cpu+r->size)) return EFI_LOAD_ERROR;
+    }
     struct VMConsole *console=NULL;void *memory=NULL;
     EFI_STATUS status=arosboot_allocate_owned(system->boot_services,4096,4096,
         AROS_BOOT_ALLOCATION_EARLY_CONSOLE,AROS_BOOT_ALLOCATION_FLAG_OWNED|AROS_BOOT_ALLOCATION_FLAG_RETAIN,
@@ -233,7 +354,7 @@ EFI_STATUS arosboot_vz_platform(struct EFI_SYSTEM_TABLE *system,struct AROSBootI
         return status;
     }
     system->boot_services->set_mem(memory,4096,0);
-    if(make_tree(memory,4096,console,rsdp,&interrupts)) {
+    if(make_tree(memory,4096,console,rsdp,&interrupts,&pci)) {
         arosboot_free_owned(system->boot_services,memory);
         arosboot_free_owned(system->boot_services,console);
         return EFI_LOAD_ERROR;

@@ -60,3 +60,17 @@ two callbacks, removal of one, and hardware masking after the last removal.
 It does not simulate a peripheral's acknowledgement protocol or establish DMA
 correctness. SGIs are unsuitable for the masking assertion on GICv2: their
 enable/disable behavior is implementation-defined ([Arm IHI 0048B, GICD_ICENABLER](https://www.scs.stanford.edu/~zyedidia/docs/arm/gic.pdf)).
+
+The VZ firmware adapter obtains PCI memory apertures through UEFI root bridge
+`Configuration()` before ExitBootServices. It emits a `pci-host-ecam-generic`
+node with ECAM, bus range and PCI memory `ranges`; it accepts one segment-zero
+root with bus zero and identity memory translations. Unsupported translations,
+malformed descriptors and overlapping apertures are rejected. I/O port
+apertures are omitted because this profile has no port-I/O consumer. DMA and
+MSI routing require separate bindings; a PCI description alone grants neither.
+
+The resource descriptor format follows [UEFI PCI bus support](https://uefi.org/specs/UEFI/2.10/14_Protocols_PCI_Bus_Support.html).
+Protocol ABI offsets were cross-checked against [EDK II declarations](https://github.com/tianocore/edk2/blob/master/MdePkg/Include/Protocol/PciRootBridgeIo.h);
+no driver implementation was imported. Firmware-owned buffers have no supplied
+length: their bounded descriptor walk has the same trusted-pointer boundary as
+ACPI tables. The parser tests use explicit byte lengths and sanitizer checks.
