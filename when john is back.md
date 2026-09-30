@@ -945,3 +945,9 @@ Le marqueur de lecture bloc est obligatoire avec --require-pci-hidd. Ce sont
 les vrais corps de transport/queue mais pas encore le chargement de tout
 virtio.device et de ses unités DOS. Suite : MSI/IRQ, écriture/flush sur disque
 jetable, redémarrage et persistance. Revue 218 du DMA approuvée. SMP intact.
+
+Build standard `make -j8 kernel-virtio` PASS ; virtio.device SHA256
+`d5949772c02cd4cd7c4ed76f4f96e95b97e99596186e26c0617b02e6edcf0c4c`.
+`make test` PASS. Ancienne image entropie-only refusée dans
+`artifacts/vz-pci-block-queue-negative` malgré son boot et son DMA réussis.
+Revue 219 ; commits VM `c59b1fe`, core `eaa7e42a5e`.
