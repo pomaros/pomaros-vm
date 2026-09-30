@@ -27,7 +27,7 @@ static OOP_AttrBase device_attr;
 static unsigned enumerated,console_seen,expected,mapped_common,mapping_failed;
 static int check_mappings,check_resident;
 static unsigned resident_checked,dma_checked,dma_failed,block_checked;
-int test_block_queue(OOP_Object *,struct Library *);
+int test_block_queue(OOP_Object *,struct Library *,int);
 static OOP_Object *driver;
 static struct PCIECAMConfig host;
 static OOP_MethodID read_base;
@@ -257,7 +257,7 @@ AROS_UFH3(static IPTR, count_device,
             config_write_word(device,4,command);
             if(config_read(device,4,2)==command) ++resident_checked;
             if(product==0x1042 || product==0x1001) {
-                if(test_block_queue(device,OOPBase)) ++block_checked;else ++dma_failed;
+                if(test_block_queue(device,OOPBase,msi_frame!=0)) ++block_checked;else ++dma_failed;
             }
             if(product==0x1044) {
                 if(entropy_dma(device)) ++dma_checked;else ++dma_failed;
@@ -361,13 +361,14 @@ int main(int argc,char **argv)
     if(argc==2 && !strcmp(argv[1],"resident")) {
         read_base=OOP_GetMethodID((CONST_STRPTR)IID_Hidd_PCIDriver,0);
         /* Do not load vmpci here: its bridge must survive the prior command. */
+        if(!check_msi_frame(pci)) return 93;
         if(!resident_bridge()) return 91;
         mark("[VM] PCI resident bridge after command unload PASS\n");
         mark("[VM] virtio entropy DMA completion PASS\n");
         mark("[VM] virtio block queue sector read PASS\n");
+        if(msi_frame) mark("[VM] virtio block MSI-X completion PASS\n");
         return 0;
     }
-    if(!check_msi_frame(pci)) return 93;
     OOP_AttrBase attr=OOP_ObtainAttrBase((CONST_STRPTR)IID_Hidd_PCIECAM);
     if(!attr) return 87;
     struct TagItem tags[]={{attr+aoHidd_PCIECAM_Config,(IPTR)&host},{TAG_DONE,0}};

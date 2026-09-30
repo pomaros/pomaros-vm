@@ -1024,3 +1024,59 @@ PCIPROBE `609f5f552f5260993b61ec2e53fc02f54daa90ea4adf0e6841ad4e5e97f89ae4`.
 Review 220 approved and explicitly includes the new core mapping/resolver.
 Next: resident platform vector ownership and PCI MSI-X table programming, then
 virtio completion IRQs; keep QEMU ITS routing distinct. SMP untouched.
+
+## Resident MSI-X routing and an actual block completion IRQ
+
+Core `af211a2944` adds an explicit paired IRQ policy to generic ECAM and wires
+it to the resident vmpci module. Its callback/context outlive registrations;
+no implicit INTx routing is inherited. The VM adapter resolves the admitted
+frame and its override/type range, owns each source, walks a bounded PCI
+capability chain, refuses another MSI/MSI-X owner, validates the table BAR
+against platform windows and leaves unrelated masked table entries alone.
+It installs the kernel handler, programs table entry zero under masking, then
+enables MSI-X and checks control readback. Failures unwind handler/table/control.
+Removal disables MSI-X and restores the entry plus original INTx-mask bit before
+removing the kernel handler; caller must quiesce its queue/device first.
+
+SPIs are deliberately retired until reboot after each attempted registration,
+including failed kernel setup. This bounds registration attempts to the frame
+count (128 on VZ). It prevents a late posted message from reaching a new owner
+without pretending to have a proven drain protocol. Device hot-unplug/source
+recycling remain unsupported. Normal resident device operation does not consume
+additional sources per transfer.
+
+Core `bb0a89c34f` selects queue vector zero when PCI MSI-X is enabled, or leaves
+NO_VECTOR for a legacy route. The actual virtio bus start calls this after
+AddInterrupt and unwinds the handler if selection fails. The guest block test
+compiles that same helper and the real queue/transport; its completion loop
+only processes used entries after the MSI-X handler has run. It then checks the
+Exec reply, exact sector bytes/boot signature, acknowledges reset, removes the
+IRQ route, and frees DMA. This proves one real device IRQ through the resident
+platform and kernel handler chain, not merely a pending-bit injection.
+
+`make test-vmpci-irq` (new fatal-ASan/UBSan target) compiles the real routing code:
+wrong owner, existing MSI-X, loop, missing memory decode, unrelated unmasked
+entry, short/outside table, allocation/kernel setup failures, enable refusal
+with restoration, duplicate registration, mismatched removal, correct removal,
+no source reuse and exhaustion PASS. ECAM forwarding/default/partial-policy
+checks, DMA/queue/lifecycle tests and full `make test` PASS with UBSan halt.
+Bus lifecycle also tests queue-vector selection failure leaving no IRQ/worker.
+All three affected guest modules compiled successfully.
+
+First real IRQ run `artifacts/vz-pci-msix-route` PASS; final shared-helper run
+`artifacts/vz-pci-msix-shared` PASS with --require-msi-frame --require-msi-irq.
+HVF regression `artifacts/hvf-pci-msix-shared` PASS (no MSI frame, polled block).
+Final disk `36b1462012c336648b946e123308a4dfacd70ee539f1d67e6b9ec6b2d8809f18`;
+bundle `1ee20c338898f6d406f99cb6735f75db1d97d94e2f71f28af3c20c0f950fd22c`;
+PCIPROBE `d1e7dd23c198e77d7bb3a8c68177d4f75f67e75f18e8c1bb143bf14fa6d0e68d`.
+vmpci.hidd `fadbfd385fdde1ece1da3d6997820f7c6ae89927e6b08a083657aa8c67d4c398`;
+virtio.device `7f11791e05625039703a5b4d9ae6d54fff0aec284f80fa96ff4a1e28dd696e16`.
+Old read-only MSI image is rejected by --require-msi-irq in
+`artifacts/vz-pci-msix-negative`, despite its MSI register/sector/boot markers.
+
+Review 221 approved. Next is loading all of virtio.device with its storage
+classes and IO task, then isolated write/flush/restart and crash qualification.
+Current guest test still instantiates the shared queue directly: it is not
+proof of complete DOS unit startup or durable writes. Native launcher fix
+`7827774c39` reported on board196 may matter when returning to Wanderer testing;
+inspect its final gate before reusing it. SMP remains bsek's work.

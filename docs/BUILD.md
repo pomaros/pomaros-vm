@@ -204,7 +204,8 @@ bridge and its callback. The kernel unloads the installer command and runs a
 fresh command to verify enumeration and configuration writes through the
 retained bridge. The permanent module keeps its admitted mappings for the VM
 lifetime and reserves the boot console. DMA translation is limited to buffers
-allocated through its explicit platform policy; peripheral IRQs are refused.
+allocated through its explicit platform policy. On a discovered GICv2m frame,
+the resident driver provides one MSI-X table entry per device.
 Build it with `make -C "$HOME/Build/macaros-vm/clean-core" -j8 kernel-hidd-vmpci`;
 this target is limited to the VM profile. Both resident markers are required
 by `--require-pci-hidd`. The default package without that option does not load
@@ -246,5 +247,17 @@ For a PCI-associated GICv2m frame, the probe reads MSI_TYPER through its admitte
 supervisor mapping and validates the SPI range (or its FDT override). Add
 `--require-msi-frame` together with `--require-pci-hidd` to either VM runner to
 require that proof. An absent/unsupported controller cannot pass this gate.
-This verifies discovery and register access, not interrupt delivery. QEMU's
+This flag verifies discovery and register access. Add `--require-msi-irq` to
+require a real block completion interrupt through the resident platform route.
+The block probe then consumes the used ring only after its IRQ handler runs,
+and resets the device before detaching the handler and freeing DMA. QEMU's
 GICv3 topology may require an ITS implementation instead of a v2m frame.
+
+`make test-vmpci-irq` compiles the actual resident routing implementation with
+mock PCI/kernel endpoints under fatal sanitizers. It checks ownership, bounded
+capability/BAR validation, failure unwinding, table/control restoration and
+retirement. MSI-X AddInterrupt requires memory decode already enabled and
+unmasked unrelated table entries are refused. RemoveInterrupt requires a
+quiescent device. Retired SPIs are not recycled until reboot, preventing late
+posted messages from reaching a different owner; repeated attachment is bounded
+by the frame's SPI count. Hot-unplug/recycling requires a separate drain design.

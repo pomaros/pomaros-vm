@@ -21,11 +21,13 @@ p.add_argument('--require-timer',action='store_true')
 p.add_argument('--require-platform',action='store_true')
 p.add_argument('--require-pci-hidd',action='store_true')
 p.add_argument('--require-msi-frame',action='store_true')
+p.add_argument('--require-msi-irq',action='store_true')
 p.add_argument('--require-irq-chain',action='store_true')
 p.add_argument('--gic-version',choices=['2','3'],default='3')
 p.add_argument('--dtb',type=Path)
 p.add_argument('--firmware',type=Path,default=Path('/opt/homebrew/share/qemu/edk2-aarch64-code.fd'))
 a = p.parse_args()
+if a.require_msi_irq and not a.require_msi_frame: p.error('--require-msi-irq requires --require-msi-frame')
 if a.require_msi_frame and not a.require_pci_hidd: p.error('--require-msi-frame requires --require-pci-hidd')
 if a.output.exists(): p.error('output must not exist')
 if a.console=='virtio' and (a.gic_version!='3' or a.profile!='core' or a.dtb):
@@ -68,6 +70,7 @@ with (a.output/'host.log').open('w') as log:
                             text.count('[KI] dispatch masks: disabled 0x00000000000000c0 plain 0x0000000000000040 PASS') == 1)
                 passed=(not a.require_timer or timer_ok) and (not a.require_irq_chain or text.count('[VM] IRQ handler chain PASS')==1) and (not a.require_platform or text.count('[VM] OpenFirmware FDT + PCI config PASS')==1) and (not a.require_pci_hidd or (text.count('[VM] PCI HIDD class + reserved console PASS')==1 and text.count('[VM] PCI subsystem enumerate + remove PASS')==1 and text.count('[VM] virtio common config via MapPCI PASS')==1 and text.count('[VM] virtio reset acknowledged PASS')==1 and text.count('[VM] PCI resident install PASS')==1 and text.count('[VM] PCI resident bridge after command unload PASS')==1 and text.count('[VM] virtio entropy DMA completion PASS')==1 and text.count('[VM] virtio block queue sector read PASS')==1))
                 passed=passed and (not a.require_msi_frame or text.count('[VM] MSI frame mapped read PASS')==1)
+                passed=passed and (not a.require_msi_irq or text.count('[VM] virtio block MSI-X completion PASS')==1)
                 reason='startup-contract' if passed else 'proof-missing';break
             if proc.poll() is not None:
                 reason='early-exit';break
@@ -113,7 +116,7 @@ with (a.output/'host.log').open('w') as log:
 verdict={'result':'PASS' if passed else 'FAIL','reason':reason,'backend':a.accel,
          'profile':a.profile, 'console':a.console, 'desktop_checked':a.profile == 'wanderer' and passed,
          'seconds':round(time.monotonic()-started,2),'hardware_virtualization':a.accel=='hvf',
-         'gic_version':int(a.gic_version),'timer_required':a.require_timer,'platform_required':a.require_platform,'pci_hidd_required':a.require_pci_hidd,'msi_frame_required':a.require_msi_frame,'irq_chain_required':a.require_irq_chain,
+         'gic_version':int(a.gic_version),'timer_required':a.require_timer,'platform_required':a.require_platform,'pci_hidd_required':a.require_pci_hidd,'msi_frame_required':a.require_msi_frame,'msi_irq_required':a.require_msi_irq,'irq_chain_required':a.require_irq_chain,
          'bundle_sha256':hashlib.sha256((esp/'AROS/GEN0.BND').read_bytes()).hexdigest()}
 (a.output/'verdict.json').write_text(json.dumps(verdict,indent=2)+'\n')
 print(json.dumps(verdict))

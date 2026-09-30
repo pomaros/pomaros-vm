@@ -7,12 +7,28 @@
 #define PROTO_UTILITY_H
 #define PROTO_OOP_H
 #include <oop/oop.h>
+#include <exec/interrupts.h>
 static IPTR super_result;
 static unsigned completions,dma_released;
 static void *dma_allocate(void *context,uint32_t bytes) { return bytes==4096?context:NULL; }
 static void dma_release(void *context,void *address) { assert(context==address);++dma_released; }
 static void *dma_bus(void *context,void *address) { return address==context?(void *)0x12345000:(void *)-1; }
 static void *dma_cpu(void *context,void *address) { return address==(void *)0x12345000?context:(void *)-1; }
+static OOP_Object *irq_device;
+static struct Interrupt *irq_handler;
+static void *irq_context;
+static unsigned irq_adds,irq_removes;
+static BOOL irq_result;
+static BOOL irq_add(void *context,OOP_Object *device,struct Interrupt *handler)
+{
+    assert(context==irq_context && device==irq_device && handler==irq_handler);
+    ++irq_adds;return irq_result;
+}
+static void irq_remove(void *context,OOP_Object *device,struct Interrupt *handler)
+{
+    assert(context==irq_context && device==irq_device && handler==irq_handler);
+    ++irq_removes;
+}
 static void complete_write(void) { ++completions; }
 static IPTR test_super(OOP_Class *cl,OOP_Object *o,OOP_Msg msg)
 { (void)cl;(void)o;(void)msg;return super_result; }
@@ -71,6 +87,29 @@ int main(void)
     assert(PCIECAM__Hidd_PCIDriver__PCItoCPU(&cl,object,&to_cpu)==memory);
     struct pHidd_PCIDriver_FreePCIMem release={0,memory};
     PCIECAM__Hidd_PCIDriver__FreePCIMem(&cl,object,&release);assert(dma_released==1);
+    host.irq.add=irq_add;
+    assert(!PCIECAM__Root__New(&cl,NULL,&newmsg));
+    host.irq.add=NULL;host.irq.remove=irq_remove;
+    assert(!PCIECAM__Root__New(&cl,NULL,&newmsg));
+    host.irq=(struct PCIECAMIRQ){memory,irq_add,irq_remove};
+    assert(PCIECAM__Root__New(&cl,NULL,&newmsg)==object);
+    /* The policy itself is copied, with its resident context retained. */
+    host.irq.context=NULL;
+    struct Interrupt handler={0};irq_context=memory;irq_device=object;irq_handler=&handler;
+    struct pHidd_PCIDriver_AddInterrupt add_irq={0,object,&handler};
+    struct pHidd_PCIDriver_RemoveInterrupt remove_irq={0,object,&handler};
+    assert(!PCIECAM__Hidd_PCIDriver__AddInterrupt(&cl,object,&add_irq));
+    irq_result=TRUE;
+    assert(PCIECAM__Hidd_PCIDriver__AddInterrupt(&cl,object,&add_irq));
+    PCIECAM__Hidd_PCIDriver__RemoveInterrupt(&cl,object,&remove_irq);
+    assert(irq_adds==2 && irq_removes==1);
+    add_irq.device=NULL;assert(!PCIECAM__Hidd_PCIDriver__AddInterrupt(&cl,object,&add_irq));
+    add_irq.device=object;add_irq.interrupt=NULL;
+    assert(!PCIECAM__Hidd_PCIDriver__AddInterrupt(&cl,object,&add_irq));
+    assert(!PCIECAM__Hidd_PCIDriver__AddInterrupt(&cl,object,NULL));
+    remove_irq.device=NULL;PCIECAM__Hidd_PCIDriver__RemoveInterrupt(&cl,object,&remove_irq);
+    PCIECAM__Hidd_PCIDriver__RemoveInterrupt(&cl,object,NULL);
+    assert(irq_adds==2 && irq_removes==1);
     host.config.first_bus=1;host.config.last_bus=1;
     assert(!PCIECAM__Root__New(&cl,NULL,&newmsg));
     host.config.first_bus=0;host.config.last_bus=0;
@@ -81,5 +120,5 @@ int main(void)
     host.windows[0].cpu=0x20000000;super_result=0;
     assert(!PCIECAM__Root__New(&cl,NULL,&newmsg));
     free(memory);
-    puts("pci-ecam-class result=PASS real-methods,reserved-slots,translation,bounds,no-implicit-DMA-IRQ");
+    puts("pci-ecam-class result=PASS real-methods,reserved-slots,translation,bounds,explicit-DMA-IRQ-policy");
 }

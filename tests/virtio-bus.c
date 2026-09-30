@@ -85,20 +85,21 @@ static void *new_worker(void) { if(fail==6)return NULL;++workers;return (void *)
 #define MOD_NAME_STRING "virtio.device"
 const char LibName[]="virtio.device";
 #include "virtio_busclass.c"
+BOOL virtio_hw_route_irq(device_t d) { (void)d;return fail!=8; }
 BOOL virtio_hw_driver_ok(device_t d) { (void)d;return fail!=5; }
 ULONG virtio_process_used(struct virtio_queue *q) { (void)q;return 0; }
 int main(void)
 {
     struct VirtIOBase base={0};base.busClass=&busclass;base.unitClass=&unitclass;
     busclass.UserData=&base;busclass.cl_DoSuperMethod=parent;
-    for(fail=1;fail<=7;++fail) {
+    for(fail=1;fail<=8;++fail) {
         __typeof__(*(device_t)0) dev={0};struct virtio_queue queue={0};
         dev.dev_VQ=&queue;dev.dev_Capacity=1024;dev.dev_BlkSize=512;
         struct virtio_Bus bus={0};bus.ab_Base=&base;bus.ab_Dev=&dev;
         bus.ab_UnitMax=1;bus.ab_Units=calloc(1,sizeof(OOP_Object *));
         memset(&unit,0,sizeof(unit));libraries=irqs=workers=units=ids=0;
         BOOL ok=Hidd_VirtIOBus_Start((OOP_Object *)&bus,&base);
-        if(fail<=6) {
+        if(fail<=6 || fail==8) {
             assert(!ok && !libraries && !irqs && !workers && !bus.ab_UnitCnt);
             OOP_MethodID m=0;VirtIOBus__Root__Dispose(&busclass,(OOP_Object *)&bus,&m);
             assert(!units && !ids);
