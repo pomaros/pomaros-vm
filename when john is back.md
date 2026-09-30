@@ -236,3 +236,29 @@ le raccordement IRQ sans prétendre que le timer VM est déjà intégré au noya
 
 `make test` passe après ce raccordement (15 cas MMIO, corpus FDT sous
 sanitizers, 11 cas VZ et tests x18).
+
+## VZ : interruptions et timer actifs
+
+Le pont EFI lit MADT/GTDT, valide les enregistrements puis décrit GICv3 et
+les timers non sécurisés dans le FDT. VZ ne décrit pas de timer sécurisé ;
+les interruptions sont nommées phys/virt, et le noyau cherche désormais virt
+par nom quand cette liste existe. Le lecteur partagé refuse noms mal formés
+et cible dupliquée. Aucun numéro de PPI VZ n’est codé en dur.
+
+`artifacts/vz-irq-required/verdict.json` PASS, timer.device trois attentes
+compris, disque SHA256
+`2382a315a9044e7e3dedcd803944a7ae3b574f188ae02ce1252418a40bcebb0b`.
+Le runner VZ exige maintenant ces marqueurs en plus de tout le démarrage.
+HVF Wanderer + timer reste PASS dans `artifacts/hvf-named-irq`. Tests ACPI
+(MADT/GTDT/XSDT, erreurs de longueur, checksum, adresses/flags, doublons)
+sous ASan/UBSan et lecteur FDT nommé (y compris noms mal formés/dupliqués) PASS.
+
+La revue 199 est approuvée. Deux améliorations demandées restent à intégrer
+avec les ressources IRQ : rendre explicite le contrat des fenêtres mappées
+au noyau et journaliser le statut précis d’un timer défaillant. La carte de
+rôles est actuellement locale au stage-two, pas encore un objet transmis
+au noyau ; il faut compléter ce contrat avant d’étendre aux IRQ de pilotes.
+
+Prochaine étape : IRQ des périphériques et virtio GPU/entrées sous VZ. Le
+bureau VZ, le stockage invité persistant, le build depuis clone neuf et la
+qualification d’usage de l’étape 6 restent ouverts. SMP toujours réservé à bsek.

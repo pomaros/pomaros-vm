@@ -15,6 +15,11 @@ static void exercise(struct AROSEarlyFDT *t)
     int timer=AROSEarlyFDTFindPath(t,"/timer");
     assert(AROSEarlyFDTInterrupt(t,timer,1,&irq) && irq.cells[0]==1 && irq.cells[1]==14);
     assert(!AROSEarlyFDTInterrupt(t,timer,4,&irq));
+    assert(AROSEarlyFDTInterruptNamed(t,timer,"virt",&irq) && irq.cells[1]==11);
+    assert(!AROSEarlyFDTInterruptNamed(t,timer,"missing",&irq));
+    assert(AROSEarlyFDTInterruptNamed(t,AROSEarlyFDTFindPath(t,"/timer-two"),"virt",&irq) && irq.cells[1]==11);
+    assert(!AROSEarlyFDTInterruptNamed(t,AROSEarlyFDTFindPath(t,"/timer-duplicate"),"virt",&irq));
+    assert(!AROSEarlyFDTInterruptNamed(t,AROSEarlyFDTFindPath(t,"/timer-malformed"),"virt",&irq));
     int ext=AROSEarlyFDTFindPath(t,"/extended");
     assert(AROSEarlyFDTInterrupt(t,ext,1,&irq) && irq.cells[1]==14);
     assert(!AROSEarlyFDTReg(t,AROSEarlyFDTFindPath(t,"/soc/bus/outside@ff0"),0,&a,&s));

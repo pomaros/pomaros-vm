@@ -104,5 +104,6 @@ before AROS starts.
 
 The kernel generated makefile must include `vm_irq` and the conditional shared
 GIC/libfdt objects and compilation rules from its source template. As with the
-bootstrap rules, refresh it after pulling build changes. VZ's ACPI bridge must
-supply GIC and timer bindings before its deadline-timer lane can be qualified.
+bootstrap rules, refresh it after pulling build changes. VZ startup qualification requires GIC readiness and the three-wait timer
+proof. Use the matching EFI loader and kernel; the generated FDT includes
+named timer interrupts.

@@ -19,7 +19,9 @@ if a.output.exists(): p.error('output must not exist')
 a.output.mkdir(parents=True);a.output=a.output.resolve()
 disk=a.output/'system.img';shutil.copyfile(a.disk,disk)
 log=a.output/'console.log'
-markers=['[B2V] runtime vectors + EL0 SVC PASS',
+markers=['[VM] GIC + CNTV deadline ready',
+         '[VM] timer.device three waits PASS',
+         '[B2V] runtime vectors + EL0 SVC PASS',
          '[B2D] boot + two-task context dispatch PASS',
          '[B2S] DOS takeover + SYS namespace sentinel PASS',
          '[B2A] portable ABI + emulated TLS + streams + W^X/unload PASS',

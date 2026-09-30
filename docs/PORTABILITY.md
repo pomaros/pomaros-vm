@@ -30,3 +30,20 @@ close the roadmap's full-platform gates, prove physical Pi hardware, or migrate
 the Apple kernel onto a shared IRQ implementation. Full AROS startup is measured
 separately on VZ and HVF. Exact revisions, results and next work are in
 [`when john is back.md`](../when%20john%20is%20back.md).
+
+The VZ loader translates a checksummed ACPI MADT GICv3 distributor and one
+redistributor range, plus GTDT non-secure physical and virtual timer GSIs,
+into standard GIC/timer nodes. It emits `interrupt-names = "phys", "virt"`;
+the kernel resolves `virt` by name, falling back to binding index 2 only when
+names are absent. No secure timer IRQ is invented when ACPI omits it.
+Unsupported controller versions, multiple redistributor ranges, overlapping
+windows, non-PPI timer GSIs and unsupported polarity fail discovery.
+
+The ACPI reader trusts firmware-provided physical table pointers. It validates
+checksums, declared table sizes and record boundaries; it is not a parser for
+arbitrary pointers supplied by applications. CPU enumeration, ACPI resource
+AML and general PCI routing belong to subsequent platform work.
+
+Field meanings follow [ACPI 6.6, MADT and GTDT](https://uefi.org/specs/ACPI/6.6/05_ACPI_Software_Programming_Model.html).
+Timer names follow the [architectural timer binding](https://github.com/torvalds/linux/blob/master/Documentation/devicetree/bindings/timer/arm%2Carch_timer.yaml);
+only the binding facts were used, with no GPL implementation copied.

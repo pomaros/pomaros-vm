@@ -48,6 +48,69 @@ static uint64_t find_ecam(struct EFI_SYSTEM_TABLE *system,uint64_t *rsdp_address
     }
     return 0;
 }
+/* ACPI 6.6 sections 5.2.12 and 5.2.25. Bootstrap supports one GICv3
+ * redistributor region and the non-secure physical/virtual timer pair. */
+struct VZInterrupts {
+    uint64_t distributor, redistributors;
+    uint32_t redistributor_bytes, timer[2], flags[2];
+};
+static int parse_interrupts(const uint8_t *madt, const uint8_t *gtdt,
+    struct VZInterrupts *out) {
+    struct VZInterrupts value={0};
+    if(!madt || !gtdt || !signature(madt,"APIC",4) || !signature(gtdt,"GTDT",4)) return 0;
+    uint32_t size=table_size(madt), timer_size=table_size(gtdt);
+    if(size<44 || timer_size<96) return 0;
+    for(uint32_t at=44;at<size;) {
+        if(size-at<2) return 0;
+        unsigned length=madt[at+1],type=madt[at];
+        const uint8_t *entry=madt+at;
+        if(length<2 || length>size-at) return 0;
+        if(type==12) {
+            if(length<24 || value.distributor || entry[20]!=3 || little(entry+16,4)) return 0;
+            value.distributor=little(entry+8,8);
+            if(!value.distributor || (value.distributor&65535) || value.distributor>UINT64_MAX-65536) return 0;
+        } else if(type==14) {
+            if(length<16 || value.redistributors || little(entry+2,2)) return 0;
+            value.redistributors=little(entry+4,8);
+            value.redistributor_bytes=(uint32_t)little(entry+12,4);
+            if(!value.redistributors || (value.redistributors&65535) ||
+                value.redistributor_bytes<0x20000 || (value.redistributor_bytes&65535) ||
+                value.redistributors>UINT64_MAX-value.redistributor_bytes) return 0;
+        }
+        at+=length;
+    }
+    if(!value.distributor || !value.redistributors ||
+        (value.distributor<value.redistributors+value.redistributor_bytes &&
+         value.redistributors<value.distributor+65536)) return 0;
+    for(unsigned i=0;i<2;++i) {
+        value.timer[i]=(uint32_t)little(gtdt+56+8*i,4);
+        uint32_t flags=(uint32_t)little(gtdt+60+8*i,4);
+        /* GICv3 PPIs have fixed active-high polarity. Preserve edge/level;
+         * reject unsupported polarity and reserved flags instead of guessing. */
+        if(value.timer[i]<16 || value.timer[i]>31 || (flags&~5U)) return 0;
+        value.flags[i]=(flags&1)?1:4;
+    }
+    if(value.timer[0]==value.timer[1]) return 0;
+    *out=value;
+    return 1;
+}
+static int find_interrupts(uint64_t rsdp, struct VZInterrupts *out) {
+    const uint8_t *r=(const uint8_t *)(uintptr_t)rsdp;
+    if(!r || !signature(r,"RSD PTR ",8) || r[15]<2 || little(r+20,4)!=36 ||
+        !checksum(r,20) || !checksum(r,36)) return 0;
+    const uint8_t *xsdt=(const uint8_t *)(uintptr_t)little(r+24,8);
+    if(!xsdt || !signature(xsdt,"XSDT",4)) return 0;
+    uint32_t size=table_size(xsdt);
+    const uint8_t *madt=NULL,*gtdt=NULL;
+    if(!size || (size-36)%8) return 0;
+    for(uint32_t at=36;at<size;at+=8) {
+        const uint8_t *t=(const uint8_t *)(uintptr_t)little(xsdt+at,8);
+        if(!t) return 0;
+        if(signature(t,"APIC",4)) { if(madt) return 0; madt=t; }
+        if(signature(t,"GTDT",4)) { if(gtdt) return 0; gtdt=t; }
+    }
+    return parse_interrupts(madt,gtdt,out);
+}
 static int find_console(uint64_t ecam,struct VMConsole *state) {
     /* VZ exposes one port-zero console as a function-zero PCI endpoint.
      * Select the first match; general PCI enumeration belongs to its bus driver. */
@@ -98,7 +161,7 @@ static int find_console(uint64_t ecam,struct VMConsole *state) {
 }
 /* Bounded sequential writer shared with the reference FDT implementation.
  * Firmware discovery ends here; the kernel consumes the resulting FDT. */
-static int make_tree(void *memory, int capacity, const struct VMConsole *console, uint64_t rsdp)
+static int make_tree(void *memory, int capacity, const struct VMConsole *console, uint64_t rsdp, const struct VZInterrupts *irq)
 {
     fdt64_t reg[2]={cpu_to_fdt64(console->region_start),
         cpu_to_fdt64(console->region_end-console->region_start)};
@@ -114,6 +177,29 @@ static int make_tree(void *memory, int capacity, const struct VMConsole *console
     FDT_STEP(fdt_begin_node(memory,"chosen"));
     FDT_STEP(fdt_property_string(memory,"stdout-path","/console"));
     FDT_STEP(fdt_end_node(memory));
+    if(irq) {
+        fdt64_t windows[4]={cpu_to_fdt64(irq->distributor),cpu_to_fdt64(65536),
+            cpu_to_fdt64(irq->redistributors),cpu_to_fdt64(irq->redistributor_bytes)};
+        fdt32_t interrupts[6];
+        for(unsigned i=0;i<2;++i) {
+            interrupts[3*i]=cpu_to_fdt32(1);
+            interrupts[3*i+1]=cpu_to_fdt32(irq->timer[i]-16);
+            interrupts[3*i+2]=cpu_to_fdt32(irq->flags[i]);
+        }
+        FDT_STEP(fdt_begin_node(memory,"interrupt-controller"));
+        FDT_STEP(fdt_property_string(memory,"compatible","arm,gic-v3"));
+        FDT_STEP(fdt_property_u32(memory,"phandle",1));
+        FDT_STEP(fdt_property_u32(memory,"#interrupt-cells",3));
+        FDT_STEP(fdt_property(memory,"interrupt-controller",NULL,0));
+        FDT_STEP(fdt_property(memory,"reg",windows,sizeof(windows)));
+        FDT_STEP(fdt_end_node(memory));
+        FDT_STEP(fdt_begin_node(memory,"timer"));
+        FDT_STEP(fdt_property_string(memory,"compatible","arm,armv8-timer"));
+        FDT_STEP(fdt_property_u32(memory,"interrupt-parent",1));
+        FDT_STEP(fdt_property(memory,"interrupts",interrupts,sizeof(interrupts)));
+        FDT_STEP(fdt_property(memory,"interrupt-names","phys\0virt",10));
+        FDT_STEP(fdt_end_node(memory));
+    }
     FDT_STEP(fdt_begin_node(memory,"console"));
     FDT_STEP(fdt_property_string(memory,"compatible","aros,virtio-console"));
     FDT_STEP(fdt_property(memory,"reg",reg,sizeof(reg)));
@@ -127,7 +213,8 @@ static int make_tree(void *memory, int capacity, const struct VMConsole *console
 }
 EFI_STATUS arosboot_vz_platform(struct EFI_SYSTEM_TABLE *system,struct AROSBootInfo *info) {
     uint64_t rsdp=0,ecam=find_ecam(system,&rsdp);
-    if(!ecam || (ecam&0xfffff)) return EFI_NOT_FOUND;
+    struct VZInterrupts interrupts;
+    if(!ecam || (ecam&0xfffff) || !find_interrupts(rsdp,&interrupts)) return EFI_NOT_FOUND;
     struct VMConsole *console=NULL;void *memory=NULL;
     EFI_STATUS status=arosboot_allocate_owned(system->boot_services,4096,4096,
         AROS_BOOT_ALLOCATION_EARLY_CONSOLE,AROS_BOOT_ALLOCATION_FLAG_OWNED|AROS_BOOT_ALLOCATION_FLAG_RETAIN,
@@ -146,7 +233,7 @@ EFI_STATUS arosboot_vz_platform(struct EFI_SYSTEM_TABLE *system,struct AROSBootI
         return status;
     }
     system->boot_services->set_mem(memory,4096,0);
-    if(make_tree(memory,4096,console,rsdp)) {
+    if(make_tree(memory,4096,console,rsdp,&interrupts)) {
         arosboot_free_owned(system->boot_services,memory);
         arosboot_free_owned(system->boot_services,console);
         return EFI_LOAD_ERROR;
