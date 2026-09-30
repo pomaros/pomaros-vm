@@ -8,9 +8,12 @@ import tempfile
 root=Path(__file__).resolve().parents[1]
 core=Path(os.environ.get('AROS_CORE_SOURCE',root.parent/'aros-core-vm'))
 arch=core/'arch/aarch64-apple'
+fdt=core/'arch/aarch64-all/boot/fdt'
 with tempfile.TemporaryDirectory() as tmp:
     work=Path(tmp);exe=work/'test'
     subprocess.run(['clang','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',
+        '-I'+str(fdt),'-I'+str(fdt/'libfdt'),str(fdt/'early_fdt.c'),
+        *[str(fdt/'libfdt'/name) for name in ['fdt.c','fdt_ro.c','fdt_check.c']],
         '-I'+str(arch/'include'),'-I'+str(arch/'bootstrap'),str(root/'tests/virt-fdt.c'),
         str(arch/'kernel/memory_plan_contract.c'),str(arch/'bootstrap/boot_memory_map.c'),
         str(arch/'bootstrap/stage2_fdt_map.c'),'-o',str(exe)],check=True)

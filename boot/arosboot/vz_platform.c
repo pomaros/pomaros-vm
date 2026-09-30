@@ -4,6 +4,7 @@
 #include "allocation_tracker.h"
 #include <aros/apple/bootinfo.h>
 #include "vm-console.h"
+#include <libfdt.h>
 
 static uint64_t little(const uint8_t *p,unsigned n) {
     uint64_t v=0;for(unsigned i=0;i<n;++i) v|=(uint64_t)p[i]<<(i*8);return v;
@@ -48,6 +49,8 @@ static uint64_t find_ecam(struct EFI_SYSTEM_TABLE *system,uint64_t *rsdp_address
     return 0;
 }
 static int find_console(uint64_t ecam,struct VMConsole *state) {
+    /* VZ exposes one port-zero console as a function-zero PCI endpoint.
+     * Select the first match; general PCI enumeration belongs to its bus driver. */
     for(unsigned dev=0;dev<32;++dev) {
         volatile uint8_t *cfg=(volatile uint8_t *)(uintptr_t)(ecam+((uint64_t)dev<<15));
         if(*(volatile uint32_t *)cfg!=0x10431af4) continue;
@@ -93,20 +96,35 @@ static int find_console(uint64_t ecam,struct VMConsole *state) {
     }
     return 0;
 }
-struct FDTWriter { uint8_t *data;uint32_t at,strings; };
-static void be32(uint8_t *p,uint32_t v) { for(unsigned i=0;i<4;++i) p[i]=(uint8_t)(v>>(24-i*8)); }
-static void cell(struct FDTWriter *w,uint32_t v) { be32(w->data+w->at,v);w->at+=4; }
-static unsigned text_size(const char *s) { unsigned n=0;while(s[n]) ++n;return n+1; }
-static void node(struct FDTWriter *w,const char *s) {
-    cell(w,1);unsigned n=text_size(s);for(unsigned i=0;i<n;++i) w->data[w->at++]=s[i];w->at=(w->at+3)&~3U;
+/* Bounded sequential writer shared with the reference FDT implementation.
+ * Firmware discovery ends here; the kernel consumes the resulting FDT. */
+static int make_tree(void *memory, int capacity, const struct VMConsole *console, uint64_t rsdp)
+{
+    fdt64_t reg[2]={cpu_to_fdt64(console->region_start),
+        cpu_to_fdt64(console->region_end-console->region_start)};
+#define FDT_STEP(call) do { int error=(call); if(error) return error; } while(0)
+    FDT_STEP(fdt_create(memory,capacity));
+    FDT_STEP(fdt_finish_reservemap(memory));
+    FDT_STEP(fdt_begin_node(memory,""));
+    FDT_STEP(fdt_property_string(memory,"compatible","aros,virtualization"));
+    FDT_STEP(fdt_property_u32(memory,"#address-cells",2));
+    FDT_STEP(fdt_property_u32(memory,"#size-cells",2));
+    FDT_STEP(fdt_property_u64(memory,"aros,vm-console-state",(uintptr_t)console));
+    FDT_STEP(fdt_property_u64(memory,"aros,acpi-rsdp",rsdp));
+    FDT_STEP(fdt_begin_node(memory,"chosen"));
+    FDT_STEP(fdt_property_string(memory,"stdout-path","/console"));
+    FDT_STEP(fdt_end_node(memory));
+    FDT_STEP(fdt_begin_node(memory,"console"));
+    FDT_STEP(fdt_property_string(memory,"compatible","aros,virtio-console"));
+    FDT_STEP(fdt_property(memory,"reg",reg,sizeof(reg)));
+    FDT_STEP(fdt_end_node(memory));
+    FDT_STEP(fdt_end_node(memory));
+    FDT_STEP(fdt_finish(memory));
+    /* The retained allocation's used size is the complete zero-filled page. */
+    fdt_set_totalsize(memory,(uint32_t)capacity);
+    return fdt_check_full(memory,(size_t)capacity);
+#undef FDT_STEP
 }
-static void prop(struct FDTWriter *w,const char *name,const void *data,uint32_t n) {
-    uint32_t offset=w->strings;unsigned namesize=text_size(name);
-    for(unsigned i=0;i<namesize;++i) w->data[2048+w->strings++]=(uint8_t)name[i];
-    cell(w,3);cell(w,n);cell(w,offset);
-    for(uint32_t i=0;i<n;++i) w->data[w->at++]=((const uint8_t *)data)[i];w->at=(w->at+3)&~3U;
-}
-static void pair(uint8_t *p,uint64_t v) { be32(p,(uint32_t)(v>>32));be32(p+4,(uint32_t)v); }
 EFI_STATUS arosboot_vz_platform(struct EFI_SYSTEM_TABLE *system,struct AROSBootInfo *info) {
     uint64_t rsdp=0,ecam=find_ecam(system,&rsdp);
     if(!ecam || (ecam&0xfffff)) return EFI_NOT_FOUND;
@@ -128,17 +146,11 @@ EFI_STATUS arosboot_vz_platform(struct EFI_SYSTEM_TABLE *system,struct AROSBootI
         return status;
     }
     system->boot_services->set_mem(memory,4096,0);
-    struct FDTWriter w={(uint8_t *)memory,56,0};uint8_t cells[16];
-    node(&w,"");prop(&w,"compatible","aros,virtualization",text_size("aros,virtualization"));
-    be32(cells,2);prop(&w,"#address-cells",cells,4);prop(&w,"#size-cells",cells,4);
-    pair(cells,(uintptr_t)console);prop(&w,"aros,vm-console-state",cells,8);
-    pair(cells,rsdp);prop(&w,"aros,acpi-rsdp",cells,8);
-    node(&w,"console");prop(&w,"compatible","aros,virtio-console",text_size("aros,virtio-console"));
-    pair(cells,console->region_start);pair(cells+8,console->region_end-console->region_start);
-    prop(&w,"reg",cells,16);cell(&w,2);cell(&w,2);cell(&w,9);
-    be32(w.data,0xd00dfeed);be32(w.data+4,4096);be32(w.data+8,56);
-    be32(w.data+12,2048);be32(w.data+16,40);be32(w.data+20,17);be32(w.data+24,16);
-    be32(w.data+32,w.strings);be32(w.data+36,w.at-56);
+    if(make_tree(memory,4096,console,rsdp)) {
+        arosboot_free_owned(system->boot_services,memory);
+        arosboot_free_owned(system->boot_services,console);
+        return EFI_LOAD_ERROR;
+    }
     info->fdt_physical=(uintptr_t)memory;info->fdt_size=4096;
     info->flags|=AROS_BOOTINFO_FLAG_FDT;
     /* The shared DMA record must reach RAM before the firmware MMU is retired. */

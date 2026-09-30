@@ -21,3 +21,18 @@ rebuilt. This is an incremental native build, not a clean OS build.
 
 `include/vm-console.h` is original MIT code, imported with its license into
 the private core. Its control handshake follows the OASIS console protocol.
+
+## Portable early boot
+
+The private core owns `arch/aarch64-all/boot/fdt` and `arch/aarch64-all/irq`.
+The reader and GIC adapter are APL 1.1. The former contains libfdt v1.7.2,
+commit `2d10aa2afe35527728db30b35ec491ecb6959e5c`, selected under its BSD-2-Clause
+option; notices and the BSD license accompany the files. The EFI build links
+that same source copy with the freestanding environment. The executable is a
+combination of MIT, APL and BSD components, not wholly MIT.
+
+GICv2 register operations reuse the AROS BCM2711 implementation; GICv3 follows
+[Arm's GICv3/v4 overview](https://developer.arm.com/-/media/Arm%20Developer%20Community/PDF/Learn%20the%20Architecture/GICv3_v4_overview.pdf)
+and the GIC architecture specification IHI 0069. Devicetree interpretation follows
+[DTSpec](https://devicetree-specification.readthedocs.io/en/stable/devicetree-basics.html).
+Linux binding documents supply data-format facts; no Linux driver code is copied.

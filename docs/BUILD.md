@@ -8,7 +8,7 @@ metatargets to reuse the existing cross toolchain.
 The initial local setup uses:
 
 - core source: `~/Source/aros-core-vm`, branch `codex-macaros-vm` in the private
-  `jonx/aros-apple-core` repository, qualified revision `8a61e1eba2`;
+  `jonx/aros-apple-core` repository, qualified revision `1669b1a090`;
 - configured build: `~/Build/macaros-vm/core`, APFS clone of the qualified
   native build, with generated include flags redirected to this checkout;
 - guest C/assembly target: AArch64 ELF, no `-ffixed-x18`;
@@ -44,3 +44,31 @@ its imported copy in the APL core is `include/aros/apple/vmconsole.h`. Keep
 them identical when updating the protocol. The boot allocation schema adds
 `AROS_BOOT_ALLOCATION_EARLY_CONSOLE` for a single retained 4-KiB record; older
 consumers reject that allocation. Pin the matching core with each image.
+
+## Portable platform probes
+
+```sh
+python3 tools/qualify-platform.py --output artifacts/platform-NEW
+```
+
+The default firmware corpus is `../aros-raspi/payloads/pi4/bcm2711-rpi-4-b.dtb`;
+use `--rpi4-dtb` to select another copy. The runner copies it and selects the
+modeled PL011 console in that copy. It records the original hash and override.
+The same guest binary runs on QEMU virt/HVF and raspi4b/TCG, with the FDT captured
+from guest RAM and compared with dtc/fdtget. Timer and register-restoration
+negative controls retain independent QMP register evidence on failure.
+
+These probes do not boot the whole AROS system or access a physical Pi.
+The VZ startup and HVF Wanderer checks remain separate acceptance runs.
+
+Host parser corpus (ASan/UBSan):
+
+```sh
+python3 tests/early-fdt.py --tree PATH.dtb --output artifacts/fdt-corpus.json
+```
+
+`make test` includes the synthetic bus/alias/interrupt fixture. Each corpus
+input is checked at every truncated length and with deterministic mutations.
+The core and EFI builders share one libfdt import. A configured guest build
+must regenerate the platform makefile after build-rule changes, or mirror its
+new shared-FDT include paths and objects in the isolated generated makefile.

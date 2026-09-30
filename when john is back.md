@@ -102,3 +102,56 @@ interruptions GIC, entrées clavier/souris, stockage invité et bureau permanent
 restent à intégrer et qualifier. Les composants du bundle de référence sont
 réutilisés ; seul le bootstrap et le noyau modifiés sont reconstruits dans
 le build isolé. Le build complet depuis un clone neuf reste à automatiser.
+
+## Reprise guidée par le plan commun AArch64
+
+John a exécuté le premier jalon et confirmé qu'il fonctionne. Sa consigne pour
+la suite : réutilisation sur bare metal et Raspberry Pi, décisions autonomes,
+respect du plan et de la roadmap. J'ai relu AARCH64, le track aarch64-generic,
+la spec device-tree et ROADMAP dans aros-next. L'ordre retenu est lecteur FDT,
+interruptions/timer/console, puis virtio et bureau interactif.
+
+### Ce qui a été réutilisé et livré
+
+- Fusion de l'origin Apple courant dans la branche VM isolée, dont le lancement
+  de Wanderer choisi par Startup-Sequence. Aucun changement au checkout natif.
+- `libfdt` 1.7.2 sous BSD, avec provenance et licence conservées. Adaptateur
+  sans allocation dans `arch/aarch64-all/boot/fdt`, réutilisé par le boot VM.
+- Adresses de bus traduites par `ranges`, alias de console, état disabled hérité,
+  cellules reg et fournisseurs d'interruptions. Les cas hors périmètre, dont
+  adresses PCI à trois cellules et nexus interrupt-map, sont refusés.
+- Le chargeur EFI VZ utilise le constructeur libfdt borné. Un tampon trop petit
+  échoue sans écrire au-delà. Le choix de console passe par `/chosen`.
+- GICv2 extrait des opérations BCM2711 existantes et GICv3 ajouté avec bases
+  FDT, sélection du redistributor par MPIDR et attentes bornées. Core commits :
+  `bc273b6ac5` (lecteur), `6166339d7f` (GIC), `1669b1a090` (intégration VM).
+
+### Mesures et limites
+
+- Corpus hôte ASan/UBSan : Pi4 325 nœuds / 116 entrées reg, J313 324 / 233,
+  plus arbre synthétique à bus imbriqués. Comparaison avec fdtget ; chaque
+  longueur tronquée est refusée et les mutations sont parcourues sans accès
+  hors tampon. `artifacts/portable-fdt/corpus.json`.
+- Même binaire invité sur virt/HVF (GICv3) et raspi4b/TCG (GICv2) : découverte,
+  128 ticks CNTV, une self-SGI, attente WFI, restauration de x18 après que le
+  gestionnaire l'a volontairement écrasé. `artifacts/gic-hvf-x18` et
+  `artifacts/gic-rpi4-x18`. Ce sont des probes avant noyau, pas un boot complet
+  AROS sur Pi et pas une preuve sur Pi physique.
+- Contrôles négatifs : faux numéro d'IRQ = timeout et registres QMP conservés ;
+  instruction de restauration x18 remplacée par NOP = échec explicite.
+  `artifacts/gic-controls/verdict.json`.
+- Boot complet AROS VZ sans écran et Wanderer HVF restent PASS après le nouveau
+  lecteur et la fusion : `artifacts/vz-generic-fdt`, `artifacts/hvf-generic-fdt`.
+- CNTP_TVAL est indéfini sous QEMU/HVF : exception capturée avec PC/ESR, puis
+  utilisation explicite du timer virtuel CNTV, IRQ résolue depuis l'arbre.
+- QEMU raspi4b modifie l'arbre et y laisse des FDT_NOP légaux, que `fdtget -l`
+  refuse. Le vérificateur conserve le blob exact et le normalise avec dtc pour
+  les requêtes de référence. La console PL011 est sélectionnée dans une copie
+  de l'arbre pour ce scénario, et cette modification est enregistrée.
+
+La suite est l'intégration de ce contrôleur et du timer dans le noyau VM, avec
+les bindings et la description VZ correspondants, puis virtio GPU. Le pilote
+GIC initialise un seul CPU ; la découverte de plusieurs CPU ne signifie pas
+que SMP est prêt. Les gates DT0/DT2 de la roadmap complète restent distincts de
+ces preuves de composants. Le build depuis un clone neuf et le bureau permanent
+restent du travail explicite, pas des capacités déjà livrées.

@@ -36,4 +36,4 @@ is headless: `tools/run-vz.py --disk IMAGE --output NEW_DIR`. The VZ display
 requires a virtio GPU driver. See [guest build instructions](docs/BUILD.md).
 
 See [the handoff](when%20john%20is%20back.md) for measured results and work in
-progress, and [provenance](docs/PROVENANCE.md) for reused code.
+progress, [portable architecture](docs/PORTABILITY.md), and [provenance](docs/PROVENANCE.md) for reused code.

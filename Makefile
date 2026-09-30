@@ -1,3 +1,6 @@
+AROS_CORE_SOURCE ?= ../aros-core-vm
+FDT_DIR := $(AROS_CORE_SOURCE)/arch/aarch64-all/boot/fdt
+FDT_SOURCES := $(addprefix $(FDT_DIR)/libfdt/,fdt.c fdt_ro.c fdt_sw.c fdt_check.c)
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 John Knipper
 .PHONY: all test clean
@@ -14,6 +17,7 @@ build/x18-probe: src/x18-probe.c entitlements.plist | build
 test: all build/vz-platform-test
 	python3 tests/x18.py
 	python3 tests/virt-fdt.py
+	python3 tests/early-fdt.py
 	build/vz-platform-test
 	python3 tools/gen-bootinfo.py --check
 	cmp include/vm-console.h ../aros-core-vm/arch/aarch64-apple/include/aros/apple/vmconsole.h
@@ -24,6 +28,6 @@ build/macaros-vm: src/main.swift entitlements.plist | build
 	swiftc -target arm64-apple-macos13.0 -O -warnings-as-errors -framework AppKit -framework Virtualization $< -o $@
 	codesign --force --sign - --entitlements entitlements.plist $@
 
-build/vz-platform-test: tests/vz-platform.c boot/arosboot/vz_platform.c include/vm-console.h | build
+build/vz-platform-test: tests/vz-platform.c boot/arosboot/vz_platform.c include/vm-console.h $(FDT_SOURCES) | build
 	clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined \
-	 -Iboot/arosboot/include -Iinclude $< -o $@
+	 -Iboot/arosboot/include -Iinclude -I$(FDT_DIR)/libfdt $< $(FDT_SOURCES) -o $@

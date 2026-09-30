@@ -48,6 +48,14 @@ int main(void) {
     cfg[0x51]=0x50;assert(!find_console((uintptr_t)ecam,&state));cfg[0x51]=0;
     cfg[0x54]=6;assert(!find_console((uintptr_t)ecam,&state));cfg[0x54]=0;
     put(cfg+0x4c,8,4);assert(!find_console((uintptr_t)ecam,&state));
+    _Alignas(8) unsigned char tree[4096];
+    memset(tree,0,sizeof(tree));
+    assert(make_tree(tree,sizeof(tree),&state,0x1000)==0);
+    assert(fdt_check_full(tree,sizeof(tree))==0);
+    assert(fdt_path_offset(tree,"/chosen")>0 && fdt_path_offset(tree,"/console")>0);
+    unsigned char guard[128];memset(guard,0xa5,sizeof(guard));
+    assert(make_tree(guard,64,&state,0x1000)==-FDT_ERR_NOSPACE);
+    for(unsigned i=64;i<sizeof(guard);++i) assert(guard[i]==0xa5);
     free(ecam);
-    puts("vz-platform result=PASS cases=9");
+    puts("vz-platform result=PASS cases=11");
 }
