@@ -4,6 +4,7 @@
 #define __OOP_NOATTRBASES__
 #define __OOP_NOMETHODBASES__
 #include <proto/exec.h>
+#include <proto/dos.h>
 #include <proto/oop.h>
 #include <proto/openfirmware.h>
 #include <proto/kernel.h>
@@ -31,6 +32,7 @@ int test_block_queue(OOP_Object *,struct Library *,int);
 int test_virtio_device(void);
 int test_virtionet_device(void);
 int test_network_stack(void);
+int test_vmbridge_device(void);
 int test_gpu_query(OOP_Object *,struct Library *);
 static OOP_Object *driver;
 static struct PCIECAMConfig host;
@@ -353,7 +355,11 @@ AROS_UFH3(static IPTR, count_device,
                 }
                 else ++dma_failed;
             }
-            if(product==0x1053 && !test_vsock(device,OOPBase))++dma_failed;
+            if(product==0x1053) {
+                BPTR resident=Lock((CONST_STRPTR)"DEVS:vmbridge.device",ACCESS_READ);
+                if(resident)UnLock(resident);
+                else if(!test_vsock(device,OOPBase))++dma_failed;
+            }
             if(product==0x1044) {
                 if(entropy_dma(device)) ++dma_checked;else ++dma_failed;
             }
@@ -469,6 +475,7 @@ int main(int argc,char **argv)
         if(!test_xhci_device())return 95;
         if(!test_virtionet_device())return 96;
         if(!test_network_stack())return 97;
+        if(!test_vmbridge_device())return 98;
         return 0;
     }
     OOP_AttrBase attr=OOP_ObtainAttrBase((CONST_STRPTR)IID_Hidd_PCIECAM);

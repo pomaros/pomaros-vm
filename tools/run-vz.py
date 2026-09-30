@@ -15,6 +15,7 @@ import time
 root=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser()
 p.add_argument('--require-desktop-session',type=int,metavar='SECONDS')
+p.add_argument('--require-vsock-device',action='store_true')
 p.add_argument('--require-vsock',action='store_true')
 p.add_argument('--require-network-config',action='store_true')
 p.add_argument('--require-network-packets',action='store_true')
@@ -41,6 +42,7 @@ p.add_argument('--disk',type=Path,required=True)
 p.add_argument('--output',type=Path,required=True)
 p.add_argument('--timeout',type=float,default=45)
 a=p.parse_args()
+if a.require_vsock_device: a.require_vsock=True
 if a.require_vsock and not a.require_pci_hidd: p.error('--require-vsock requires --require-pci-hidd')
 if a.require_network_echo: a.require_network_stack=True
 if a.require_network_stack:
@@ -91,7 +93,7 @@ with log.open('w') as out:
                 (a.output/'state/input.request').write_text('window-keyboard-pointer-v1\n')
                 input_requested=True
             if 'FAIL:' in text: reason='guest-failure';break
-            if a.require_vsock and '[B2Q] AROS startup contract PASS' in text and '[VM] vsock two 64KiB streams PASS' not in text:
+            if a.require_vsock and '[B2Q] AROS startup contract PASS' in text and ('[VM] vmbridge read write abort reopen PASS' if a.require_vsock_device else '[VM] vsock two 64KiB streams PASS') not in text:
                 reason='vsock-not-run';break
             if a.require_network_packets and '[B2Q] AROS startup contract PASS' in text and '[VM] virtio network DHCP exchange PASS' not in text:
                 reason='network-packets-not-run';break
@@ -127,7 +129,9 @@ with log.open('w') as out:
                 host_mac=re.findall(r'network-config attachment=NAT mac=([0-9a-f:]{17})',text)
                 guest_mac=re.findall(r'\[VM\] virtio network MAC=0x([0-9a-f]{16})',text)
                 network_ok=len(host_mac)==len(guest_mac)==1 and int(host_mac[0].replace(':',''),16)==int(guest_mac[0],16)
-            if network_ok and session_ok and (not a.require_gpu_scanout or pixels_verified) and markers_match(text,marker_counts): passed=True;reason='headless-startup-contract';break
+            bridge_irqs=re.findall(r'\[VMBridge\] closed IRQ completions=(\d+)',text)
+            bridge_irq_ok=not a.require_vsock_device or (len(bridge_irqs)==2 and all(int(n)>0 for n in bridge_irqs))
+            if bridge_irq_ok and network_ok and session_ok and (not a.require_gpu_scanout or pixels_verified) and markers_match(text,marker_counts): passed=True;reason='headless-startup-contract';break
             if proc.poll() is not None: reason='early-exit';break
             time.sleep(.1)
     except Exception as error:
@@ -144,6 +148,8 @@ boot=subprocess.run(['mtype','-i',str(disk),'::BOOT.LOG'],capture_output=True)
 verdict={'result':'PASS' if passed else 'FAIL','reason':reason,
          'sana_device_verified':passed and a.require_sana_device,
          'vsock_stream_verified':passed and a.require_vsock,
+         'vsock_device_verified':passed and a.require_vsock_device,
+         'vsock_device_irq_verified':passed and a.require_vsock_device,
          'network_host_udp_verified':passed and a.require_network_echo,
          'network_stack_address_verified':passed and a.require_network_stack,
          'network_config_verified':passed and a.require_network_config,'network_packets_verified':passed and a.require_network_packets,'network_irq_verified':passed and a.require_network_irq,'input_events_withheld':a.no_input_events,'desktop_session_seconds':a.require_desktop_session,'desktop_session_verified':passed and a.require_desktop_session is not None,

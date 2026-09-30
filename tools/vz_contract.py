@@ -17,7 +17,7 @@ def expected_markers(a):
         markers += ['[VMPci] resident bridge registered', '[VM] virtio graphics driver registered']
     if a.require_desktop_session is not None:
         markers += ['[KI] shell launched','[KI] hold bounded','[KI] hold complete']
-    if a.require_vsock: markers += ['[VM] vsock two 64KiB streams PASS','[HOST] vsock 64KiB stream echo PASS']
+    if a.require_vsock: markers += [('[VM] vmbridge read write abort reopen PASS' if a.require_vsock_device else '[VM] vsock two 64KiB streams PASS'),'[HOST] vsock 64KiB stream echo PASS']
     if a.require_network_config: markers += ['[VM] virtio network configuration PASS']
     if a.require_network_packets: markers += ['[VM] virtio network DHCP exchange PASS']
     if a.require_network_irq: markers += ['[VM] virtio network interrupt delivery PASS']

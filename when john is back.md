@@ -2564,3 +2564,31 @@ pour transformer la preuve existante en nouveau vert. Revue 266 approuvée.
 Prochaine étape : propriétaire résident (IRQ/scheduling, device/IO, annulation
 et durée de vie), puis services fichiers et clipboard texte/images. Le défaut
 UDP via adresse Wi-Fi et les autres critères STAGE6 restent ouverts.
+
+## vmbridge.device résident : Exec IO et interruptions
+
+Core 7ddc8acf68 ajoute workbench/devs/vmbridge : une ouverture exclusive vers
+CID hôte 2, unité=port, tâche propriétaire de PCI/DMA/flux, IRQ→Signal, watchdog
+1 s, Open borné à 5 s. READ/WRITE partiels avec io_Actual, buffers copiés,
+annulation des requêtes en attente/actives, un RST de flux étranger conservé
+si TX occupé. Expunge refuse le worker vivant ; reset non acquitté garde toutes
+les ressources et le code épinglés. Même contrat UP que virtionet, aucun SMP.
+41cb314891 ajoute CMD_UPDATE et fermeture avec drain/shutdown borné (3 ticks),
+puis reset avant retrait IRQ et libération DMA/PCI.
+
+Build complet du module puis build quick PASS sans avertissement.
+Premier VZ vz-vmbridge-device PASS 1,20 s : deux 64 Kio, AbortIO d’une READ
+vide, Close/Open et 74/82 IRQ. Après ajout du drain : vz-vmbridge-flush PASS
+1,22 s, READ/WRITE/UPDATE/Abort/reopen et 71/44 IRQ, contrat startup complet.
+Disque final SHA256 ee68474262fe8a482bdec25eb2537041b3a33ec21e668c885f2d434c704467af ;
+lanceur 0570a8820b39cfde1300acc344978e599359743a19dc893ea13c06d48f8151a1.
+Artefacts : vmbridge-build.log, vmbridge-flush-build.log, vmbridge-probe-build.log,
+vz-vmbridge-device/verdict.json, vz-vmbridge-flush/verdict.json.
+
+Le paquet accepte --vsock-device, le runner --require-vsock-device exige les
+marqueurs applicatifs et exactement deux compteurs IRQ positifs. Les sondes
+raw et device ne se disputent pas le matériel. Deux boots, pas de répétition.
+Pas encore de fichiers/presse-papiers, ni validation de reset défaillant, pression
+de RST étrangers, expiration de Close ou usage prolongé. Revue 267 approuvée.
+Prochaine étape : protocole de services au-dessus de l’IO résident, accès fichiers
+et clipboard texte/images ; diagnostic UDP via passerelle vmnet toujours ouvert.
