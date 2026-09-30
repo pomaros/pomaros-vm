@@ -985,5 +985,13 @@ test was replaced by libfdt's byte-safe accessor before qualification.
 Review 219 (owned block DMA and actual sector read) approved. SMP untouched.
 
 `UBSAN_OPTIONS=halt_on_error=1 make test` PASS after both fixes; detailed log
-`/tmp/vm-msi-host-tests-2.log`. Guest rebuild/boot of the early-reader change
-is the next regression gate before admitting MSI MMIO into the kernel map.
+`/tmp/vm-msi-host-tests-2.log`. Complete core rebuild and post-change boots PASS in
+`artifacts/vz-pci-msi-alignment` and `artifacts/hvf-pci-msi-alignment`.
+Core `b7321a360a`, VM `5ad8096`, review 220. Bundle SHA256
+`b1519b287792ca2aa9ad09362ef6721fe3950ea42b8047b0a35fb9562af78022`;
+VZ disk `61f093c13023d88dddeac51ac27297d34b4e33dec7abd2fec406d4541b592350`.
+Next: admit the discovered MSI frame into the stage2 MMIO map, validate its
+MSI_TYPER range, and connect PCI MSI-X through the resident platform driver.
+The existing vm_gic_map maps only the two main GIC windows; no MSI MMIO is
+accessible yet. Preserve that explicit admission policy. QEMU's MSI topology
+needs discovery independently; a successful boot is not MSI validation.
