@@ -14,6 +14,7 @@ from types import SimpleNamespace
 root = Path(__file__).resolve().parents[1]
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--pci-hidd', action='store_true')
+p.add_argument('--virtio-device', action='store_true')
 p.add_argument('--build', type=Path, required=True)
 p.add_argument('--output', type=Path, required=True)
 p.add_argument('--profile', choices=['headless', 'wanderer'], default='headless')
@@ -22,6 +23,8 @@ p.add_argument('--efi', type=Path, default=root / 'build/uefi/BOOTAA64.EFI')
 a = p.parse_args()
 if a.pci_hidd and a.profile != 'headless':
     p.error('--pci-hidd requires headless profile')
+if a.virtio_device and not a.pci_hidd:
+    p.error('--virtio-device requires --pci-hidd')
 build = a.build.resolve()
 sdk = build / 'bin/apple-aarch64'
 output = a.output.resolve()
@@ -57,6 +60,9 @@ if a.pci_hidd:
     pci_files = [(rel, sdk/'AROS'/rel) for rel in ['Libs/oop.library',
         'Devs/Drivers/hiddclass.hidd','Devs/Drivers/pci.hidd','Devs/Drivers/pciecam.hidd',
         'Devs/Drivers/vmpci.hidd']]
+if a.virtio_device:
+    pci_files += [(rel,sdk/'AROS'/rel) for rel in ['Devs/Drivers/bus.hidd',
+        'Devs/Drivers/storage.hidd','Devs/virtio.device']]
 ramdisk = output / 'SYS.img'
 image_command = ['python3', str(root / 'tools/make-fat12-image.py'), '--abi-probe', str(probe)]
 if a.pci_hidd:

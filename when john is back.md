@@ -1080,3 +1080,46 @@ Current guest test still instantiates the shared queue directly: it is not
 proof of complete DOS unit startup or durable writes. Native launcher fix
 `7827774c39` reported on board196 may matter when returning to Wanderer testing;
 inspect its final gate before reusing it. SMP remains bsek's work.
+
+## Full installed virtio.device: first IRQ-backed read
+
+Core `df384149d0` adds explicit private-header dependencies for every virtio
+module object, including generated start/end objects. The initial complete
+unit opened and returned geometry, but its first CMD_READ failed with
+IOERR_ABORTED before publishing an available descriptor. Diagnostics found
+virtio_io.o older than the change adding vr_DMABuffer to the shared request
+layout; its generated dependency file was empty. The queue object used the
+new layout. Rebuilding coherently changed the same test to PASS; the dependency
+fix prevents this particular incremental-build mismatch. A `make -n -W` of
+virtio_intern.h confirms virtio_io and the other objects are rebuilt. This does
+not replace the independent clean-build comparison required by stage five.
+The commit also clarifies the IRQ-context callback restriction from review 222.
+
+`--virtio-device` extends the optional PCI package with bus.hidd, storage.hidd
+and virtio.device. The guest test uses only public Exec/device interfaces:
+OpenDevice unit zero, TD_GETGEOMETRY, asynchronous CMD_READ, bounded completion,
+exact length and boot signature. It leaves published libraries resident and
+retains request memory on timeout until the outer runner stops the VM. No
+private queue structures remain in the final test. The VZ gate
+`--require-virtio-device` requires the PCI/MSI-frame/MSI-IRQ gates and both unit
+open and read proofs. It cannot pass merely on the earlier direct queue probe.
+
+Final `artifacts/vz-full-virtio-read` PASS (1.08 s); earlier rebuilt diagnostic
+candidate `artifacts/vz-full-virtio-rebuilt` PASS. Final disk
+`1f183680e04428ae2a9319a21f5ab089d2d0e3a5a08fb3b2e7a62b55b188f566`;
+bundle `139df24cb08f04834a1cfb96dc0ab230d066edbc0a436008aba48cebc9e6d75b`;
+PCIPROBE `e4865ed3dc71bcdd7a3b2adf5df51c48b0b1e9898f3a01c28b2c97a718f97f38`.
+Full `make test`, actual queue/lifecycle/routing sanitizer tests PASS with
+UBSAN_OPTIONS=halt_on_error=1. Old complete-MSI-queue-only image is the negative
+control in `artifacts/vz-full-virtio-negative`.
+
+Before write qualification, fix virtio_io.c request ownership: rw/flush detach
+before submit, then BeginIO detaches again on submission failure. Also validate
+unaligned offsets and the whole transfer extent rather than just its start;
+check error io_Actual handling and quick-completion ordering. Missing negotiated
+FLUSH currently returns success: durability acceptance must require a real
+flush or an established write-through contract. AbortIO is unsupported, so a
+timeout must retain ownership rather than free an in-flight buffer. No writes,
+filesystem persistence, crash recovery or physical hardware qualification is
+claimed by this read milestone. Next is isolated write/flush/restart testing
+after these checks. SMP remains reserved to bsek.

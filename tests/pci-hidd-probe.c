@@ -28,6 +28,7 @@ static unsigned enumerated,console_seen,expected,mapped_common,mapping_failed;
 static int check_mappings,check_resident;
 static unsigned resident_checked,dma_checked,dma_failed,block_checked;
 int test_block_queue(OOP_Object *,struct Library *,int);
+int test_virtio_device(void);
 static OOP_Object *driver;
 static struct PCIECAMConfig host;
 static OOP_MethodID read_base;
@@ -367,6 +368,9 @@ int main(int argc,char **argv)
         mark("[VM] virtio entropy DMA completion PASS\n");
         mark("[VM] virtio block queue sector read PASS\n");
         if(msi_frame) mark("[VM] virtio block MSI-X completion PASS\n");
+        int full=test_virtio_device();
+        if(!full) return 94;
+        if(full>0) mark("[VM] full virtio.device IRQ read PASS\n");
         return 0;
     }
     OOP_AttrBase attr=OOP_ObtainAttrBase((CONST_STRPTR)IID_Hidd_PCIECAM);

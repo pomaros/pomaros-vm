@@ -261,3 +261,19 @@ unmasked unrelated table entries are refused. RemoveInterrupt requires a
 quiescent device. Retired SPIs are not recycled until reboot, preventing late
 posted messages from reaching a different owner; repeated attachment is bounded
 by the frame's SPI count. Hot-unplug/recycling requires a separate drain design.
+
+To exercise the installed driver rather than only shared queue code, package
+with `--pci-hidd --virtio-device`. This also installs bus.hidd, storage.hidd
+and virtio.device. On VZ require all four gates:
+
+```sh
+python3 tools/run-vz.py --disk DISK.img --output artifacts/device-NEW \
+  --require-pci-hidd --require-msi-frame --require-msi-irq \
+  --require-virtio-device --timeout 20
+```
+
+The added test opens unit zero through Exec, queries geometry and sends CMD_READ
+through the driver's worker/IRQ path. It checks exact completion length and the
+boot-sector signature. A timed-out request retains its storage until the bounded
+runner shuts down the VM. The device and published storage classes remain
+resident. This read gate does not qualify writes, flush durability or filesystems.
