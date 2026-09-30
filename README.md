@@ -23,8 +23,10 @@ across VM exits, rejects a corrupted probe, and exercises the core FDT mapper
 under ASan/UBSan. `AROS_CORE_SOURCE` selects the kernel checkout; the default
 is `../aros-core-vm`.
 
-`tools/prepare-esp.py` reuses a verified native bundle while substituting the
-VM bootstrap and kernel. `tools/run-qemu.py --esp DIR --output NEW_DIR` runs
+`tools/configure-core.py` configures an independent VM guest build.
+`tools/package-core.py` packages its freshly built modules and records their
+source revision and hashes. See the [complete build procedure](docs/BUILD.md).
+`tools/run-qemu.py --esp DIR --output NEW_DIR` runs
 with HVF, records exact inputs and requires both the kernel startup contract
 and the Wanderer framebuffer check. `--accel tcg` is the software regression
 lane; it never substitutes for an HVF failure.
