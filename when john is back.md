@@ -366,3 +366,37 @@ configure avait été régénéré après sa configuration ; config.status --rec
 puis config.status ont resynchronisé le build. Journal actif :
 `/tmp/vm-clean-build-retry.log`. Il faut finir ce build, reconstruire le bureau,
 composer les bundles à partir de ces seuls produits puis refaire VZ/HVF.
+
+## Le noyau et les modules de base démarrent depuis le build neuf
+
+Profil configure core `d7df1bc0dd`, dépendances des en-têtes corrigées dans
+`7d0e432ecb` puis alignées sur les huit ressources de claude-next dans
+`885b09650d`. Le premier build révélait l’absence de proto/smc.h ; le suivant
+révélait les sous-modules de catalogues non initialisés. Le helper configure
+initialise leurs révisions épinglées ; aucune constante de traduction ni aucun
+ancien fichier généré n’a été recopié pour contourner le problème.
+
+Core `0df759723e` évite aussi de reprogrammer le trigger/routage d’une IRQ
+déjà active quand un second handler est ajouté. Il documente les retours 0/1
+de KrnModifyIRQA. Revues 202, 203 et 204 approuvées ; la séparation des probes
+SPI 32 et du futur profil de production reste à faire avant une release.
+
+Les 22 entrées du bundle de base, la commande ABI, le SYS FAT12 et le chargeur
+EFI proviennent de cette reconstruction. Le packager ne lit aucun bundle seed.
+PASS VZ et HVF GICv2/GICv3 : `artifacts/vz-fresh-core`,
+`artifacts/hvf-fresh-core`, `artifacts/hvf-fresh-core-gic2`. Tests de masques,
+timer, chaîne IRQ, x18, DOS et ABI inclus ; aucun bureau revendiqué par ces runs.
+Bundle SHA256 `b18cb16c83fae022d26f7c4b2cbb069b272ecccb5babade14e73a4c7517d00d5` ;
+disque VZ SHA256 `a21c48d81882ff079c52a9917b4ca2a1e6479e31f3aba59f70773f3f9a9bba31`.
+
+La seconde composition du bundle est identique octet pour octet et l’EFI
+reconstruit est identique au précédent. Cela ne prouve pas encore deux builds
+complets indépendants identiques. Journaux, révisions de catalogues et hashes
+des entrées : `artifacts/clean-core-build`. Les outils FAT/ABI sont réutilisés
+avec provenance MIT enregistrée ; le constructeur ABI n’impose plus fixed-x18.
+
+La reconstruction du bureau est lancée avec apple-wanderer-payloads dans le
+même build neuf, log `/tmp/vm-clean-desktop-build.log`. Il reste à la terminer,
+à composer/qualifier le bundle Wanderer frais, puis à poursuivre PCI/virtio
+pour le bureau VZ, le stockage, le réseau et les échanges. L’étape 6 reste
+ouverte, le SMP reste réservé à bsek.

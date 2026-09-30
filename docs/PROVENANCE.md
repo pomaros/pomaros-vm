@@ -36,3 +36,13 @@ GICv2 register operations reuse the AROS BCM2711 implementation; GICv3 follows
 and the GIC architecture specification IHI 0069. Devicetree interpretation follows
 [DTSpec](https://devicetree-specification.readthedocs.io/en/stable/devicetree-basics.html).
 Linux binding documents supply data-format facts; no Linux driver code is copied.
+
+## Build and packaging inputs
+
+`tools/build-abi-probe`, `tools/make-fat12-image.py` and `tests/abi-corpus/*.c`
+are reused MIT sources from the integration repository. The exact import
+revision and original file hashes are in [imported-build-tools.json](imported-build-tools.json).
+The ABI builder selects the VM SDK by default and permits compiler use of x18.
+`boot/headless-modules.json` uses the integration packager's ordered component
+list; `tools/package-core.py` packages freshly built modules and an independently
+rebuilt ABI command instead of extracting binaries from a seed bundle.

@@ -1,0 +1,122 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 John Knipper
+
+set -eu
+
+usage()
+{
+    echo "usage: build-abi-probe [--profile cli|tls|workbench] [--sdk SDK_ROOT] [--sdk-tools DIR] [--crosstools DIR] OUTPUT" >&2
+    exit 2
+}
+
+project_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+sdk_root=${AROS_VM_SDK:-"$HOME/Build/macaros-vm/clean-core/bin/apple-aarch64"}
+sdk_tools=
+crosstools=${AROS_CROSSTOOLS:-"$HOME/aros-crosstools"}
+profile=cli
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --profile)
+            [ "$#" -ge 2 ] || usage
+            profile=$2
+            shift 2
+            ;;
+        --sdk)
+            [ "$#" -ge 2 ] || usage
+            sdk_root=$2
+            shift 2
+            ;;
+        --crosstools)
+            [ "$#" -ge 2 ] || usage
+            crosstools=$2
+            shift 2
+            ;;
+        --sdk-tools)
+            [ "$#" -ge 2 ] || usage
+            sdk_tools=$2
+            shift 2
+            ;;
+        --help|-h)
+            usage
+            ;;
+        --*)
+            usage
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
+[ "$#" -eq 1 ] || usage
+
+case "$profile" in
+    cli)
+        source_file="$project_root/tests/abi-corpus/portable-probe.c"
+        ;;
+    tls)
+        source_file="$project_root/tests/abi-corpus/tls-concurrency-probe.c"
+        ;;
+    workbench)
+        source_file="$project_root/tests/abi-corpus/workbench-probe.c"
+        ;;
+    *)
+        usage
+        ;;
+esac
+
+[ -n "$sdk_tools" ] || sdk_tools="${sdk_root%/*}/darwin-aarch64/tools"
+
+output=$1
+include_dir="$sdk_root/AROS/Developer/include"
+generated_include_dir="$sdk_root/gen/include"
+posix_include_dir="$include_dir/aros/posixc"
+stdc_include_dir="$include_dir/aros/stdc"
+library_dir="$sdk_root/AROS/Developer/lib"
+clang="$crosstools/bin/clang"
+
+[ -x "$clang" ] || {
+    echo "abi-probe-build result=FAIL reason=missing-clang path=$clang" >&2
+    exit 1
+}
+[ -x "$sdk_tools/collect-aros" ] || {
+    echo "abi-probe-build result=FAIL reason=missing-collect-aros path=$sdk_tools/collect-aros" >&2
+    exit 1
+}
+[ -f "$library_dir/startup.o" ] || {
+    echo "abi-probe-build result=FAIL reason=missing-sdk path=$sdk_root" >&2
+    exit 1
+}
+[ -f "$posix_include_dir/time.h" ] && [ -f "$stdc_include_dir/stdint.h" ] || {
+    echo "abi-probe-build result=FAIL reason=incomplete-sdk-headers path=$sdk_root" >&2
+    exit 1
+}
+
+output_parent=$(dirname -- "$output")
+mkdir -p "$output_parent"
+temporary_output=$(mktemp "$output_parent/.abi-probe.XXXXXX")
+trap 'find "$temporary_output" -depth -delete 2>/dev/null || true' \
+    EXIT HUP INT TERM
+export COMPILER_PATH="$sdk_tools:$crosstools/bin"
+
+"$clang" \
+    --target=aarch64-unknown-aros \
+    -mcmodel=large -fno-pic -fno-pie -femulated-tls \
+    -O2 -Wall -Wextra -Werror \
+    -isystem "$include_dir" -isystem "$generated_include_dir" \
+    -isystem "$posix_include_dir" -isystem "$stdc_include_dir" \
+    -nostartfiles -nodefaultlibs \
+    -L"$library_dir" -L"$crosstools/lib/generic" \
+    "$library_dir/startup.o" "$source_file" -o "$temporary_output" \
+    -Wl,--allow-multiple-definition \
+    -Wl,--start-group -ldos -lexec -laros -lautoinit -llibinit -lutility \
+    -lamiga -larossupport -lpthread -lposixc -lstdcio -lstdc \
+    -lclang_rt.builtins-aarch64 -Wl,--end-group
+
+chmod 0644 "$temporary_output"
+mv "$temporary_output" "$output"
+trap - EXIT HUP INT TERM
+digest=$(shasum -a 256 "$output" | awk '{print $1}')
+bytes=$(wc -c <"$output" | tr -d ' ')
+echo "abi-probe-build result=PASS profile=$profile path=$output bytes=$bytes sha256=$digest sdk=$sdk_root sdk_tools=$sdk_tools"

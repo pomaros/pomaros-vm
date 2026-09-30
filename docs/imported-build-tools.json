@@ -1,0 +1,12 @@
+{
+  "repository": "jonx/aros-apple-silicon",
+  "revision": "2a31836a16b44429afd904234ebb3896ccf1a060",
+  "license": "MIT",
+  "files": {
+    "tools/build-abi-probe": "b46d9a6599543b061a77bf402c6e4914c37ae70a4d035e05b20259532661f1cf",
+    "tools/make-fat12-image.py": "8047d58710cf0a26221f170efc44846414ab200dbc246f2aae1ff24ec752d244",
+    "tests/abi-corpus/portable-probe.c": "1134008380a14fad6455ca9fed4630aed91ec9ca03a65c76bd69e5953a702074",
+    "tests/abi-corpus/workbench-probe.c": "98a4aead20ebf93129f9454f990300e14db3388521fec502464a1af17b051502",
+    "tests/abi-corpus/tls-concurrency-probe.c": "28e43e9aa44858aba5dd4752efda7fd665b1b2cc375b1506197bb8434a305b39"
+  }
+}

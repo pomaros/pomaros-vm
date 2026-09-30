@@ -14,6 +14,7 @@ p = argparse.ArgumentParser()
 p.add_argument('--esp',type=Path,required=True)
 p.add_argument('--output',type=Path,required=True)
 p.add_argument('--accel',choices=['hvf','tcg'],default='hvf')
+p.add_argument('--profile',choices=['core','wanderer'],default='wanderer')
 p.add_argument('--timeout',type=float,default=60)
 p.add_argument('--require-timer',action='store_true')
 p.add_argument('--require-irq-chain',action='store_true')
@@ -70,7 +71,7 @@ with (a.output/'host.log').open('w') as log:
                     (a.output/'registers.txt').write_text(str(reply['return']))
             except Exception as error:
                 (a.output/'debugger-error.txt').write_text(str(error))
-        if passed:
+        if passed and a.profile == 'wanderer':
             s=socket.socket(socket.AF_UNIX);s.settimeout(3);s.connect(str(qmp))
             with s,s.makefile('rwb') as f:
                 f.readline()
@@ -93,6 +94,7 @@ with (a.output/'host.log').open('w') as log:
             try: proc.wait(timeout=5)
             except subprocess.TimeoutExpired: proc.kill();proc.wait()
 verdict={'result':'PASS' if passed else 'FAIL','reason':reason,'backend':a.accel,
+         'profile':a.profile, 'desktop_checked':a.profile == 'wanderer' and passed,
          'seconds':round(time.monotonic()-started,2),'hardware_virtualization':a.accel=='hvf',
          'gic_version':int(a.gic_version),'timer_required':a.require_timer,'irq_chain_required':a.require_irq_chain,
          'bundle_sha256':hashlib.sha256((esp/'AROS/GEN0.BND').read_bytes()).hexdigest()}

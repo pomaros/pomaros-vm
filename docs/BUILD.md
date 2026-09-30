@@ -142,6 +142,13 @@ positive kernel hash before using the build again.
 ```sh
 python3 tools/configure-core.py --output "$HOME/Build/macaros-vm/clean-core"
 make -C "$HOME/Build/macaros-vm/clean-core" -j8 apple-boot-payloads
+make -C boot/arosboot BUILD=../../build/uefi-clean
+python3 tools/package-core.py --build "$HOME/Build/macaros-vm/clean-core" \
+  --efi build/uefi-clean/BOOTAA64.EFI --output build/fresh-headless
+python3 tools/make-disk.py --esp build/fresh-headless --output build/fresh-headless.img
+python3 tools/run-vz.py --disk build/fresh-headless.img --output artifacts/fresh-vz
+python3 tools/run-qemu.py --esp build/fresh-headless --profile core \
+  --require-timer --require-irq-chain --output artifacts/fresh-hvf
 ```
 
 The output directory must not exist. The helper uses the prebuilt cross
@@ -150,5 +157,15 @@ configure command and log, and selects `--enable-vm-guest`. This profile exports
 `AROS_VM_GUEST=1` to generated makefiles and omits the native x18 reservation
 from C and C++ flags. Other targets cannot select this profile; the physical
 Apple default retains its existing flags. This creates no copy of native
-object files. The full build and packaging acceptance state belongs in the
-handoff log, separate from successful configuration.
+object files. It initializes the four pinned catalog submodules required by
+DOS, ASL, muimaster and Wanderer before configuring.
+
+The headless packager consumes the ordered paths in `boot/headless-modules.json`,
+builds the ABI command with the fresh SDK, creates the deterministic SYS image,
+and records source revision and input hashes. It refuses missing products and
+a dirty core source; there is no seed-bundle fallback. `--profile core` on the
+QEMU runner checks startup and requested IRQ/timer proofs without claiming a
+desktop. The default `wanderer` profile retains the desktop pixel gate.
+Repeating packaging can verify byte-identical bundles; that is separate from
+comparing two independent complete builds. The desktop build target is
+`apple-wanderer-payloads`; its qualification state is in the handoff log.

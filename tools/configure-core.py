@@ -23,6 +23,12 @@ if branch != 'codex-macaros-vm':
     p.error('select the isolated codex-macaros-vm source branch')
 if not toolchain.is_dir():
     p.error('the prebuilt AROS cross-toolchain directory is missing')
+# Catalogs are source submodules, not optional pre-generated build artifacts.
+# Fetch exactly the pinned revisions required by core and desktop workloads.
+subprocess.run(['git', '-C', str(source), 'submodule', 'update', '--init', '--',
+                'rom/dos/catalogs', 'workbench/libs/asl/catalogs',
+                'workbench/libs/muimaster/catalogs',
+                'workbench/system/Wanderer/Catalogs'], check=True)
 command = [str(source / 'configure'), '--target=apple-aarch64',
            '--enable-vm-guest', '--with-toolchain=llvm', '--with-aros-toolchain=yes',
            '--with-aros-toolchain-install=' + str(toolchain), '--without-x']

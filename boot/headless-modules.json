@@ -1,0 +1,22 @@
+{
+  "kernel.resource": "boot/apple/Devs/kernel.resource",
+  "exec.library": "boot/apple/Libs/exec.library",
+  "expansion.library": "boot/apple/Libs/expansion.library",
+  "pmgr.resource": "Devs/pmgr.resource",
+  "utility.library": "Libs/utility.library",
+  "rtkit.resource": "Devs/rtkit.resource",
+  "aros.library": "Libs/aros.library",
+  "bootloader.resource": "Devs/bootloader.resource",
+  "task.resource": "Devs/task.resource",
+  "FileSystem.resource": "Devs/FileSystem.resource",
+  "timer.device": "boot/apple/Devs/timer.device",
+  "partition.library": "Libs/partition.library",
+  "locale.library": "Libs/locale.library",
+  "stdc.library": "Libs/stdc.library",
+  "stdcio.library": "Libs/stdcio.library",
+  "posixc.library": "Libs/posixc.library",
+  "fat-handler": "L/fat-handler",
+  "appleboot.device": "Devs/appleboot.device",
+  "dos.library": "Libs/dos.library",
+  "iffparse.library": "Libs/iffparse.library"
+}
