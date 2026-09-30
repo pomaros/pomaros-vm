@@ -834,3 +834,9 @@ défaut et le bureau VZ restent à raccorder. Prochaine limite : allocations DMA
 avec contrat de traduction/cohérence, puis routage MSI et transferts virtio.
 Aucune preuve de stockage persistant, GPU, entrée ni matériel physique ici.
 La revue 216 du démarrage virtio est approuvée. SMP toujours réservé à bsek.
+
+Vérification du build standard : après retrait du seul binaire vmpci.hidd,
+`make -j8 kernel-hidd-vmpci` le reconstruit avec le même SHA256 808d5970… ;
+aucune invocation manuelle spéciale nécessaire. Les bibliothèques et le SDK
+étaient déjà construits : ce n'est pas encore une seconde reconstruction
+indépendante complète. Revue 217.
