@@ -78,7 +78,7 @@ int main(void)
     assert(VsockStreamPump(&s,emit,NULL)==1 && output[30]==3 && s.state==VS_CLOSED);++cases;
     connect_stream(100);packet(p,5,100,0,10);memset(p+44,0x5a,10);
     assert(VsockStreamFeed(&s,p,54)==1);s.rx_fwd=UINT32_MAX-5;
-    packet(p,3,0,0,0);assert(VsockStreamFeed(&s,p,44)==1);
+    packet(p,3,0,0,0);assert(VsockStreamFeed(&s,p,44)==1 && s.failed);
     assert(VsockStreamRead(&s,copy,10)==10 && s.rx_fwd==4 && s.state==VS_CLOSED);
     for(unsigned i=0;i<10;++i)assert(copy[i]==0x5a);++cases;
     printf("vsock-stream result=PASS cases=%u credits,fragmentation,backpressure,wrap,shutdown,malformed\n",cases);

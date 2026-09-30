@@ -2535,7 +2535,9 @@ Core 8d9695cdb5 ajoute vsock_stream.c/.h, moteur portable sans OS, deux rings
 fixes de 16 Kio, crédits validés, compteurs modulo 32 bits, acceptation TX
 transactionnelle, fermeture et RST. Les données portent les crédits actualisés
 pour éviter de priver TX quand RX progresse. f95496c9a0 conserve une erreur
-latente après émission RST ; cette dernière modification est compilée et
+latente après émission RST ; c77a928393 distingue aussi un RST spontané
+d’une fermeture attendue. Ces chemins sont contrôlés sur hôte ; la conservation
+de l’erreur est également compilée côté invité et
 vérifiée sur hôte, sans troisième run VZ. Le moteur n'est PAS encore un
 service résident ni une API device AROS.
 
