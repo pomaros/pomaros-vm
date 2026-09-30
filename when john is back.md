@@ -262,3 +262,10 @@ au noyau ; il faut compléter ce contrat avant d’étendre aux IRQ de pilotes.
 Prochaine étape : IRQ des périphériques et virtio GPU/entrées sous VZ. Le
 bureau VZ, le stockage invité persistant, le build depuis clone neuf et la
 qualification d’usage de l’étape 6 restent ouverts. SMP toujours réservé à bsek.
+
+Versions de ce jalon : core `f1c2cc8701` puis `fbcc2c6c06` (parcours des
+noms linéaire, sans recherche répétée), VM `dc94ce6`. Dernière image testée :
+`build/vz-irq-final.img`, verdict `artifacts/vz-irq-final` PASS, disque SHA256
+`2d49c21169523e302af54cc234ff3d02f1b650816527011576c71ba0223c0b4f`.
+Le corpus synthétique nommé final (21 nœuds) passe ASan/UBSan après ce dernier
+changement. La validation matérielle physique et le SMP n’ont pas été élargis.
