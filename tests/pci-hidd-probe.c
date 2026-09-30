@@ -278,6 +278,7 @@ static int inspect_xhci(OOP_Object *device)
     return length>=32 && length<bytes && version>=0x100 && (structural>>24)!=0;
 }
 /* Read configuration only; no network queues or packets are submitted. */
+int test_vsock(OOP_Object *,struct Library *);
 int test_network_packets(OOP_Object *,struct Library *,int);
 static int inspect_network(OOP_Object *device)
 {
@@ -352,6 +353,7 @@ AROS_UFH3(static IPTR, count_device,
                 }
                 else ++dma_failed;
             }
+            if(product==0x1053 && !test_vsock(device,OOPBase))++dma_failed;
             if(product==0x1044) {
                 if(entropy_dma(device)) ++dma_checked;else ++dma_failed;
             }

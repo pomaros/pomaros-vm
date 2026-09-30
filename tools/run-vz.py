@@ -14,6 +14,7 @@ import time
 root=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser()
 p.add_argument('--require-desktop-session',type=int,metavar='SECONDS')
+p.add_argument('--require-vsock',action='store_true')
 p.add_argument('--require-network-config',action='store_true')
 p.add_argument('--require-network-packets',action='store_true')
 p.add_argument('--require-network-irq',action='store_true')
@@ -39,6 +40,7 @@ p.add_argument('--disk',type=Path,required=True)
 p.add_argument('--output',type=Path,required=True)
 p.add_argument('--timeout',type=float,default=45)
 a=p.parse_args()
+if a.require_vsock and not a.require_pci_hidd: p.error('--require-vsock requires --require-pci-hidd')
 if a.require_network_echo: a.require_network_stack=True
 if a.require_network_stack:
     a.require_sana_device=True
@@ -89,6 +91,7 @@ if a.desktop_startup:
     markers += ['[VMPci] resident bridge registered', '[VM] virtio graphics driver registered']
 if a.require_desktop_session is not None:
     markers += ['[KI] shell launched','[KI] hold bounded','[KI] hold complete']
+if a.require_vsock: markers += ['[VM] vsock host stream exchange PASS','[HOST] vsock stream echo PASS']
 if a.require_network_config: markers += ['[VM] virtio network configuration PASS']
 if a.require_network_packets: markers += ['[VM] virtio network DHCP exchange PASS']
 if a.require_network_irq: markers += ['[VM] virtio network interrupt delivery PASS']
@@ -124,7 +127,7 @@ pixels_verified=False
 capture_count=0
 passed=False;reason='timeout';start=time.monotonic()
 with log.open('w') as out:
-    proc=subprocess.Popen([str(root/'build/macaros-vm'),str(disk),str(a.output/'state'),'--headless']+(['--gpu-window'] if a.require_gpu_scanout or a.require_input else ['--gpu'] if a.require_gpu or a.desktop_startup else [])+(['--usb-input'] if a.usb_input else [])+(['--input-probe'] if a.require_input else [])+(['--network'] if a.require_network_config else []),stdout=out,stderr=subprocess.STDOUT)
+    proc=subprocess.Popen([str(root/'build/macaros-vm'),str(disk),str(a.output/'state'),'--headless']+(['--gpu-window'] if a.require_gpu_scanout or a.require_input else ['--gpu'] if a.require_gpu or a.desktop_startup else [])+(['--usb-input'] if a.usb_input else [])+(['--input-probe'] if a.require_input else [])+(['--network'] if a.require_network_config else [])+(['--vsock-probe'] if a.require_vsock else []),stdout=out,stderr=subprocess.STDOUT)
     try:
         while time.monotonic()-start<a.timeout:
             text=log.read_text(errors='replace')
@@ -132,6 +135,8 @@ with log.open('w') as out:
                 (a.output/'state/input.request').write_text('window-keyboard-pointer-v1\n')
                 input_requested=True
             if 'FAIL:' in text: reason='guest-failure';break
+            if a.require_vsock and '[B2Q] AROS startup contract PASS' in text and '[VM] vsock host stream exchange PASS' not in text:
+                reason='vsock-not-run';break
             if a.require_network_packets and '[B2Q] AROS startup contract PASS' in text and '[VM] virtio network DHCP exchange PASS' not in text:
                 reason='network-packets-not-run';break
             if a.require_network_irq and '[B2Q] AROS startup contract PASS' in text and '[VM] virtio network interrupt delivery PASS' not in text:
@@ -182,6 +187,7 @@ boot=subprocess.run(['mtype','-i',str(disk),'::BOOT.LOG'],capture_output=True)
 (a.output/'firmware.log').write_bytes(boot.stdout)
 verdict={'result':'PASS' if passed else 'FAIL','reason':reason,
          'sana_device_verified':passed and a.require_sana_device,
+         'vsock_stream_verified':passed and a.require_vsock,
          'network_host_udp_verified':passed and a.require_network_echo,
          'network_stack_address_verified':passed and a.require_network_stack,
          'network_config_verified':passed and a.require_network_config,'network_packets_verified':passed and a.require_network_packets,'network_irq_verified':passed and a.require_network_irq,'input_events_withheld':a.no_input_events,'desktop_session_seconds':a.require_desktop_session,'desktop_session_verified':passed and a.require_desktop_session is not None,

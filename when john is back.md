@@ -2498,3 +2498,33 @@ hôte ciblé et le canal virtio-vsock prévu par aros-next/docs/AARCH64.md pour
 les services Mac/VM : fichiers et presse-papiers ne doivent pas dépendre
 du Wi-Fi local. Le transport réseau pour le bare metal reste un objectif
 distinct, pas une propriété démontrée par vsock.
+
+## Premier échange virtio-vsock réel
+
+Core ec66d3cbeb : transport de paquets vsock réutilisant PCI/queues/DMA/reset
+existants, trois files RX/TX/event, CID lu en configuration stable, copies
+possédées, validation des complétions et invalidation sur événement de reset.
+API de paquets seulement : la couche de flux résidente et ses crédits complets
+restent à implémenter. La sonde est un unique flux borné de 32 octets.
+
+`artifacts/vz-vsock-stream/verdict.json` PASS en 1,53 s : handshake, échange
+exact AROS→Mac→AROS, marqueurs des deux côtés, reset et contrat startup complet.
+Disque SHA256 7bc4042bcc4a302b73f7ac3eeacfa02d15a91d9cff95f55489dba1b5fa4c9dfb ;
+lanceur e8aaf6900ce44b30c3a91f7eb2c232b04b5a34987d50f5c6d66f1dc76fdede73.
+`artifacts/vsock-queue-test.log` : 18 cas ASan/UBSan PASS, dont réception
+pendant TX occupé, wrap 16 bits, IDs dupliqués, longueurs/CID invalides et reset.
+Compilation Swift et invité avec warnings-as-errors PASS.
+
+Second essai `vz-vsock-negative` avec l'ancienne image réseau : FAIL en 1,52 s,
+mais sur la sonde SANA sans device réseau exposé. Cela ne valide PAS le chemin
+vsock-not-run du nouveau scorer ; pas de répétition pour obtenir un joli négatif.
+Limites : aucun fichier ni presse-papiers exposé, transport polled dans cette
+preuve, aucune qualification physique/Pi, pas de flux résident/reconnexion.
+Procédure et contrat dans docs/VSOCK.md. Prochaine étape : propriétaire résident
+du flux, crédits/fragmentation puis protocole de services fichiers/presse-papiers.
+
+Revue 264 approuve le contrôle UDP et propose de viser l'adresse vmnet du Mac
+(passerelle DHCP) plutôt que son adresse Wi-Fi : diagnostic ciblé à reprendre,
+sans conclure que le défaut soit résolu. Revue 265 AFS+ : claude-next lit déjà
+le dma-bounce ; signalé le Mask 32 bits du boot node comme cause possible,
+sans duplication ni prise du M1.

@@ -179,3 +179,10 @@ test-virtio-net-irq: build/virtio-net-irq-test
 build/virtio-net-irq-test: tests/virtio-net-irq.c $(VIRTIO_SOURCE)/net_transport.c $(VIRTIO_SOURCE)/net_transport.h | build
 	clang -std=gnu11 -Wall -Wextra -Werror -Wno-ignored-attributes -Wno-cast-function-type-mismatch -fsanitize=address,undefined -Wl,-dead_strip \
 	 -I$(VIRTIO_SOURCE) -idirafter $(AROS_VM_SDK)/AROS/Developer/include $< -o $@
+
+.PHONY: test-virtio-vsock
+test-virtio-vsock: build/virtio-vsock-queue-test
+	build/virtio-vsock-queue-test
+build/virtio-vsock-queue-test: tests/virtio-vsock-queue.c $(VIRTIO_SOURCE)/vsock_transport.c $(VIRTIO_SOURCE)/vsock_transport.h | build
+	clang -std=gnu11 -Wall -Wextra -Werror -Wno-ignored-attributes -Wno-cast-function-type-mismatch -fsanitize=address,undefined -Wl,-dead_strip \
+	 -I$(VIRTIO_SOURCE) -idirafter $(AROS_VM_SDK)/AROS/Developer/include $< -o $@

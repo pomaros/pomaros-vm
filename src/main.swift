@@ -4,7 +4,9 @@ import AppKit
 import Virtualization
 
 @available(macOS 13.0, *)
-final class Application: NSObject, NSApplicationDelegate, VZVirtualMachineDelegate {
+final class Application: NSObject, NSApplicationDelegate, VZVirtualMachineDelegate, VZVirtioSocketListenerDelegate {
+  var socketListener: VZVirtioSocketListener?
+  var socketProbeAccepted=false
   var machine: VZVirtualMachine!
   var window: NSWindow!
   var machineView: VZVirtualMachineView?
@@ -17,6 +19,46 @@ final class Application: NSObject, NSApplicationDelegate, VZVirtualMachineDelega
   init(disk: URL, state: URL) {
     self.disk = disk
     self.state = state
+  }
+  func listener(_ listener: VZVirtioSocketListener,
+                shouldAcceptNewConnection connection: VZVirtioSocketConnection,
+                from socketDevice: VZVirtioSocketDevice) -> Bool {
+    guard !socketProbeAccepted else { return false }
+    socketProbeAccepted=true
+    let fd=connection.fileDescriptor
+    guard fd>=0, fcntl(fd,F_SETFL,fcntl(fd,F_GETFL)|O_NONBLOCK)==0 else { return false }
+    var noSignal:Int32=1
+    _ = setsockopt(fd,SOL_SOCKET,SO_NOSIGPIPE,&noSignal,socklen_t(MemoryLayout<Int32>.size))
+    // Only the explicitly enabled probe port: 32 bytes, partial stream IO,
+    // bounded time. No clipboard access or host files exposed by this probe.
+    DispatchQueue.global().async {
+      var bytes=[UInt8](repeating:0,count:32)
+      var received=0, written=0
+      let deadline=Date().addingTimeInterval(5)
+      while Date()<deadline && written<32 {
+        var p=pollfd(fd:fd,events:Int16(received<32 ? POLLIN : POLLOUT),revents:0)
+        let ready=poll(&p,1,100)
+        if ready<0 { if errno==EINTR { continue }; break }
+        if ready==0 { continue }
+        if p.revents & Int16(POLLERR|POLLNVAL) != 0 { break }
+        let n:Int
+        if received<32 {
+          n=bytes.withUnsafeMutableBytes { read(fd,$0.baseAddress!.advanced(by:received),32-received) }
+          if n>0 { received+=n }
+        } else {
+          n=bytes.withUnsafeBytes { write(fd,$0.baseAddress!.advanced(by:written),32-written) }
+          if n>0 { written+=n }
+        }
+        if n==0 { break }
+        if n<0 && errno != EAGAIN && errno != EINTR { break }
+      }
+      let success=received==32 && written==32
+      DispatchQueue.main.async {
+        print(success ? "[HOST] vsock stream echo PASS" : "[HOST] vsock stream echo FAIL")
+        fflush(stdout);connection.close()
+      }
+    }
+    return true
   }
   func applicationDidFinishLaunching(_ notification: Notification) {
     do {
@@ -76,10 +118,18 @@ final class Application: NSObject, NSApplicationDelegate, VZVirtualMachineDelega
         print("network-config attachment=NAT mac=\(network.macAddress.string)")
         fflush(stdout)
       }
+      if CommandLine.arguments.contains("--vsock-probe") {
+        config.socketDevices=[VZVirtioSocketDeviceConfiguration()]
+      }
       config.entropyDevices = [VZVirtioEntropyDeviceConfiguration()]
       try config.validate()
       machine = VZVirtualMachine(configuration: config)
       machine.delegate = self
+      if CommandLine.arguments.contains("--vsock-probe"),
+         let device=machine.socketDevices.first as? VZVirtioSocketDevice {
+        let listener=VZVirtioSocketListener();listener.delegate=self
+        socketListener=listener;device.setSocketListener(listener,forPort:4050)
+      }
       if !headless || CommandLine.arguments.contains("--gpu-window") {
         let view = VZVirtualMachineView()
         view.virtualMachine = machine
@@ -173,8 +223,8 @@ if options.contains("--input-probe") && options.contains("--headless") && (!opti
   fputs("--input-probe requires a VZ window and USB input\n",stderr);exit(2)
 }
 if CommandLine.arguments.count < 3 || options.count != Set(options).count
-  || options.contains(where: { $0 != "--headless" && $0 != "--gpu" && $0 != "--gpu-window" && $0 != "--usb-input" && $0 != "--input-probe" && $0 != "--network" }) {
-  fputs("usage: macaros-vm DISK_IMAGE STATE_DIRECTORY [--headless] [--gpu] [--gpu-window] [--usb-input] [--input-probe] [--network]\n", stderr)
+  || options.contains(where: { $0 != "--headless" && $0 != "--gpu" && $0 != "--gpu-window" && $0 != "--usb-input" && $0 != "--input-probe" && $0 != "--network" && $0 != "--vsock-probe" }) {
+  fputs("usage: macaros-vm DISK_IMAGE STATE_DIRECTORY [--headless] [--gpu] [--gpu-window] [--usb-input] [--input-probe] [--network] [--vsock-probe]\n", stderr)
   exit(2)
 }
 if #available(macOS 13.0, *) {

@@ -37,5 +37,8 @@ copy. Firmware state lives separately in `STATE_DIRECTORY`. The qualified VZ lan
 is headless: `tools/run-vz.py --disk IMAGE --output NEW_DIR`. The VZ display
 requires a virtio GPU driver. See [guest build instructions](docs/BUILD.md).
 
+The [host services transport](docs/VSOCK.md) documents the vsock packet API
+and bounded stream qualification.
+
 See [the handoff](when%20john%20is%20back.md) for measured results and work in
 progress, [portable architecture](docs/PORTABILITY.md), and [provenance](docs/PROVENANCE.md) for reused code.
