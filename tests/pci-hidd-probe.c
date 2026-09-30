@@ -11,6 +11,7 @@
 #include <aros/asmcall.h>
 #include <interface/HW.h>
 #include "ecam/pciecam.h"
+#include "pci_mapping.h"
 #undef OOPBase
 #undef UtilityBase
 struct Library *OOPBase;
@@ -76,44 +77,45 @@ static void config_write_word(OOP_Object *device,unsigned reg,uint16_t value)
         OOP_GetMethodID((CONST_STRPTR)IID_Hidd_PCIDevice,moHidd_PCIDevice_WriteConfigWord),reg,value};
     OOP_DoMethod(device,(OOP_Msg)&msg);
 }
+static uint32_t transport_read(void *context,unsigned reg,unsigned width)
+{ return config_read(context,reg,width); }
+static int transport_bar(void *context,unsigned bar,uint64_t *bus,uint64_t *bytes)
+{
+    IPTR base=0,size=0;
+    for(unsigned i=0;i<=bar;++i) {
+        uint32_t raw=config_read(context,0x10+4*i,4);
+        if(i==bar && (raw&1)) return 0;
+        if(!(raw&1) && (raw&6)==4) { if(i+1==bar) return 0; ++i; }
+    }
+    OOP_GetAttr(context,device_attr+aoHidd_PCIDevice_Base0+3*bar,&base);
+    OOP_GetAttr(context,device_attr+aoHidd_PCIDevice_Size0+3*bar,&size);
+    *bus=base&~(IPTR)15;*bytes=size;return *bus && *bytes;
+}
+static void *transport_map(void *context,uint64_t bus,uint32_t bytes)
+{
+    IPTR owner=0;OOP_GetAttr(context,device_attr+aoHidd_PCIDevice_Driver,&owner);
+    if(!owner || bus>UINTPTR_MAX) return NULL;
+    struct pHidd_PCIDriver_MapPCI msg={read_base+moHidd_PCIDriver_MapPCI,(void *)(uintptr_t)bus,bytes};
+    return (void *)OOP_DoMethod((void *)owner,(OOP_Msg)&msg);
+}
+static void transport_unmap(void *context,void *cpu,uint32_t bytes)
+{
+    IPTR owner=0;OOP_GetAttr(context,device_attr+aoHidd_PCIDevice_Driver,&owner);
+    struct pHidd_PCIDriver_UnmapPCI msg={read_base+moHidd_PCIDriver_UnmapPCI,cpu,bytes};
+    OOP_DoMethod((void *)owner,(OOP_Msg)&msg);
+}
 static int map_common(OOP_Object *device)
 {
-    unsigned cap=config_read(device,0x34,1),seen[64]={0};
-    for(unsigned n=0;cap && n<48;++n) {
-        if(cap<0x40 || cap>0xfc || (cap&3) || seen[cap/4]++) return 0;
-        unsigned next=config_read(device,cap+1,1);
-        if(config_read(device,cap,1)==9 && config_read(device,cap+3,1)==1) {
-            unsigned bytes=config_read(device,cap+2,1);
-            unsigned bar=config_read(device,cap+4,1);
-            if(bytes<16 || cap+bytes>256 || bar>5) return 0;
-            uint32_t off=config_read(device,cap+8,4),len=config_read(device,cap+12,4);
-            IPTR base=0,size=0,owner=0;
-            OOP_GetAttr(device,device_attr+aoHidd_PCIDevice_Base0+3*bar,&base);
-            OOP_GetAttr(device,device_attr+aoHidd_PCIDevice_Size0+3*bar,&size);
-            OOP_GetAttr(device,device_attr+aoHidd_PCIDevice_Driver,&owner);
-            base &= ~(IPTR)15;
-            hex("[VM] BAR",base);hex("[VM] BAR size",size);hex("[VM] cap offset",off);hex("[VM] cap bytes",len);
-            if(!owner || !base || len<56 || (off&3) || off>size || len>size-off ||
-                base>UINTPTR_MAX-off) return 0;
-            struct pHidd_PCIDriver_MapPCI map={
-                read_base+moHidd_PCIDriver_MapPCI,(void *)(base+off),len};
-            void *cpu=(void *)OOP_DoMethod((void *)owner,(OOP_Msg)&map);
-            hex("[VM] BAR CPU",(uintptr_t)cpu);
-            if(!cpu || cpu==(void *)-1) return 0;
-            /* Read-only common configuration, no reset or queue programming. */
-            uint16_t command=config_read(device,4,2);
-            config_write_word(device,4,command|2); /* MEM decode only; preserve master bit. */
-            unsigned queues=*(volatile uint16_t *)((uint8_t *)cpu+18);
-            config_write_word(device,4,command);
-            struct pHidd_PCIDriver_UnmapPCI unmap={
-                read_base+moHidd_PCIDriver_UnmapPCI,cpu,len};
-            OOP_DoMethod((void *)owner,(OOP_Msg)&unmap);
-            hex("[VM] virtio queues",queues);
-            return queues>0 && queues<0x8000;
-        }
-        cap=next;
-    }
-    return 0;
+    const struct VirtioPCIAccess io={device,transport_read,transport_bar,transport_map,transport_unmap};
+    struct VirtioPCIMapping mapping={0};
+    if(!VirtioPCIMap(&io,&mapping,7)) return 0;
+    uint16_t command=config_read(device,4,2);
+    config_write_word(device,4,command|2);
+    unsigned queues=*(volatile uint16_t *)((uint8_t *)mapping.regions[0]+18);
+    config_write_word(device,4,command);
+    hex("[VM] virtio queues",queues);
+    VirtioPCIUnmap(&io,&mapping);
+    return queues>0 && queues<0x8000;
 }
 AROS_UFH3(static IPTR, count_device,
     AROS_UFHA(struct Hook *,hook,A0),

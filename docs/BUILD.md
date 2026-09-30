@@ -205,3 +205,9 @@ The PCI qualification also maps every visible virtio common configuration
 through the driver's MapPCI method and reads its queue count. It temporarily
 enables PCI memory decode and restores the original command word. The required
 PCI gate includes this MMIO proof; no queue is activated and no DMA is tested.
+
+`make test-virtio-pci-map` exercises the mapping engine used by the existing
+virtio transport, including translated CPU addresses, every partial mapping
+failure and notification-window overflow. It is also part of `make test`.
+The guest PCI probe uses this same engine for real register reads. This does
+not qualify virtio.device queue activation, DMA or controller teardown.

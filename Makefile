@@ -14,7 +14,7 @@ build/x18.bin: build/x18.o
 build/x18-probe: src/x18-probe.c entitlements.plist | build
 	clang -Wall -Wextra -Werror -O2 $< -framework Hypervisor -o $@
 	codesign --force --sign - --entitlements entitlements.plist $@
-test: all build/vz-platform-test build/gic-contract-test build/pci-ecam-access-test
+test: all build/vz-platform-test build/gic-contract-test build/pci-ecam-access-test build/virtio-pci-map-test
 	python3 tests/x18.py
 	python3 tests/virt-fdt.py
 	python3 tests/early-fdt.py
@@ -22,6 +22,7 @@ test: all build/vz-platform-test build/gic-contract-test build/pci-ecam-access-t
 	build/gic-contract-test
 	build/pci-ecam-access-test
 	python3 tests/pci-ecam-codegen.py
+	build/virtio-pci-map-test
 	python3 tools/gen-bootinfo.py --check
 	cmp include/vm-console.h ../aros-core-vm/arch/aarch64-apple/include/aros/apple/vmconsole.h
 clean:
@@ -66,3 +67,11 @@ test-pci-ecam-class: build/pci-ecam-class-test
 build/pci-ecam-class-test: tests/pci-ecam-class.c $(PCI_SOURCE)/ecam/pciecam_class.c $(PCI_SOURCE)/ecam/pciecam.h $(PCI_SOURCE)/ecam/access.h | build
 	clang -std=c11 -Wall -Wextra -Werror -Wno-ignored-attributes -fsanitize=address,undefined \
 	 -I$(PCI_SOURCE)/ecam -idirafter $(AROS_VM_SDK)/AROS/Developer/include $< -o $@
+
+VIRTIO_SOURCE := $(AROS_CORE_SOURCE)/rom/devs/virtio
+.PHONY: test-virtio-pci-map
+test-virtio-pci-map: build/virtio-pci-map-test
+	build/virtio-pci-map-test
+build/virtio-pci-map-test: tests/virtio-pci-map.c $(VIRTIO_SOURCE)/pci_mapping.h | build
+	clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined \
+	 -I$(VIRTIO_SOURCE) $< -o $@

@@ -664,3 +664,39 @@ plutôt que recopier cette hypothèse dans le pilote VM. L’initialisation
 persistante du pont, le DMA et les interruptions restent à réaliser. Le test
 reste volontairement temporaire ; aucun bureau VZ ou stockage persistant n’est
 revendiqué ici. SMP inchangé.
+
+
+## Transport virtio existant adapté aux mappings PCI — 30 septembre
+
+Core `13d1f199d5` : virtio_hw_map passe désormais par le HIDD propriétaire pour
+MapPCI, au lieu de déréférencer les BARs. `pci_mapping.h` porte le parcours
+borné des capacités, les validations d’extent/alignment, la traduction CPU
+retournée et le rollback de tous les mappings sur échec. Les types connus
+répétés gardent leur première occurrence ; les types inconnus sont ignorés.
+Un remapping d’un objet déjà mappé est refusé. L’API VirtioPCIUnmap libère les
+quatre régions en sens inverse et efface les pointeurs ; son appelant doit
+avoir arrêté le device et ses utilisateurs.
+
+La notification de queue vérifie maintenant le produit offset × multiplier
+en 64 bits contre la taille de fenêtre. Les features bloc optionnelles dont
+les champs dépasseraient la configuration device sont exclues de la négociation.
+Le contrôleur active MEM decode avant de lire les registres (`c63447e439`).
+Le premier build propre a révélé des headers Hidd_Bus/Storage absents : les
+dépendances explicites sont ajoutées dans `30ecf31b19`.
+
+ASan/UBSan : CPU différent de l’adresse PCI, borne BAR, cycle, capacité tronquée,
+chaque échec de MapPCI avec unwind, double mapping, notification hors fenêtre
+et multiplication débordant 32 bits. Le test fait partie de make test.
+Le probe invité utilise maintenant exactement le même moteur partagé pour
+mapper common/notify/ISR (device config optionnelle), lire num_queues et tout
+libérer : `hvf-virtio-map-shared` et `vz-virtio-map-shared` PASS.
+Bundle `af653d51a114fb623a8faa8ef08e0a4fdbf805712b179e18af8031147c9fdcc8` ;
+disque VZ `da5982055035eedff364205cfeeefa976935ff96629371f27413bca9783197ef`.
+
+Limite explicite : ce n’est pas encore l’exécution complète de virtio.device.
+Son ancien contrôleur retourne encore un objet sur plusieurs échecs et libère
+une queue au Dispose sans démontrer l’arrêt préalable du DMA ni retirer tous
+les utilisateurs. Je n’y ai pas ajouté un Unmap aveugle : il faut corriger
+cette transaction de démarrage/arrêt avant les vrais transferts, puis appeler
+virtio_hw_unmap après quiescence. Le rollback interne des mappings, lui, est
+qualifié. Pont permanent, DMA/IRQ et bureau VZ restent à faire ; SMP intact.
