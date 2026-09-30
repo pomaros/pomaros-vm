@@ -2449,3 +2449,26 @@ identique (SHA256 6b17ff7b45f25413c95e9e3b285a56f59d1d4cdc33cc85340f26d09bcce259
 pas la validité du nom de signature. L'image UTF-8 corrigée a pour SHA256 SYS
 7d42a74bcd188af8f10bf7e0c3187b29c9192de91d61c809921ace45024be02b ; son boot réel
 est la preuve pertinente pour la correction.
+
+## AROSTCP : bail DHCP obtenu dans VZ
+
+Core c993611142 rend Intuition optionnelle pour les requesters, y compris
+le chemin panic utilisant EasyRequestArgs avec la base locale. f408e056f2
+ajoute les étapes série du démarrage : elles ont localisé le second arrêt
+dans log_init. Le paquet réseau inclut désormais les bibliothèques existantes
+rexxsyslib, commodities et keymap nécessaires au service de journalisation.
+
+`artifacts/vz-network-stack-libraries/verdict.json` : PASS en 2,63 s,
+network_stack_address_verified=true. La pile publie bsdsocket.library,
+dhclient accepte 192.168.64.2, configure le masque et la route via
+192.168.64.1 ; la sonde lit cette adresse via SIOCGIFADDR. SHA256 du disque :
+4afa09fe362307f012bccda4912473bf42ecc43b1877c270a49ad42836c33311.
+Cela prouve le DHCP réel à travers SANA-II, pas encore les échanges généraux
+par sockets, les requêtes DNS, ni le réseau dans le bureau. Le journal T: et
+les inscriptions multicast IPv6 échouent dans ce profil minimal ; ces limites
+ne sont pas classées comme résolues. Pas de répétition du run réussi.
+
+John précise le réseau local : Apartmenthaus Berlin Mitte, sans mot de passe.
+Aucune association Wi-Fi modifiée ; VZ utilise le NAT de la connexion hôte.
+Prochaine frontière : échanges par sockets puis services de fichiers et
+presse-papiers, avec un ou deux essais ciblés par modification.

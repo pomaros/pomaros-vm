@@ -108,6 +108,9 @@ if a.virtio_device:
 if a.virtionet_device:
     pci_files += [('Devs/Networks/virtionet.device',sdk/'AROS/Devs/Networks/virtionet.device')]
 if a.network_stack:
+    # NETTRACE initializes ARexx and Commodities; Commodities needs keymap.
+    for name in ['rexxsyslib','commodities','keymap']:
+        pci_files.append(('Libs/'+name+'.library',sdk/'AROS/Libs'/(name+'.library')))
     for name in ['AROSTCP','dhclient']:
         pci_files.append(('System/Network/AROSTCP/C/'+name,sdk/'AROS/System/Network/AROSTCP/C'/name))
     # Keep the standard tree: DHCP defaults and AROSTCP ProgramDir agree.
