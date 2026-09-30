@@ -511,7 +511,9 @@ a left-button press/release and an A-key press/release to its own
 [VZVirtualMachineView](https://developer.apple.com/documentation/virtualization/vzvirtualmachineview).
 No global event posting or guest input injection is used. Guest success requires
 the corresponding raw-key/button codes and both expected pointer positions
-within two pixels, followed by the full session/startup gates. This qualifies
+within two pixels. With `WA_TabletMessages` enabled, it also requires the
+extended `TABLETA_ButtonBits` attribute to change from pressed to released.
+The full session/startup gates must then pass. This qualifies
 a synthetic host-event path through USB/HID/Intuition, not physical input.
 `--no-input-events` is the negative control: the guest must fail without host
 stimulus. Pixel capture and prolonged use are separate gates.

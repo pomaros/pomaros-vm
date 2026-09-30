@@ -2155,3 +2155,32 @@ has been attempted. Full stage-six goal remains open; SMP untouched.
 - Contre-épreuve `vz-desktop-input-withheld` : même disque/lanceur, requête
   d'événements hôte retenue, échec attendu30,65 s avec `input observer missing
   events`, aucune preuve d'entrée. Pas de faux PASS par simple fenêtre ouverte.
+
+## Attributs HID tablette : validation réelle en 64 bits
+
+- Core1e814b029e remplace le tableau ULONG[20] et son curseur par de vrais
+  TagItem[10]. Construction typée des tags/données, terminateur complet.
+  Maximum8attributs + terminateur ; pas de changement de taille en32bits.
+  Le cast d'un tableau32bits en TagItem64bits combinait tag et valeur et
+  perdait notamment ButtonBits quand le bouton était pressé.
+- Le test VMInput demande WA_TabletMessages et lit TABLETA_ButtonBits avec
+  GetTagData avant de répondre au message. Il impose maintenant1 puis0,
+  en plus des mouvements et codes clavier/boutons. Les bibliothèques ouvertes
+  sont fermées sur les chemins d'erreur comme sur le chemin normal.
+- `vz-desktop-tablet-after` PASS32,66 s : attributs0,0,1,0, entrées et session.
+  Bundle15e8128adbbbbc7994dde498ddb3851b959afdf0756099fdc7c010700cb51d27,
+  disque78e357cc451421324f08b4c7d3e96c4aa49075f0697555163fae7a36168c9bf5.
+- Contre-épreuve avant/après : même observateur et modules ; remplacement
+  du seul SYS:Classes/USB/hid.class par le binaire6f639b6c24
+  (sha68a5670005e696fe36977e9c15eabfca43c3cf3ce3ee201d25bc348e8a6d96da),
+  bundle/BOOT0.ID recalculés avec provenance de mutation distincte.
+  `vz-desktop-tablet-old-hid` échoue explicitement30,62 s : ButtonBits reste0
+  même pendant le clic. Aucun changement du driver injecteur hôte.
+- Build HID final PASS, sans avertissement ; commande observatrice -Werror
+  PASS après correction de sa déclaration UtilityBase. Pas de test tablette
+  physique ni de validation des axes/pression étendus, mais layout partagé
+  corrigé et attribut réellement cloné/livré par Intuition en AArch64.
+- Reproductibilité : clone figé aros-core-vm-repro-20261001 et sorties neuves
+  repro-a-20261001 / repro-b-20261001 sous ~/Build/macaros-vm. Ne pas confondre
+  leur lancement avec une comparaison achevée ; résultats à consigner après
+  les builds et la comparaison binaire effective.
