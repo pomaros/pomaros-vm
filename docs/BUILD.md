@@ -213,7 +213,8 @@ the platform driver.
 The PCI qualification also maps every visible virtio common configuration
 through the driver's MapPCI method and reads its queue count. It temporarily
 enables PCI memory decode and restores the original command word. The required
-PCI gate includes this MMIO proof; no queue is activated and no DMA is tested.
+PCI gate includes this register-access proof; the separate queue checks below
+qualify DMA transfers.
 
 `make test-virtio-pci-map` exercises the mapping engine used by the existing
 virtio transport, including translated CPU addresses, every partial mapping
@@ -240,3 +241,10 @@ boot disk, checking completion length, the AROS reply and the boot signature.
 The required block-read marker is separate from entropy completion. This is a
 polled shared-driver-code test, not loading the complete virtio.device or
 qualifying writes, filesystem persistence or interrupts.
+
+For a PCI-associated GICv2m frame, the probe reads MSI_TYPER through its admitted
+supervisor mapping and validates the SPI range (or its FDT override). Add
+`--require-msi-frame` together with `--require-pci-hidd` to either VM runner to
+require that proof. An absent/unsupported controller cannot pass this gate.
+This verifies discovery and register access, not interrupt delivery. QEMU's
+GICv3 topology may require an ITS implementation instead of a v2m frame.

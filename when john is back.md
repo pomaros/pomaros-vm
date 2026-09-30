@@ -995,3 +995,32 @@ MSI_TYPER range, and connect PCI MSI-X through the resident platform driver.
 The existing vm_gic_map maps only the two main GIC windows; no MSI MMIO is
 accessible yet. Preserve that explicit admission policy. QEMU's MSI topology
 needs discovery independently; a successful boot is not MSI validation.
+
+## MSI frame admission and measured VZ SPI range
+
+Core `15b812fedc`: portable AROSFDTDiscoverMSIFrame resolves the PCI msi-parent
+phandle to one enabled GICv2m supplier, validates its GIC parent, one 4 KiB
+translated reg and the optional paired SPI override. Unknown controller kinds
+are not treated as v2m. Stage2 admits only this associated frame, with its own
+MSI_FRAME role and Device mapping, rejecting aliases with other devices/PCI
+and with the memory plan. Device-map version is 6. Unassociated frames remain
+unmapped. The fatal-ASan/UBSan map suite has 51 cases, including 21 MSI cases.
+Complete core rebuild and `UBSAN_OPTIONS=halt_on_error=1 make test` PASS.
+
+The guest PCI probe reads MSI_TYPER at offset 8 through Supervisor, preserving
+EL0 restrictions. On VZ it measured frame `0x1fff0000`, raw type `0x80800080`,
+SPI base 128 and count 128. Decode the documented ten-bit fields: the high
+reserved bit in this VZ value is not part of the base. Source for the field
+layout: Arm BSA DEN0094C §I.9.1. No MSI doorbell write or device IRQ yet.
+
+Artifacts `vz-pci-msi-read` and `hvf-pci-msi-read` PASS; HVF reports an absent
+MSI frame in the current firmware-generated tree. The stronger optional runner
+flag `--require-msi-frame` requires `--require-pci-hidd` and exactly one mapped
+read proof. `vz-pci-msi-read-strict` PASS; `hvf-pci-msi-read-negative` fails with
+`proof-missing` as intended despite passing boot/PCI/DMA/block-read markers.
+VZ input disk `09913c72822ab4dd188805b6f256f0e69120dcb7cea91a76c9427164f1ba3753`;
+bundle `ebb5ff3589d1c8ab74ca82658f9ef35300e7e936ecaa0f13b77b61a359fcdeea`;
+PCIPROBE `609f5f552f5260993b61ec2e53fc02f54daa90ea4adf0e6841ad4e5e97f89ae4`.
+Review 220 approved and explicitly includes the new core mapping/resolver.
+Next: resident platform vector ownership and PCI MSI-X table programming, then
+virtio completion IRQs; keep QEMU ITS routing distinct. SMP untouched.

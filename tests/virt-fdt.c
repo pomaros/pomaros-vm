@@ -39,6 +39,11 @@ int main(int argc, char **argv) {
             assert(map.roles[2].instance == 1);
             assert(map.roles[1].start == 0x08000000);
         }
+        if (map.role_count == 7) {
+            const struct AROSAppleDeviceRole *msi =
+                AROSAppleStage2FindDeviceRole(&map, AROS_APPLE_DEVICE_ROLE_MSI_FRAME, 0);
+            assert(msi && msi->start == 0x20000000 && msi->end == 0x20001000);
+        }
         assert(map.roles[0].kind==AROS_APPLE_DEVICE_ROLE_CONSOLE);
     }
     /* A stuck FIFO must not trap the loader in its diagnostic path. */

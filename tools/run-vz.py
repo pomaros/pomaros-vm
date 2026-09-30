@@ -12,10 +12,12 @@ import time
 root=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser()
 p.add_argument('--require-pci-hidd',action='store_true')
+p.add_argument('--require-msi-frame',action='store_true')
 p.add_argument('--disk',type=Path,required=True)
 p.add_argument('--output',type=Path,required=True)
 p.add_argument('--timeout',type=float,default=45)
 a=p.parse_args()
+if a.require_msi_frame and not a.require_pci_hidd: p.error('--require-msi-frame requires --require-pci-hidd')
 if a.output.exists(): p.error('output must not exist')
 a.output.mkdir(parents=True);a.output=a.output.resolve()
 disk=a.output/'system.img';shutil.copyfile(a.disk,disk)
@@ -39,6 +41,7 @@ if a.require_pci_hidd:
                 '[VM] PCI resident bridge after command unload PASS',
                 '[VM] virtio entropy DMA completion PASS',
                 '[VM] virtio block queue sector read PASS']
+if a.require_msi_frame: markers += ['[VM] MSI frame mapped read PASS']
 passed=False;reason='timeout';start=time.monotonic()
 with log.open('w') as out:
     proc=subprocess.Popen([str(root/'build/macaros-vm'),str(disk),str(a.output/'state'),'--headless'],stdout=out,stderr=subprocess.STDOUT)
@@ -58,7 +61,7 @@ boot=subprocess.run(['mtype','-i',str(disk),'::BOOT.LOG'],capture_output=True)
 (a.output/'firmware.log').write_bytes(boot.stdout)
 verdict={'result':'PASS' if passed else 'FAIL','reason':reason,
          'backend':'Virtualization.framework','graphics':False,
-         'pci_hidd_required':a.require_pci_hidd,
+         'pci_hidd_required':a.require_pci_hidd,'msi_frame_required':a.require_msi_frame,
          'seconds':round(time.monotonic()-start,2),
          'input_disk_sha256':hashlib.sha256(a.disk.read_bytes()).hexdigest(),
          'launcher_sha256':hashlib.sha256((root/'build/macaros-vm').read_bytes()).hexdigest()}

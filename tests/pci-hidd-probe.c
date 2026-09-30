@@ -40,6 +40,45 @@ static void hex(const char *name,uint64_t value)
 }
 static uint32_t cell(const UBYTE *p) { return (uint32_t)p[0]<<24|(uint32_t)p[1]<<16|(uint32_t)p[2]<<8|p[3]; }
 static void complete_write(void) { __asm__ volatile("dsb sy" ::: "memory"); }
+/* Read-only validation of the stage2-admitted frame. The guest profile has
+ * one PCI root and at most one associated v2m frame. This is not an IRQ test. */
+static uintptr_t msi_frame;
+static uint32_t msi_typer;
+static IPTR read_msi_frame(void)
+{
+    __asm__ volatile("dsb sy" ::: "memory");
+    msi_typer=*(volatile uint32_t *)(msi_frame+8);
+    __asm__ volatile("dsb sy" ::: "memory");
+    return 0;
+}
+static int check_msi_frame(void *pci)
+{
+    void *parent=OF_FindProperty(pci,"msi-parent");
+    if(!parent) { mark("[VM] PCI MSI frame absent\n");return 1; }
+    void *node=OF_FindNodeByCompatible(NULL,"arm,gic-v2m-frame");
+    if(!node) { mark("[VM] PCI MSI controller unsupported\n");return 1; }
+    void *phandle=OF_FindProperty(node,"phandle"),*reg=OF_FindProperty(node,"reg");
+    if(OF_GetPropLen(parent)!=4 || !phandle || OF_GetPropLen(phandle)!=4 ||
+        cell(OF_GetPropValue(parent))!=cell(OF_GetPropValue(phandle)) ||
+        !reg || OF_GetPropLen(reg)!=16) return 0;
+    const UBYTE *r=OF_GetPropValue(reg);
+    msi_frame=((uint64_t)cell(r)<<32)|cell(r+4);
+    if(!msi_frame || (msi_frame&4095) || cell(r+8) || cell(r+12)!=4096) return 0;
+    Supervisor((APTR)read_msi_frame);
+    hex("[VM] MSI frame",msi_frame);hex("[VM] MSI_TYPER",msi_typer);
+    unsigned base=(msi_typer>>16)&1023,count=msi_typer&1023;
+    void *override_base=OF_FindProperty(node,"arm,msi-base-spi");
+    void *override_count=OF_FindProperty(node,"arm,msi-num-spis");
+    if(!!override_base!=!!override_count) return 0;
+    if(override_base) {
+        if(OF_GetPropLen(override_base)!=4 || OF_GetPropLen(override_count)!=4) return 0;
+        base=cell(OF_GetPropValue(override_base));count=cell(OF_GetPropValue(override_count));
+    }
+    if(base<32 || base>=1020 || !count || count>1020-base) return 0;
+    hex("[VM] MSI SPI base",base);hex("[VM] MSI SPI count",count);
+    mark("[VM] MSI frame mapped read PASS\n");
+    return 1;
+}
 static IPTR reserve_console(void)
 {
     for(unsigned slot=0;slot<32;++slot) {
@@ -328,6 +367,7 @@ int main(int argc,char **argv)
         mark("[VM] virtio block queue sector read PASS\n");
         return 0;
     }
+    if(!check_msi_frame(pci)) return 93;
     OOP_AttrBase attr=OOP_ObtainAttrBase((CONST_STRPTR)IID_Hidd_PCIECAM);
     if(!attr) return 87;
     struct TagItem tags[]={{attr+aoHidd_PCIECAM_Config,(IPTR)&host},{TAG_DONE,0}};

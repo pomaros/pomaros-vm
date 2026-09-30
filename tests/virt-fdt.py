@@ -11,7 +11,7 @@ arch=core/'arch/aarch64-apple'
 fdt=core/'arch/aarch64-all/boot/fdt'
 with tempfile.TemporaryDirectory() as tmp:
     work=Path(tmp);exe=work/'test'
-    subprocess.run(['clang','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',
+    subprocess.run(['clang','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-fno-sanitize-recover=all',
         '-I'+str(fdt),'-I'+str(fdt/'libfdt'),str(fdt/'early_fdt.c'),str(fdt/'pci_ecam.c'),
         *[str(fdt/'libfdt'/name) for name in ['fdt.c','fdt_ro.c','fdt_check.c']],
         '-I'+str(arch/'include'),'-I'+str(arch/'bootstrap'),str(root/'tests/virt-fdt.c'),
@@ -72,4 +72,38 @@ with tempfile.TemporaryDirectory() as tmp:
         subprocess.run(['dtc','-q','-I','dts','-O','dtb','-o',str(dtb),str(dts)],check=True)
         subprocess.run([str(exe),str(dtb),str(expected),'0x09000000',str(ranges),str(roles)],
                        check=True,timeout=5)
-print('virt-fdt result=PASS cases=30 sanitizers=ASan,UBSan')
+    def frame(base='0x20000000', size='0x1000', extra='', marker='msi-controller;', reg_extra=''):
+        return (f'v2m@20000000 {{ compatible="arm,gic-v2m-frame"; phandle=<2>; '
+                f'reg=<0 {base} 0 {size} {reg_extra}>; {marker} {extra} }};')
+    def msi_gic(child, ranges='ranges;', extra=''):
+        return controller(extra='#address-cells=<2>; #size-cells=<2>; '+ranges+extra+child)
+    cases=[(msi_gic(frame()),'msi-parent=<2>;',1,6,7),
+           (msi_gic(frame(extra='arm,msi-base-spi=<128>; arm,msi-num-spis=<128>;')),'msi-parent=<2>;',1,6,7),
+           (msi_gic(frame(extra='#msi-cells=<0>;')),'msi-parent=<2>;',1,6,7),
+           (msi_gic(frame()),'',1,5,6),  # Unassociated registers stay unmapped.
+           (msi_gic(frame()),'msi-parent=<3>;',0,0,0),
+           (msi_gic(frame()),'msi-parent=<0>;',0,0,0),
+           (msi_gic(frame()),'msi-parent=<2 0>;',0,0,0),
+           (msi_gic(frame(extra='status="disabled";')),'msi-parent=<2>;',0,0,0),
+           (msi_gic(frame(extra='#msi-cells=<1>;')),'msi-parent=<2>;',0,0,0),
+           (msi_gic(frame(marker='')),'msi-parent=<2>;',0,0,0),
+           (msi_gic(frame(extra='arm,msi-base-spi=<128>;')),'msi-parent=<2>;',0,0,0),
+           (msi_gic(frame(extra='arm,msi-base-spi=<31>; arm,msi-num-spis=<1>;')),'msi-parent=<2>;',0,0,0),
+           (msi_gic(frame(extra='arm,msi-base-spi=<1000>; arm,msi-num-spis=<21>;')),'msi-parent=<2>;',0,0,0),
+           (msi_gic(frame(base='0x40000000')),'msi-parent=<2>;',0,0,0),
+           (msi_gic(frame(base='0x08000000')),'msi-parent=<2>;',0,0,0),
+           (msi_gic(frame(base='0x10000000')),'msi-parent=<2>;',0,0,0),
+           (msi_gic(frame(base='0x30000000')),'msi-parent=<2>;',0,0,0),
+           (msi_gic(frame(base='0x20000001')),'msi-parent=<2>;',0,0,0),
+           (msi_gic(frame(size='0x2000')),'msi-parent=<2>;',0,0,0),
+           (msi_gic(frame(reg_extra='0 0x20001000 0 0x1000')),'msi-parent=<2>;',0,0,0),
+           (msi_gic(frame(),ranges=''),'msi-parent=<2>;',0,0,0)]
+    for gic_dts,msi_parent,expected,ranges,roles in cases:
+        dts.write_text('/dts-v1/; / { compatible="linux,dummy-virt"; #address-cells=<2>; #size-cells=<2>; '
+            'chosen { stdout-path="/uart@9000000"; }; '
+            'uart@9000000 { compatible="arm,pl011"; reg=<0 0x09000000 0 0x1000>; }; '
+            +gic_dts+pci(extra=msi_parent)+'};')
+        subprocess.run(['dtc','-q','-I','dts','-O','dtb','-o',str(dtb),str(dts)],check=True)
+        subprocess.run([str(exe),str(dtb),str(expected),'0x09000000',str(ranges),str(roles)],
+                       check=True,timeout=5)
+print('virt-fdt result=PASS cases=51 sanitizers=ASan,UBSan-fatal')
