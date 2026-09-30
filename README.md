@@ -29,9 +29,11 @@ with HVF, records exact inputs and requires both the kernel startup contract
 and the Wanderer framebuffer check. `--accel tcg` is the software regression
 lane; it never substitutes for an HVF failure.
 
-`build/macaros-vm DISK_IMAGE STATE_DIRECTORY` launches the experimental
+`build/macaros-vm DISK_IMAGE STATE_DIRECTORY [--headless]` launches the
 Virtualization.framework application. The image must be a writable private
-copy. Firmware state lives separately in `STATE_DIRECTORY`.
+copy. Firmware state lives separately in `STATE_DIRECTORY`. The qualified VZ lane
+is headless: `tools/run-vz.py --disk IMAGE --output NEW_DIR`. The VZ display
+requires a virtio GPU driver. See [guest build instructions](docs/BUILD.md).
 
 See [the handoff](when%20john%20is%20back.md) for measured results and work in
 progress, and [provenance](docs/PROVENANCE.md) for reused code.

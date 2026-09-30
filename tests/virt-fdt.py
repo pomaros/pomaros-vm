@@ -22,5 +22,5 @@ with tempfile.TemporaryDirectory() as tmp:
         dts.write_text('/dts-v1/; / { compatible="linux,dummy-virt"; #address-cells=<2>; #size-cells=<2>; '
             f'uart@{int(address,0):x} {{ compatible="arm,pl011"; reg=<0 {address} 0 {size}>; {extra} }}; }};')
         subprocess.run(['dtc','-q','-I','dts','-O','dtb','-o',str(dtb),str(dts)],check=True)
-        subprocess.run([str(exe),str(dtb),str(expected),address],check=True)
+        subprocess.run([str(exe),str(dtb),str(expected),address],check=True,timeout=5)
 print('virt-fdt result=PASS cases=6 sanitizers=ASan,UBSan')

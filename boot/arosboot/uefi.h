@@ -262,7 +262,7 @@ struct EFI_FILE_PROTOCOL {
     uint64_t revision;
     EFI_FILE_OPEN open;
     EFI_FILE_CLOSE close;
-    void *delete_file;
+    EFI_FILE_CLOSE delete_file;
     EFI_FILE_READ read;
     EFI_FILE_READ write;
     void *get_position;

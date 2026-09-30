@@ -1,0 +1,575 @@
+{
+  "_license": "SPDX-License-Identifier: MIT",
+  "_copyright": "Copyright (c) 2026 John Knipper",
+  "abi": "AROS Apple boot handoff",
+  "version": 4,
+  "byte_order": "little-endian",
+  "address_semantics": "All address fields are 64-bit physical addresses.",
+  "constants": [
+    {
+      "name": "AROS_BOOTINFO_MAGIC",
+      "value": "UINT64_C(0x544f4f42534f5241)",
+      "comment": "ASCII AROSBOOT in little-endian memory"
+    },
+    {
+      "name": "AROS_BOOTINFO_VERSION",
+      "value": "UINT32_C(4)",
+      "comment": "Producer-neutral handoff ABI with payload identity"
+    },
+    {
+      "name": "AROS_BOOTINFO_FLAG_FDT",
+      "value": "(UINT64_C(1) << 0)",
+      "comment": "FDT address and size are valid"
+    },
+    {
+      "name": "AROS_BOOTINFO_FLAG_MEMORY_MAP",
+      "value": "(UINT64_C(1) << 1)",
+      "comment": "Selected memory-map fields are valid"
+    },
+    {
+      "name": "AROS_BOOTINFO_FLAG_FRAMEBUFFER",
+      "value": "(UINT64_C(1) << 2)",
+      "comment": "Framebuffer fields are valid"
+    },
+    {
+      "name": "AROS_BOOTINFO_FLAG_MODULES",
+      "value": "(UINT64_C(1) << 3)",
+      "comment": "Module table fields are valid"
+    },
+    {
+      "name": "AROS_BOOTINFO_FLAG_LOADER_LOG",
+      "value": "(UINT64_C(1) << 4)",
+      "comment": "Loader log address and size are valid"
+    },
+    {
+      "name": "AROS_BOOTINFO_FLAG_ALLOCATIONS",
+      "value": "(UINT64_C(1) << 5)",
+      "comment": "Owned allocation table fields are valid"
+    },
+    {
+      "name": "AROS_BOOTINFO_FLAG_PAYLOAD_IDENTITY",
+      "value": "(UINT64_C(1) << 6)",
+      "comment": "Exact selected bundle identity fields are valid"
+    },
+    {
+      "name": "AROS_BOOTINFO_FB_NONE",
+      "value": "UINT32_C(0)",
+      "comment": "No framebuffer"
+    },
+    {
+      "name": "AROS_BOOTINFO_FB_RGBX8888",
+      "value": "UINT32_C(1)",
+      "comment": "8-bit R, G, B, ignored"
+    },
+    {
+      "name": "AROS_BOOTINFO_FB_BGRX8888",
+      "value": "UINT32_C(2)",
+      "comment": "8-bit B, G, R, ignored"
+    },
+    {
+      "name": "AROS_BOOTINFO_FB_BITMASK",
+      "value": "UINT32_C(3)",
+      "comment": "UEFI pixel bitmask that matches no named format below"
+    },
+    {
+      "name": "AROS_BOOTINFO_FB_X2R10G10B10",
+      "value": "UINT32_C(4)",
+      "comment": "10-bit R, G, B in bits 29-20, 19-10, 9-0; bits 31-30 ignored"
+    },
+    {
+      "name": "AROS_BOOT_MEMORY_MAP_UEFI",
+      "value": "UINT32_C(1)",
+      "comment": "Raw UEFI descriptors with firmware stride"
+    },
+    {
+      "name": "AROS_BOOT_MEMORY_MAP_NORMALIZED",
+      "value": "UINT32_C(2)",
+      "comment": "AROSBootMemoryRange records"
+    },
+    {
+      "name": "AROS_BOOT_MEMORY_MAP_VERSION_1",
+      "value": "UINT32_C(1)",
+      "comment": "Version 1 of the selected memory-map format"
+    },
+    {
+      "name": "AROS_BOOT_PRODUCER_UEFI",
+      "value": "UINT32_C(1)",
+      "comment": "AROSBOOTAA64 UEFI producer"
+    },
+    {
+      "name": "AROS_BOOT_PRODUCER_M1N1",
+      "value": "UINT32_C(2)",
+      "comment": "m1n1 proxy producer"
+    },
+    {
+      "name": "AROS_BOOT_PAYLOAD_SLOT_DIRECT",
+      "value": "UINT32_MAX",
+      "comment": "Direct RAM payload has no installed generation slot"
+    },
+    {
+      "name": "AROS_BOOT_PAYLOAD_FALLBACK",
+      "value": "(UINT32_C(1) << 0)",
+      "comment": "Installed boot selected the older valid generation"
+    },
+    {
+      "name": "AROS_BOOT_PAYLOAD_DEGRADED",
+      "value": "(UINT32_C(1) << 1)",
+      "comment": "At least one installed generation record or bundle was invalid"
+    },
+    {
+      "name": "AROS_BOOT_PAYLOAD_DIRECT",
+      "value": "(UINT32_C(1) << 2)",
+      "comment": "Payload was supplied directly rather than selected from an installed slot"
+    },
+    {
+      "name": "AROS_BOOT_MEMORY_AVAILABLE",
+      "value": "UINT32_C(1)",
+      "comment": "Normalized range available to AROS"
+    },
+    {
+      "name": "AROS_BOOT_MEMORY_LOADER_DATA",
+      "value": "UINT32_C(2)",
+      "comment": "Normalized range containing one or more owned loader allocations"
+    },
+    {
+      "name": "AROS_BOOT_MEMORY_RESERVED",
+      "value": "UINT32_C(3)",
+      "comment": "Normalized range unavailable to AROS"
+    },
+    {
+      "name": "AROS_BOOT_MODULE_KERNEL",
+      "value": "UINT32_C(1)",
+      "comment": "AROS kernel image"
+    },
+    {
+      "name": "AROS_BOOT_MODULE_COMPONENT",
+      "value": "UINT32_C(2)",
+      "comment": "AROS resident/module image"
+    },
+    {
+      "name": "AROS_BOOT_MODULE_RAMDISK",
+      "value": "UINT32_C(3)",
+      "comment": "Initial RAM filesystem image"
+    },
+    {
+      "name": "AROS_BOOT_ALLOCATION_BOOTINFO",
+      "value": "UINT32_C(1)",
+      "comment": "AROSBootInfo storage"
+    },
+    {
+      "name": "AROS_BOOT_ALLOCATION_TABLE",
+      "value": "UINT32_C(2)",
+      "comment": "AROSBootAllocation array"
+    },
+    {
+      "name": "AROS_BOOT_ALLOCATION_HANDOFF_STACK",
+      "value": "UINT32_C(3)",
+      "comment": "Loader-to-stage-two stack"
+    },
+    {
+      "name": "AROS_BOOT_ALLOCATION_FDT",
+      "value": "UINT32_C(4)",
+      "comment": "Owned flattened device tree copy"
+    },
+    {
+      "name": "AROS_BOOT_ALLOCATION_MEMORY_MAP",
+      "value": "UINT32_C(5)",
+      "comment": "Selected memory-map record array"
+    },
+    {
+      "name": "AROS_BOOT_ALLOCATION_LOADER_LOG",
+      "value": "UINT32_C(6)",
+      "comment": "Owned loader log"
+    },
+    {
+      "name": "AROS_BOOT_ALLOCATION_MODULE_TABLE",
+      "value": "UINT32_C(7)",
+      "comment": "AROSBootModule array"
+    },
+    {
+      "name": "AROS_BOOT_ALLOCATION_MODULE_DATA",
+      "value": "UINT32_C(8)",
+      "comment": "Loaded bundle component storage"
+    },
+    {
+      "name": "AROS_BOOT_ALLOCATION_MODULE_NAME",
+      "value": "UINT32_C(9)",
+      "comment": "Loaded bundle component name"
+    },
+    {
+      "name": "AROS_BOOT_ALLOCATION_FLAG_OWNED",
+      "value": "(UINT32_C(1) << 0)",
+      "comment": "Pages transfer to the AROS consumer at handoff"
+    },
+    {
+      "name": "AROS_BOOT_ALLOCATION_FLAG_RETAIN",
+      "value": "(UINT32_C(1) << 1)",
+      "comment": "Pages remain live beyond stage-two materialization"
+    },
+    {
+      "name": "AROS_BOOT_ALLOCATION_FLAG_RELEASE_AFTER_STAGE2",
+      "value": "(UINT32_C(1) << 2)",
+      "comment": "Pages may be reclaimed after stage-two materialization"
+    },
+    {
+      "name": "AROS_BOOT_ALLOCATION_NO_MODULE",
+      "value": "UINT32_MAX",
+      "comment": "Allocation is not associated with a module record"
+    },
+    {
+      "name": "AROS_BOOT_ALLOCATION_EARLY_CONSOLE",
+      "value": "UINT32_C(10)",
+      "comment": "Retained early virtio console state"
+    }
+  ],
+  "structures": [
+    {
+      "name": "AROSBootMemoryRange",
+      "alignment": 16,
+      "size": 32,
+      "fields": [
+        {
+          "name": "physical_start",
+          "type": "uint64_t",
+          "offset": 0,
+          "comment": "Page-aligned physical range start"
+        },
+        {
+          "name": "size",
+          "type": "uint64_t",
+          "offset": 8,
+          "comment": "Nonzero page-multiple byte size"
+        },
+        {
+          "name": "type",
+          "type": "uint32_t",
+          "offset": 16,
+          "comment": "AROS_BOOT_MEMORY_* value"
+        },
+        {
+          "name": "flags",
+          "type": "uint32_t",
+          "offset": 20,
+          "comment": "Must be zero for format version 1"
+        },
+        {
+          "name": "reserved",
+          "type": "uint64_t",
+          "offset": 24,
+          "comment": "Must be zero"
+        }
+      ]
+    },
+    {
+      "name": "AROSBootAllocation",
+      "alignment": 16,
+      "size": 48,
+      "fields": [
+        {
+          "name": "physical_address",
+          "type": "uint64_t",
+          "offset": 0,
+          "comment": "Owned extent base, page aligned"
+        },
+        {
+          "name": "size",
+          "type": "uint64_t",
+          "offset": 8,
+          "comment": "Page-rounded owned extent"
+        },
+        {
+          "name": "used_physical",
+          "type": "uint64_t",
+          "offset": 16,
+          "comment": "First live byte within the owned extent"
+        },
+        {
+          "name": "used_size",
+          "type": "uint64_t",
+          "offset": 24,
+          "comment": "Live bytes within the owned extent"
+        },
+        {
+          "name": "type",
+          "type": "uint32_t",
+          "offset": 32,
+          "comment": "AROS_BOOT_ALLOCATION_* purpose"
+        },
+        {
+          "name": "flags",
+          "type": "uint32_t",
+          "offset": 36,
+          "comment": "Ownership and lifetime flags"
+        },
+        {
+          "name": "module_index",
+          "type": "uint32_t",
+          "offset": 40,
+          "comment": "Associated module or AROS_BOOT_ALLOCATION_NO_MODULE"
+        },
+        {
+          "name": "reserved",
+          "type": "uint32_t",
+          "offset": 44,
+          "comment": "Must be zero"
+        }
+      ]
+    },
+    {
+      "name": "AROSBootModule",
+      "alignment": 16,
+      "size": 64,
+      "fields": [
+        {
+          "name": "physical_address",
+          "type": "uint64_t",
+          "offset": 0,
+          "comment": "First byte of the loaded module"
+        },
+        {
+          "name": "size",
+          "type": "uint64_t",
+          "offset": 8,
+          "comment": "Module size in bytes"
+        },
+        {
+          "name": "name_physical",
+          "type": "uint64_t",
+          "offset": 16,
+          "comment": "UTF-8 name, not required to be NUL terminated"
+        },
+        {
+          "name": "name_size",
+          "type": "uint32_t",
+          "offset": 24,
+          "comment": "UTF-8 name length in bytes"
+        },
+        {
+          "name": "type",
+          "type": "uint32_t",
+          "offset": 28,
+          "comment": "AROS_BOOT_MODULE_* value"
+        },
+        {
+          "name": "flags",
+          "type": "uint64_t",
+          "offset": 32,
+          "comment": "Must be zero for ABI version 1"
+        },
+        {
+          "name": "reserved",
+          "type": "uint64_t",
+          "count": 3,
+          "offset": 40,
+          "comment": "Must be zero"
+        }
+      ]
+    },
+    {
+      "name": "AROSBootInfo",
+      "alignment": 16,
+      "size": 224,
+      "fields": [
+        {
+          "name": "magic",
+          "type": "uint64_t",
+          "offset": 0,
+          "comment": "AROS_BOOTINFO_MAGIC"
+        },
+        {
+          "name": "version",
+          "type": "uint32_t",
+          "offset": 8,
+          "comment": "AROS_BOOTINFO_VERSION"
+        },
+        {
+          "name": "size",
+          "type": "uint32_t",
+          "offset": 12,
+          "comment": "Bytes supplied by the producer"
+        },
+        {
+          "name": "flags",
+          "type": "uint64_t",
+          "offset": 16,
+          "comment": "AROS_BOOTINFO_FLAG_* validity bits"
+        },
+        {
+          "name": "fdt_physical",
+          "type": "uint64_t",
+          "offset": 24,
+          "comment": "Owned FDT copy"
+        },
+        {
+          "name": "fdt_size",
+          "type": "uint64_t",
+          "offset": 32,
+          "comment": "FDT bytes"
+        },
+        {
+          "name": "memory_map_physical",
+          "type": "uint64_t",
+          "offset": 40,
+          "comment": "Owned memory-map record array"
+        },
+        {
+          "name": "memory_map_size",
+          "type": "uint64_t",
+          "offset": 48,
+          "comment": "Memory-map array bytes"
+        },
+        {
+          "name": "memory_map_entry_size",
+          "type": "uint32_t",
+          "offset": 56,
+          "comment": "Producer record stride"
+        },
+        {
+          "name": "memory_map_format",
+          "type": "uint32_t",
+          "offset": 60,
+          "comment": "AROS_BOOT_MEMORY_MAP_* value"
+        },
+        {
+          "name": "framebuffer_physical",
+          "type": "uint64_t",
+          "offset": 64,
+          "comment": "Linear framebuffer base"
+        },
+        {
+          "name": "framebuffer_size",
+          "type": "uint64_t",
+          "offset": 72,
+          "comment": "Linear framebuffer bytes"
+        },
+        {
+          "name": "framebuffer_width",
+          "type": "uint32_t",
+          "offset": 80,
+          "comment": "Visible pixels per row"
+        },
+        {
+          "name": "framebuffer_height",
+          "type": "uint32_t",
+          "offset": 84,
+          "comment": "Visible rows"
+        },
+        {
+          "name": "framebuffer_stride",
+          "type": "uint32_t",
+          "offset": 88,
+          "comment": "Pixels per scan line"
+        },
+        {
+          "name": "framebuffer_format",
+          "type": "uint32_t",
+          "offset": 92,
+          "comment": "AROS_BOOTINFO_FB_* value"
+        },
+        {
+          "name": "modules_physical",
+          "type": "uint64_t",
+          "offset": 96,
+          "comment": "Owned AROSBootModule array"
+        },
+        {
+          "name": "module_count",
+          "type": "uint32_t",
+          "offset": 104,
+          "comment": "Number of module records"
+        },
+        {
+          "name": "module_entry_size",
+          "type": "uint32_t",
+          "offset": 108,
+          "comment": "Producer record stride"
+        },
+        {
+          "name": "loader_log_physical",
+          "type": "uint64_t",
+          "offset": 112,
+          "comment": "Owned UTF-8 loader log"
+        },
+        {
+          "name": "loader_log_size",
+          "type": "uint64_t",
+          "offset": 120,
+          "comment": "Loader log bytes"
+        },
+        {
+          "name": "allocations_physical",
+          "type": "uint64_t",
+          "offset": 128,
+          "comment": "Owned AROSBootAllocation array"
+        },
+        {
+          "name": "allocation_count",
+          "type": "uint32_t",
+          "offset": 136,
+          "comment": "Number of allocation records"
+        },
+        {
+          "name": "allocation_entry_size",
+          "type": "uint32_t",
+          "offset": 140,
+          "comment": "Producer allocation record stride"
+        },
+        {
+          "name": "memory_map_version",
+          "type": "uint32_t",
+          "offset": 144,
+          "comment": "Version of the selected memory-map format"
+        },
+        {
+          "name": "producer",
+          "type": "uint32_t",
+          "offset": 148,
+          "comment": "AROS_BOOT_PRODUCER_* value"
+        },
+        {
+          "name": "reserved",
+          "type": "uint64_t",
+          "offset": 152,
+          "comment": "Must be zero"
+        },
+        {
+          "name": "payload_generation_sequence",
+          "type": "uint64_t",
+          "offset": 160,
+          "comment": "Selected installed generation sequence, or zero for direct RAM boot"
+        },
+        {
+          "name": "payload_size",
+          "type": "uint64_t",
+          "offset": 168,
+          "comment": "Exact verified bundle byte count"
+        },
+        {
+          "name": "payload_sha256",
+          "type": "uint8_t",
+          "count": 32,
+          "offset": 176,
+          "comment": "SHA-256 of the exact verified bundle bytes"
+        },
+        {
+          "name": "payload_slot",
+          "type": "uint32_t",
+          "offset": 208,
+          "comment": "Installed generation slot, or AROS_BOOT_PAYLOAD_SLOT_DIRECT"
+        },
+        {
+          "name": "payload_flags",
+          "type": "uint32_t",
+          "offset": 212,
+          "comment": "AROS_BOOT_PAYLOAD_* selection flags"
+        },
+        {
+          "name": "payload_reserved",
+          "type": "uint64_t",
+          "offset": 216,
+          "comment": "Must be zero"
+        }
+      ]
+    }
+  ]
+}

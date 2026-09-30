@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+extern uint64_t AROSVMPL011Base;
+extern void AROSVMConsoleWrite0(const char *text);
 struct Plan { struct AROSAppleMemoryPlan header; struct AROSAppleMemoryPlanRange range; };
 int main(int argc, char **argv) {
     assert(argc == 4);
@@ -30,5 +32,15 @@ int main(int argc, char **argv) {
         assert(map.ranges[0].start==strtoull(argv[3],NULL,0));
         assert(map.roles[0].kind==AROS_APPLE_DEVICE_ROLE_CONSOLE);
     }
-    puts("virt-fdt case=PASS");
+    /* A stuck FIFO must not trap the loader in its diagnostic path. */
+    uint32_t uart[8]={0};
+    uart[6]=1U<<5;
+    AROSVMPL011Base=(uintptr_t)uart;
+    AROSVMConsoleWrite0("X");
+    assert(uart[0]==0);
+    uart[6]=0;
+    AROSVMConsoleWrite0("X");
+    assert(uart[0]=='X');
+    AROSVMPL011Base=0;
+    puts("virt-fdt case=PASS console-bounded=PASS");
 }

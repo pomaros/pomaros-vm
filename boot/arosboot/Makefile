@@ -6,11 +6,12 @@ CC := $(LLVM)/clang
 LD := $(LLD)/lld-link
 BUILD := ../../build/uefi
 CFLAGS := --target=aarch64-pc-windows-msvc -std=c11 -O2 -Wall -Wextra -Werror \
- -ffreestanding -fno-stack-protector -fshort-wchar -mgeneral-regs-only -Iinclude \
+ -ffreestanding -fno-stack-protector -fshort-wchar -mgeneral-regs-only -Iinclude -I../../include \
  -DAROSBOOT_ENTRY_NEGATIVE_CONTROL=0 -DAROSBOOT_FRAME_DIAGNOSTIC=0 \
  -DAROSBOOT_FRAME_DIAGNOSTIC_LATCH=0 -DAROSBOOT_FRAME_DIAGNOSTIC_DELAY_US=0
-OBJECTS := $(addprefix $(BUILD)/,main.obj bundle_loader.obj allocation_tracker.obj sha256.obj handoff.obj)
+OBJECTS := $(addprefix $(BUILD)/,main.obj bundle_loader.obj allocation_tracker.obj sha256.obj handoff.obj vz_platform.obj)
 all: $(BUILD)/BOOTAA64.EFI
+$(BUILD)/vz_platform.obj: ../../include/vm-console.h
 $(BUILD):
 	mkdir -p $@
 $(BUILD)/%.obj: %.c | $(BUILD)

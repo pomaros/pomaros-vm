@@ -61,6 +61,7 @@
 #define AROS_BOOT_ALLOCATION_FLAG_RETAIN       (UINT32_C(1) << 1) /* Pages remain live beyond stage-two materialization */
 #define AROS_BOOT_ALLOCATION_FLAG_RELEASE_AFTER_STAGE2 (UINT32_C(1) << 2) /* Pages may be reclaimed after stage-two materialization */
 #define AROS_BOOT_ALLOCATION_NO_MODULE         UINT32_MAX /* Allocation is not associated with a module record */
+#define AROS_BOOT_ALLOCATION_EARLY_CONSOLE     UINT32_C(10) /* Retained early virtio console state */
 
 struct __attribute__((aligned(16))) AROSBootMemoryRange {
     uint64_t physical_start;                     /* Page-aligned physical range start */

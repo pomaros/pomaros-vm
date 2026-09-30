@@ -75,6 +75,8 @@ static void open_boot_log(EFI_HANDLE image, struct EFI_SYSTEM_TABLE *system)
     if (EFI_ERROR(system->boot_services->handle_protocol(image,&loaded_guid,(void **)&loaded)) ||
         EFI_ERROR(system->boot_services->handle_protocol(loaded->device_handle,&fs_guid,(void **)&fs)) ||
         EFI_ERROR(fs->open_volume(fs,&root))) return;
+    struct EFI_FILE_PROTOCOL *old = NULL;
+    if (!EFI_ERROR(root->open(root,&old,path,3,0)) && old) (void)old->delete_file(old);
     (void)root->open(root,&boot_log,path,UINT64_C(0x8000000000000003),0);
     root->close(root);
 }
@@ -233,6 +235,7 @@ static EFI_STATUS stop_with_diagnostic(
 {
     (void)system;
     (void)phase;
+    if (boot_log) { boot_log->close(boot_log); boot_log = NULL; }
     return status;
 }
 #endif
@@ -271,66 +274,6 @@ static void clean_handoff_to_poc(
     clean_range_to_poc(
         (uint64_t)(uintptr_t)boot_info, sizeof(*boot_info));
     __asm__ volatile("dsb sy" : : : "memory");
-}
-
-static uint64_t read_le(const uint8_t *p, unsigned count)
-{
-    uint64_t v=0; for (unsigned i=0;i<count;++i) v |= (uint64_t)p[i] << (8*i); return v;
-}
-static void report_acpi(struct EFI_SYSTEM_TABLE *system)
-{
-    static const struct EFI_GUID acpi_guid = {0x8868e871,0xe4f1,0x11d3,{0xbc,0x22,0,0x80,0xc7,0x3c,0x88,0x81}};
-    for (EFI_UINTN i=0;i<system->number_of_table_entries;++i) {
-        struct EFI_CONFIGURATION_TABLE *entry=&system->configuration_table[i];
-        if (!guid_equal(&entry->vendor_guid,&acpi_guid)) continue;
-        const uint8_t *rsdp=entry->vendor_table;
-        const uint8_t *xsdt=(const uint8_t *)(uintptr_t)read_le(rsdp+24,8);
-        uint32_t length=(uint32_t)read_le(xsdt+4,4);
-        if (length<36 || length>65536) return;
-        for (uint32_t j=36;j+8<=length;j+=8) {
-            const uint8_t *table=(const uint8_t *)(uintptr_t)read_le(xsdt+j,8);
-            char name[5]={table[0],table[1],table[2],table[3],0};
-            print_ascii(system,"ACPI table="); print_ascii(system,name);
-            print_ascii(system," bytes=");print_hex64(system,read_le(table+4,4));
-            print_ascii(system," address=");print_hex64(system,(uintptr_t)table);print_ascii(system,"\r\n");
-            if (name[0]=='M' && name[1]=='C' && name[2]=='F' && name[3]=='G' && read_le(table+4,4)>=60) {
-                uint64_t ecam=read_le(table+44,8);
-                for (unsigned dev=0;dev<32;++dev) {
-                    volatile uint32_t *cfg=(volatile uint32_t *)(uintptr_t)(ecam+((uint64_t)dev<<15));
-                    if ((cfg[0]&0xffff)==0xffff) continue;
-                    print_ascii(system,"PCI dev=");print_hex64(system,dev);print_ascii(system," id=");print_hex64(system,cfg[0]);
-                    for(unsigned bar=4;bar<10;++bar) { print_ascii(system," bar=");print_hex64(system,cfg[bar]); }
-                    print_ascii(system,"\r\n");
-                    if (cfg[0] == 0x10431af4) {
-                        volatile uint8_t *bytes=(volatile uint8_t *)cfg;
-                        unsigned cap=bytes[0x34];
-                        for (unsigned count=0; cap && count<64; ++count) {
-                            if (bytes[cap]==9 && bytes[cap+2]>=16 && bytes[cap+4]<6) {
-                                unsigned bar=bytes[cap+4];
-                                uint64_t base=cfg[4+bar]&~15U;
-                                if ((cfg[4+bar]&6)==4 && bar<5) base|=(uint64_t)cfg[5+bar]<<32;
-                                uint64_t region=base+*(volatile uint32_t *)(bytes+cap+8);
-                                print_ascii(system,"VIRTIO cap=");print_hex64(system,bytes[cap+3]);
-                                print_ascii(system," addr=");print_hex64(system,region);
-                                print_ascii(system," length=");print_hex64(system,*(volatile uint32_t *)(bytes+cap+12));
-                                if (bytes[cap+3]==1) {
-                                    volatile uint32_t *common=(volatile uint32_t *)(uintptr_t)region;
-                                    common[0]=0; print_ascii(system," features=");print_hex64(system,common[1]);
-                                }
-                                print_ascii(system,"\r\n");
-                            }
-                            cap=bytes[cap+1];
-                        }
-                    }
-                }
-            }
-            if (read_le(table+4,4)<=1024) {
-                for (uint32_t k=36;k+8<=read_le(table+4,4);k+=8) {
-                    print_hex64(system,k);print_ascii(system,":");print_hex64(system,read_le(table+k,8));print_ascii(system,"\r\n");
-                }
-            }
-        }
-    }
 }
 
 static EFI_STATUS copy_fdt(
@@ -636,8 +579,13 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, struct EFI_SYSTEM_TABLE *system)
     draw_efi_diagnostic(system, 3U, 0, 0);
 
     status = copy_fdt(system, boot_info);
+    if (status == EFI_NOT_FOUND) {
+        extern EFI_STATUS arosboot_vz_platform(struct EFI_SYSTEM_TABLE *, struct AROSBootInfo *);
+        status = arosboot_vz_platform(system,boot_info);
+        if (!EFI_ERROR(status))
+            print_ascii(system,"AROSBOOTAA64: ACPI platform bridge + virtio console prepared\r\n");
+    }
     if (EFI_ERROR(status)) {
-        report_acpi(system);
         print_ascii(system, "AROSBOOTAA64: FDT unavailable, status=");
         print_hex64(system, status);
         print_ascii(system, "\r\n");
@@ -645,7 +593,9 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, struct EFI_SYSTEM_TABLE *system)
     }
     draw_efi_diagnostic(system, 4U, 0, 0);
     status = capture_framebuffer(system, boot_info);
-    if (EFI_ERROR(status)) {
+    if (status == EFI_NOT_FOUND) {
+        print_ascii(system,"AROSBOOTAA64: no firmware framebuffer; headless boot\r\n");
+    } else if (EFI_ERROR(status)) {
         print_ascii(system, "AROSBOOTAA64: framebuffer unavailable, status=");
         print_hex64(system, status);
         print_ascii(system, "\r\n");
@@ -657,7 +607,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, struct EFI_SYSTEM_TABLE *system)
     print_ascii(system, "AROSBOOTAA64: payload entry=");
     print_hex64(system, bundle.kernel_entry);
     print_ascii(system, "\r\n");
-    print_ascii(system, "AROSBOOTAA64: FDT + framebuffer found; exiting boot services\r\n");
+    print_ascii(system, "AROSBOOTAA64: platform prepared; exiting boot services\r\n");
     if (boot_log) { boot_log->close(boot_log); boot_log = NULL; }
     status = capture_memory_map_and_exit(image, system, boot_info);
     if (EFI_ERROR(status))
