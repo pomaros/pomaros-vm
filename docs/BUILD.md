@@ -277,3 +277,9 @@ through the driver's worker/IRQ path. It checks exact completion length and the
 boot-sector signature. A timed-out request retains its storage until the bounded
 runner shuts down the VM. The device and published storage classes remain
 resident. This read gate does not qualify writes, flush durability or filesystems.
+
+`make test-virtio-io` compiles the real BeginIO path with mocked submission under
+fatal ASan/UBSan. It checks whole-transfer bounds, logical-block alignment,
+64-bit offsets, submission rejection with one list removal, and immediate
+request destruction by a completion recipient. An accepted asynchronous request
+must not be touched after publication, including its IOF_QUICK flag.

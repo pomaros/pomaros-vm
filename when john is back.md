@@ -1123,3 +1123,31 @@ timeout must retain ownership rather than free an in-flight buffer. No writes,
 filesystem persistence, crash recovery or physical hardware qualification is
 claimed by this read milestone. Next is isolated write/flush/restart testing
 after these checks. SMP remains reserved to bsek.
+
+## Block request ownership and bounds before write qualification
+
+Core `7769f704f7` fixes the BeginIO path identified in the previous milestone.
+Submission removes the request once and clears IOF_QUICK before it can become
+visible to the device/worker. A rejected submission restores the caller's flags
+and completes locally without a second list removal. Successful submission
+returns without accessing the request again: the recipient may already have
+freed it. Read/write validation captures the high 64-bit offset first, clears
+io_Actual, checks null data, logical-block alignment, nonzero aligned length,
+and the entire sector extent using subtraction to avoid overflow. The wire
+sector remains in 512-byte units even for a 4096-byte logical block.
+
+`make test-virtio-io` includes the real virtio_io.c under fatal ASan/UBSan.
+It covers unaligned/zero/null/end-crossing/overflow cases, 512/4096-byte blocks,
+quick and nonquick submission rejection for write and flush (one removal),
+64-bit offsets, and a mock successful submit that frees the request immediately.
+Queue and bus/controller lifecycle regressions also PASS. The guest module was
+rebuilt and packaged: `artifacts/vz-virtio-io-safe` strict full-device read PASS.
+Disk `7b78e389ad40c2ce2e609405e823c015cf4da87527e5a145d106dd8a35a33fe2`;
+bundle `744d2dd12c3226a3243457d2a5c65e9f3b1643235f20a0941b7fb9509432b0c9`.
+
+Next: isolated guest write/readback/flush and second-VM verification, with an
+explicit test-owned range outside the boot filesystem or a separate test disk.
+Require actual flush negotiation/completion before claiming flush durability;
+the existing no-FLUSH success fallback is not such evidence. Filesystem mount,
+controlled crash recovery, VZ desktop/input and stage-six integration remain
+open. No physical disk was touched. SMP remains reserved to bsek.
