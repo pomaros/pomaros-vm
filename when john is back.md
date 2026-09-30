@@ -886,3 +886,13 @@ transfert que VZ. Les marqueurs DMA sont obligatoires pour --require-pci-hidd.
 Cette preuve est un vrai transfert de queue avec le device virtuel, pas encore
 le fonctionnement de virtio.device, une interruption MSI ou une écriture disque.
 SMP intact, revue 217 du pont résident approuvée.
+
+`make test` et build standard `make -j8 kernel-hidd-vmpci` PASS.
+Contrôle négatif `artifacts/vz-pci-dma-negative` : image avec pont résident mais
+sans DMA refusée malgré son boot réussi. Binaires : vmpci.hidd
+`bf165860e239b3cb9dfe25dfe76cad7d5d54d9f73f112f65f6fcf2aaa4edc7a7`,
+pciecam.hidd `4452d3d344f2fefa0e856a90791a0c0ff97a9c6973449c393fbdf4bc4ba8f831`.
+Revue 218. Suite bloc : q_Reqs/header/status et données doivent appartenir aux
+allocations DMA, vérifier les erreurs de traduction, remplacer les seules
+barrières compilateur et traiter les longueurs de complétion. MSI reste une
+qualification indépendante avant les requêtes asynchrones.
