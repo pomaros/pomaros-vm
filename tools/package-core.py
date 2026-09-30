@@ -16,6 +16,8 @@ p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--virtio-gpu', action='store_true')
 p.add_argument('--pci-hidd', action='store_true')
 p.add_argument('--virtio-device', action='store_true')
+p.add_argument('--xhci-driver', action='store_true')
+p.add_argument('--xhci-enumerate', action='store_true')
 p.add_argument('--build', type=Path, required=True)
 p.add_argument('--output', type=Path, required=True)
 p.add_argument('--profile', choices=['headless', 'wanderer'], default='headless')
@@ -26,6 +28,10 @@ if a.virtio_gpu and a.profile != 'wanderer':
     p.error('--virtio-gpu requires wanderer profile')
 if a.pci_hidd and a.profile != 'headless':
     p.error('--pci-hidd requires headless profile')
+if a.xhci_enumerate and not a.xhci_driver:
+    p.error('--xhci-enumerate requires --xhci-driver')
+if a.xhci_driver and not a.pci_hidd:
+    p.error('--xhci-driver requires --pci-hidd')
 if a.virtio_device and not a.pci_hidd:
     p.error('--virtio-device requires --pci-hidd')
 build = a.build.resolve()
@@ -78,6 +84,16 @@ if a.pci_hidd:
 if a.virtio_device:
     pci_files += [(rel,sdk/'AROS'/rel) for rel in ['Devs/Drivers/bus.hidd',
         'Devs/Drivers/storage.hidd','Devs/virtio.device']]
+if a.xhci_driver:
+    pci_files += [(rel,sdk/'AROS'/rel) for rel in ['Libs/poseidon.library','Devs/USBHardware/pcixhci.device']]
+    request = output/'XHCITEST.REQ'
+    request.write_text('xhci-driver-startup-v1\n')
+    pci_files += [('XHCITEST.REQ', request)]
+if a.xhci_enumerate:
+    pci_files += [(rel,sdk/'AROS'/rel) for rel in ['Classes/USB/hub.class','Classes/USB/hubss.class']]
+    request = output/'XHCIENUM.REQ'
+    request.write_text('xhci-child-enumeration-v1\n')
+    pci_files += [('XHCIENUM.REQ', request)]
 ramdisk = output / 'SYS.img'
 image_command = ['python3', str(root / 'tools/make-fat12-image.py'), '--abi-probe', str(probe)]
 if a.pci_hidd:
@@ -104,7 +120,7 @@ shutil.copyfile(efi, output / 'EFI/BOOT/BOOTAA64.EFI')
 inputs = ([pci_probe] if a.pci_hidd else []) + [path for _, path in pci_files] + [stage2, efi, probe, ramdisk] + [path for _, path in components] + programs
 manifest = {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in inputs}
 (output / 'provenance.json').write_text(json.dumps({
-    'profile': a.profile, 'virtio_gpu': a.virtio_gpu, 'build': str(build), 'seed_bundle': None,
+    'profile': a.profile, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,
     'source_revision': revision, 'configure_command': configure_command,
     'inputs': manifest, 'bundle_sha256': hashlib.sha256(data).hexdigest(),
 }, indent=2) + '\n')

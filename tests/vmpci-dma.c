@@ -9,11 +9,11 @@
 #include <proto/kernel.h>
 #include <aros/kernel.h>
 #include "vmpci.h"
-static unsigned live, fragmented;
+static unsigned live, fragmented, mask_depth;
 static void *page_memory;
 static void *pages(uintptr_t bytes)
-{ assert(!posix_memalign(&page_memory,4096,bytes));memset(page_memory,0,bytes);++live;return page_memory; }
-static void free_pages(void *p) { assert(live);--live;free(p); }
+{ assert(!mask_depth);assert(!posix_memalign(&page_memory,4096,bytes));memset(page_memory,0,bytes);++live;return page_memory; }
+static void free_pages(void *p) { assert(!mask_depth);assert(live);--live;free(p); }
 static void *physical(void *p)
 { uintptr_t n=(uintptr_t)p;return (void *)(n+0x100000+(fragmented && n>(uintptr_t)page_memory ? 4096:0)); }
 #undef AllocMem
@@ -33,13 +33,17 @@ static void *physical(void *p)
 #undef Remove
 #define Remove(n) REMOVE(n)
 #undef ObtainSemaphore
-#define ObtainSemaphore(s) ((void)(s))
+#define ObtainSemaphore(s) assert(!"sleeping semaphore in DMA registry")
 #undef ObtainSemaphoreShared
-#define ObtainSemaphoreShared(s) ((void)(s))
+#define ObtainSemaphoreShared(s) assert(!"sleeping semaphore in DMA registry")
 #undef ReleaseSemaphore
-#define ReleaseSemaphore(s) ((void)(s))
+#define ReleaseSemaphore(s) assert(!"sleeping semaphore in DMA registry")
 #undef InitSemaphore
 #define InitSemaphore(s) ((void)(s))
+#undef Disable
+#define Disable() (++mask_depth)
+#undef Enable
+#define Enable() (assert(mask_depth),--mask_depth)
 #include "vmpci_dma.c"
 int main(void)
 {
@@ -53,10 +57,17 @@ int main(void)
     assert(d->to_bus(d->context,cpu+4097)==(void *)-1);
     assert(d->to_bus(d->context,(void *)((uintptr_t)cpu-1))==(void *)-1);
     assert(d->to_cpu(d->context,(void *)(bus+4097))==(void *)-1);
+    /* Model an interrupt caller, preserving its existing mask nesting. */
+    mask_depth=1;
+    assert(d->to_bus(d->context,cpu)==(void *)bus && mask_depth==1);
+    assert(d->to_cpu(d->context,(void *)bus)==cpu && mask_depth==1);
+    assert(d->to_bus(d->context,cpu+4097)==(void *)-1 && mask_depth==1);
+    mask_depth=0;
     d->release(d->context,cpu+1);assert(live==1); /* exact base ownership */
     d->release(d->context,cpu);assert(!live);
     assert(d->to_bus(d->context,cpu)==(void *)-1);
     d->release(d->context,cpu);assert(!live);
     fragmented=1;assert(!d->allocate(d->context,8192));assert(!live);
+    assert(!mask_depth);
     puts("vmpci-dma result=PASS actual-policy,nonidentity,bounds,free,noncontiguous-rejection");
 }

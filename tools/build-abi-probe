@@ -109,7 +109,7 @@ export COMPILER_PATH="$sdk_tools:$crosstools/bin"
 # Additional source is only the actual virtio block queue qualification.
 set --
 if [ "$profile" = pci ]; then
-    set -- "$project_root/tests/virtio-block-queue.c" "$project_root/tests/virtio-device.c"
+    set -- "$project_root/tests/virtio-block-queue.c" "$project_root/tests/virtio-device.c" "$project_root/tests/xhci-device.c"
 fi
 "$clang" \
     --target=aarch64-unknown-aros \

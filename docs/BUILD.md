@@ -439,3 +439,19 @@ maps BAR0 through the owning PCI driver and reads xHCI capability registers.
 It temporarily enables memory decoding and restores the command word. It does
 not reset/run the controller or publish DMA buffers. Desktop startup can also
 be checked with `--desktop-startup --usb-input`, independently of input delivery.
+
+### Full xHCI driver startup and enumeration probes
+
+Package `--pci-hidd --xhci-driver` to include `pcixhci.device`, Poseidon and
+an explicit probe request. Run with `--require-pci-hidd --require-gpu
+--usb-input --require-xhci-driver`. This gate opens the actual driver and
+checks its query interface; it does not prove USB transfer or HID delivery.
+The probe retains the unit and heap-backed request until the bounded VM is
+terminated, so this gate does not exercise controller teardown.
+
+For Poseidon child-device discovery, build `kernel-usb-classes-hub` and
+`kernel-usb-classes-hubss`, add `--xhci-enumerate` when packaging, and add
+`--require-xhci-enumeration` to the runner. That mode requires hardware attach,
+root enumeration and at least two connected child devices with device
+descriptors. It does not qualify keyboard/pointer input or cancellation.
+Both modes use isolated image copies and preserve `input_verified=false`.

@@ -246,6 +246,7 @@ stop:
  * Decode capability registers only; do not reset, start or arm DMA. */
 static int inspect_xhci(OOP_Object *device)
 {
+    hex("[VM] xHCI legacy interrupt line",config_read(device,0x3c,1));
     uint64_t visited=0;
     unsigned cap=config_read(device,0x34,1);
     for(unsigned steps=0;cap;++steps) {
@@ -367,6 +368,7 @@ static int resident_bridge(void)
     OOP_DisposeObject(pci);OOP_ReleaseAttrBase((CONST_STRPTR)IID_Hidd_PCIDevice);
     return expected && enumerated==expected && resident_checked==expected && !console_seen && dma_checked==1 && block_checked==1 && !dma_failed;
 }
+int test_xhci_device(void);
 int main(int argc,char **argv)
 {
     mark("[VM] PCI HIDD load begin\n");
@@ -417,6 +419,7 @@ int main(int argc,char **argv)
         int full=test_virtio_device();
         if(!full) return 94;
         if(full>0) mark("[VM] full virtio.device IRQ read PASS\n");
+        if(!test_xhci_device())return 95;
         return 0;
     }
     OOP_AttrBase attr=OOP_ObtainAttrBase((CONST_STRPTR)IID_Hidd_PCIECAM);

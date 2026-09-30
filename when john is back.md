@@ -1917,3 +1917,64 @@ has been attempted. Full stage-six goal remains open; SMP untouched.
   propriétaire tâche. Cela préserve leur exclusion préexistante avec la
   libération IRQ et évite une nouvelle course introduite par le déplacement.
   Aucun gain de latence IRQ n’est revendiqué tant que cette exclusion reste.
+
+## Première ouverture réelle du pilote xHCI sous VZ
+
+- Essai isolé `artifacts/vz-xhci-open-first` : FAIL à OpenDevice, avec core
+  `2d4390911e`. Le PCI publie bien Apple 106b:1a06, classe 0c0330, avec MSI et
+  MSI-X ; le pilote rejetait systématiquement INTLine=255 à l'énumération.
+- Core `f1d798a010` supprime cette condition héritée d'INTx. L'installation de
+  l'interruption par le propriétaire PCI doit réussir avant de lancer le
+  contrôleur. En cas de refus, l'initialisation échoue et retire le callback
+  de reset installé avant cette tentative.
+- `artifacts/vz-xhci-open-msi` : PASS VZ réel, 6,43 s. `pcixhci.device` ouvre
+  son unité et UHCMD_QUERYDEVICE retourne deux attributs, USB30 dans les
+  capacités (0x80000006) et version de pilote 0x300. Les gates antérieurs
+  PCI, MSI, virtio block, GPU et démarrage restent PASS. Bundle
+  `996c6d03cb72f4ae2646ca39f7c598f6a085f87fed3902fd23a5d4aeeff60bed`,
+  disque `edfa574d7786d3b8e8f6d039356e2d4b71c6e9bb56ae96735e7d58274f3c9314`.
+- Ce n'est pas une preuve de transfert USB ni de saisie. Le test garde le
+  pilote ouvert jusqu'à la fin de la VM ; son teardown n'est pas qualifié.
+- Le packager propose `--xhci-driver` et `--xhci-enumerate` ; le runner a les
+  exigences séparées `--require-xhci-driver` et `--require-xhci-enumeration`.
+  `artifacts/vz-xhci-enumeration-missing-proof` échoue volontairement après
+  12 s avec l'image d'ouverture seule : les marqueurs d'énumération manquants
+  ne sont pas remplacés par un simple démarrage réussi.
+- Choix de progression : garder ouvertes les corrections de durée de vie
+  AbortIO/NAK/flush/RTISO/disconnect, mais faire les premiers essais bornés sur
+  une VM et une image isolées pour identifier les blocages effectifs du chemin
+  clavier/souris. Ne pas présenter ces essais comme une qualification de
+  robustesse ; toute qualification prolongée exige encore ces corrections.
+
+## Énumération USB VZ : verrou DMA appelé depuis une interruption
+
+- `vz-xhci-enumeration-first` atteint l'attachement Poseidon et le hub racine,
+  puis échoue avec une alerte Exec de sémaphore en mode superviseur.
+  `vz-xhci-enumeration-context2` confirme EL0 avant/après le scan ; le premier
+  essai de cette instrumentation (`context`) avait lui-même omis d'ouvrir
+  kernel.resource, corrigé avant de tirer une conclusion.
+- `vz-xhci-enumeration-stack3` conserve la pile avant Alert. Le registre des
+  allocations DMA de VMPci utilisait un sémaphore partagé dans CPUtoPCI /
+  PCItoCPU, alors que xHCI appelle ce chemin en interruption. L'hypothèse
+  initiale OOP_FindClass était incorrecte : la lecture du code et des offsets
+  du binaire identifie le registre DMA.
+- Core `0c0f71b699` protège publication, retrait et recherche avec des sections
+  Disable/Enable brèves. Allocation, protection des pages et libération restent
+  hors section. Contrat explicitement monocœur ; le propriétaire doit arrêter
+  ses utilisateurs DMA/IRQ avant de libérer le buffer. Le SMP reste à bsek.
+  Le dump temporaire de pile est retiré ; Exec conserve les adresses caller et
+  stack dans ses diagnostics de sémaphore (`8a5e701121`).
+- `make test-vmpci-dma` PASS sous ASan/UBSan : code réel, non-identité CPU/bus,
+  bornes, libération, refus non-contigu, traduction avec masquage déjà imbriqué.
+  Build croisé Exec + VMPci PASS. Revue 246 demandée.
+- `vz-xhci-enumeration-irq-dma` reste FAIL : plus d'alerte de sémaphore, mais
+  arrêt VZ inattendu immédiatement après le scan, sans exception invitée
+  enregistrée. Aucun descripteur enfant ni événement HID validé. Examiner
+  ensuite les adresses DMA et les transferts ; le helper de payload PCI-owned
+  existe mais n'est pas encore raccordé. Cette piste n'est pas un diagnostic
+  établi du nouvel arrêt.
+- Régression `vz-xhci-open-irq-dma` PASS, 7,28 s : ouverture/query xHCI et
+  gates PCI/MSI/block/GPU/démarrage. Bundle
+  `68d0fc614781c546c43c65895c595c90d872111c4977b24dd4caf534aeaa2df1`,
+  disque `06277b86e450ef613e052848ed487e1212d93d1a1b566af3e78bf104320f5ec9`.
+  Les étapes 3 et 6 ne sont pas validées. Aucun essai matériel M1 ou Pi.
