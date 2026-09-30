@@ -204,3 +204,35 @@ d’interruptions `fbbe4c1596` est traitée : merge core `97125633aa`. Les preuv
 x18 et le démarrage restent PASS sous VZ et HVF après reconstruction, dans
 `artifacts/readiness-merged-vz` et `artifacts/readiness-merged-hvf`. Cela prépare
 le raccordement IRQ sans prétendre que le timer VM est déjà intégré au noyau.
+
+## IRQ/timer raccordés au vrai noyau sous QEMU/HVF
+
+- Le stage-two mappe les deux fenêtres GIC depuis le FDT, refuse les
+  chevauchements RAM/console, contrôleurs ambigus et fenêtres mal alignées.
+  Le tri des fenêtres ne change plus l’identité de la console. Commit mapping
+  core `f134d83a07`, 15 cas ASan/UBSan.
+- Core `07c36e8679` : adaptateur VM mono-CPU, timer CNTV résolu via le fournisseur d’interruptions
+  du FDT, gestion de la PPI par GIC, EOI avant sortie vers l’ordonnanceur.
+  Réutilise le moteur deadline et timer.device existants. Les SPIs héritées du
+  firmware sont masquées avant l’ouverture de la ligne IRQ. Les IRQ de pilotes
+  périphériques ne sont pas encore raccordées à cet adaptateur.
+- Preuve dans le démarrage réel : trois DoIO(TR_ADDREQUEST) de 20 ms, au moins
+  trois expirations noyau et au moins 60 ms écoulées, puis démarrage complet et
+  bureau Wanderer. PASS sur GICv2 et GICv3 : `artifacts/kernel-irq-gic2` et
+  `artifacts/kernel-irq-gic3`. Bundle SHA256
+  `d55a86c18476ab7b3aefde0bdb8cc1281a19defc479fede41c8bfc4f63f7c4f1`.
+- Contrôle négatif : noyau identique sauf la PPI activée XOR 2. Initialisation
+  atteinte puis attente bloquée, capture QMP des registres avant terminaison.
+  `artifacts/kernel-timer-enabled-ppi-control/verdict.json` PASS. Le noyau
+  positif reconstruit après retrait de la mutation est identique octet pour octet.
+- Première tentative négative en changeant le FDT firmware : non concluante
+  pour AROS, car EFI bloque lui-même sur son timer. Capture conservée dans
+  `artifacts/kernel-timer-control/negative`. Pas présentée comme preuve noyau.
+- Probes portables réexécutées après masquage des SPIs : virt/HVF, Pi4/TCG et
+  leurs deux contrôles négatifs PASS (`artifacts/platform-irq-quarantine`).
+- VZ démarre toujours (`artifacts/kernel-irq-vz-regression`) mais reste sans
+  deadline IRQ tant que le pont ACPI ne décrit pas GIC/timer. C’est la prochaine
+  étape, avant GPU/entrées/persistance. Aucun travail SMP, aucun run physique.
+
+`make test` passe après ce raccordement (15 cas MMIO, corpus FDT sous
+sanitizers, 11 cas VZ et tests x18).

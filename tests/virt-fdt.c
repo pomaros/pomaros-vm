@@ -9,7 +9,7 @@ extern uint64_t AROSVMPL011Base;
 extern void AROSVMConsoleWrite0(const char *text);
 struct Plan { struct AROSAppleMemoryPlan header; struct AROSAppleMemoryPlanRange range; };
 int main(int argc, char **argv) {
-    assert(argc == 4);
+    assert(argc == 6);
     FILE *f = fopen(argv[1],"rb"); assert(f);
     unsigned char dtb[65536]; size_t n=fread(dtb,1,sizeof(dtb),f); fclose(f);
     assert(n>0 && n<sizeof(dtb));
@@ -28,8 +28,17 @@ int main(int argc, char **argv) {
     assert(result == atoi(argv[2]));
     if(result) {
         assert(map.profile==AROS_APPLE_DEVICE_MAP_PROFILE_VIRT);
-        assert(map.entry_count==1 && map.role_count==1);
-        assert(map.ranges[0].start==strtoull(argv[3],NULL,0));
+        assert(map.entry_count==(unsigned)atoi(argv[4]));
+        assert(map.role_count==(unsigned)atoi(argv[5]));
+        assert(AROSVMPL011Base==strtoull(argv[3],NULL,0));
+        assert(map.roles[0].start==AROSVMPL011Base);
+        if (map.role_count == 3) {
+            assert(map.roles[1].kind == AROS_APPLE_DEVICE_ROLE_GIC);
+            assert(map.roles[1].instance == 0);
+            assert(map.roles[2].kind == AROS_APPLE_DEVICE_ROLE_GIC);
+            assert(map.roles[2].instance == 1);
+            assert(map.roles[1].start == 0x08000000);
+        }
         assert(map.roles[0].kind==AROS_APPLE_DEVICE_ROLE_CONSOLE);
     }
     /* A stuck FIFO must not trap the loader in its diagnostic path. */

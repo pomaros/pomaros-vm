@@ -8,7 +8,7 @@ metatargets to reuse the existing cross toolchain.
 The initial local setup uses:
 
 - core source: `~/Source/aros-core-vm`, branch `codex-macaros-vm` in the private
-  `jonx/aros-apple-core` repository, qualified revision `39446191f2`;
+  `jonx/aros-apple-core` repository, qualified revision recorded in `when john is back.md`;
 - configured build: `~/Build/macaros-vm/core`, APFS clone of the qualified
   native build, with generated include flags redirected to this checkout;
 - guest C/assembly target: AArch64 ELF, no `-ffixed-x18`;
@@ -76,3 +76,33 @@ input is checked at every truncated length and with deterministic mutations.
 The core and EFI builders share one libfdt import. A configured guest build
 must regenerate the platform makefile after build-rule changes, or mirror its
 new shared-FDT include paths and objects in the isolated generated makefile.
+
+## Kernel deadline timer qualification
+
+`tools/run-qemu.py --require-timer --gic-version 3 --esp ESP --output NEW`
+requires three real `timer.device` requests to complete and at least three
+kernel timer firings, in addition to startup and the Wanderer pixel check.
+Repeat with `--gic-version 2`. Failed runs stop the CPU and save QMP registers
+before terminating the process. The optional `--dtb` input is copied into the
+run artifact directory.
+
+For the negative control, build an isolated negative kernel with the sole
+change in `vm_irq.c` from `AROSGICEnable(&controller, timer_id, trigger)` to
+`AROSGICEnable(&controller, timer_id ^ 2U, trigger)`. Package that kernel into
+a separate ESP, then restore and rebuild the positive source. Verify its hash
+matches the original positive kernel. Run:
+
+```sh
+python3 tests/kernel-timer-control.py --esp POSITIVE_ESP \
+  --negative-esp NEGATIVE_ESP --output artifacts/kernel-timer-NEW
+```
+
+The negative must reach GIC initialization, time out before the wait proof,
+and preserve CPU registers. Changing the timer IRQ in QEMU's firmware FDT is
+not an equivalent negative: EFI consumes that description too and can block
+before AROS starts.
+
+The kernel generated makefile must include `vm_irq` and the conditional shared
+GIC/libfdt objects and compilation rules from its source template. As with the
+bootstrap rules, refresh it after pulling build changes. VZ's ACPI bridge must
+supply GIC and timer bindings before its deadline-timer lane can be qualified.

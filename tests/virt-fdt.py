@@ -25,5 +25,28 @@ with tempfile.TemporaryDirectory() as tmp:
         dts.write_text('/dts-v1/; / { compatible="linux,dummy-virt"; #address-cells=<2>; #size-cells=<2>; '
             f'uart@{int(address,0):x} {{ compatible="arm,pl011"; reg=<0 {address} 0 {size}>; {extra} }}; }};')
         subprocess.run(['dtc','-q','-I','dts','-O','dtb','-o',str(dtb),str(dts)],check=True)
-        subprocess.run([str(exe),str(dtb),str(expected),address],check=True,timeout=5)
-print('virt-fdt result=PASS cases=6 sanitizers=ASan,UBSan')
+        subprocess.run([str(exe),str(dtb),str(expected),address,"1","1"],check=True,timeout=5)
+    # GIC sorts before the console; console identity must survive sorting.
+    def controller(base='0x08000000', second='0x080a0000', size='0xf60000',
+                   compatible='arm,gic-v3', extra='', name='intc'):
+        return (f'{name}@{int(base,0):x} {{ compatible="{compatible}"; '
+                f'reg=<0 {base} 0 0x10000 0 {second} 0 {size}>; '
+                f'interrupt-controller; #interrupt-cells=<3>; {extra} }};')
+    cases=[(controller(),1,2,3),
+           (controller(second='0x08010000',size='0x2000',compatible='arm,gic-400'),1,2,3),
+           (controller(second='0x40000000'),0,0,0),
+           (controller(second='0x09000000'),0,0,0),
+           (controller(second='0x08008000'),0,0,0),
+           (controller(second='0x080a0001'),0,0,0),
+           (controller(size='0'),0,0,0),
+           (controller(extra='status="disabled";'),1,1,1),
+           (controller()+controller(base='0x10000000',name='other'),0,0,0)]
+    for controller_dts,expected,ranges,roles in cases:
+        dts.write_text('/dts-v1/; / { compatible="linux,dummy-virt"; #address-cells=<2>; #size-cells=<2>; '
+            'chosen { stdout-path="/uart@9000000"; }; '
+            'uart@9000000 { compatible="arm,pl011"; reg=<0 0x09000000 0 0x1000>; }; '
+            +controller_dts+'};')
+        subprocess.run(['dtc','-q','-I','dts','-O','dtb','-o',str(dtb),str(dts)],check=True)
+        subprocess.run([str(exe),str(dtb),str(expected),'0x09000000',str(ranges),str(roles)],
+                       check=True,timeout=5)
+print('virt-fdt result=PASS cases=15 sanitizers=ASan,UBSan')

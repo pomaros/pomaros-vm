@@ -15,6 +15,9 @@ p.add_argument('--esp',type=Path,required=True)
 p.add_argument('--output',type=Path,required=True)
 p.add_argument('--accel',choices=['hvf','tcg'],default='hvf')
 p.add_argument('--timeout',type=float,default=60)
+p.add_argument('--require-timer',action='store_true')
+p.add_argument('--gic-version',choices=['2','3'],default='3')
+p.add_argument('--dtb',type=Path)
 p.add_argument('--firmware',type=Path,default=Path('/opt/homebrew/share/qemu/edk2-aarch64-code.fd'))
 a = p.parse_args()
 if a.output.exists(): p.error('output must not exist')
@@ -24,11 +27,14 @@ esp = a.output/'esp'
 shutil.copytree(a.esp,esp)
 serial = a.output/'serial.log'
 qmp = a.output/'qmp.sock'
-command = ['qemu-system-aarch64','-accel',a.accel,'-M','virt,acpi=off',
+command = ['qemu-system-aarch64','-accel',a.accel,'-M',f'virt,acpi=off,gic-version={a.gic_version}',
            '-cpu','host' if a.accel=='hvf' else 'cortex-a72','-m','512',
            '-bios',str(a.firmware),'-drive',f'format=raw,file=fat:rw:{esp}',
            '-device','ramfb','-display','none','-no-reboot','-serial',f'file:{serial}',
            '-qmp',f'unix:{qmp},server=on,wait=off']
+if a.dtb:
+    shutil.copyfile(a.dtb,a.output/'input.dtb')
+    command += ['-dtb',str(a.output/'input.dtb')]
 (a.output/'command.json').write_text(json.dumps(command,indent=2)+'\n')
 passed = False
 reason = 'timeout'
@@ -41,10 +47,26 @@ with (a.output/'host.log').open('w') as log:
             if 'FAIL:' in text or 'Synchronous Exception' in text:
                 reason='guest-failure';break
             if '[B2Q] AROS startup contract PASS' in text:
-                passed=True;reason='startup-contract';break
+                passed=not a.require_timer or text.count('[VM] timer.device three waits PASS')==1;reason='startup-contract' if passed else 'timer-proof-missing';break
             if proc.poll() is not None:
                 reason='early-exit';break
             time.sleep(.1)
+        if not passed and proc.poll() is None:
+            # Independently preserve the stopped CPU before ending a failed run.
+            try:
+                s=socket.socket(socket.AF_UNIX);s.settimeout(3);s.connect(str(qmp))
+                with s,s.makefile('rwb') as f:
+                    f.readline()
+                    for name,args in [('qmp_capabilities',{}),('stop',{}),
+                                      ('human-monitor-command',{'command-line':'info registers'})]:
+                        f.write(json.dumps({'execute':name,'arguments':args}).encode()+b'\n');f.flush()
+                        while True:
+                            reply=json.loads(f.readline())
+                            if 'error' in reply: raise RuntimeError(reply)
+                            if 'return' in reply: break
+                    (a.output/'registers.txt').write_text(str(reply['return']))
+            except Exception as error:
+                (a.output/'debugger-error.txt').write_text(str(error))
         if passed:
             s=socket.socket(socket.AF_UNIX);s.settimeout(3);s.connect(str(qmp))
             with s,s.makefile('rwb') as f:
@@ -69,6 +91,7 @@ with (a.output/'host.log').open('w') as log:
             except subprocess.TimeoutExpired: proc.kill();proc.wait()
 verdict={'result':'PASS' if passed else 'FAIL','reason':reason,'backend':a.accel,
          'seconds':round(time.monotonic()-started,2),'hardware_virtualization':a.accel=='hvf',
+         'gic_version':int(a.gic_version),'timer_required':a.require_timer,
          'bundle_sha256':hashlib.sha256((esp/'AROS/GEN0.BND').read_bytes()).hexdigest()}
 (a.output/'verdict.json').write_text(json.dumps(verdict,indent=2)+'\n')
 print(json.dumps(verdict))
