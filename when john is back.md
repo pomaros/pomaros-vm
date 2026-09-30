@@ -2343,3 +2343,38 @@ has been attempted. Full stage-six goal remains open; SMP untouched.
   3942e7a54c6aeb85453a91ef4b5500bba2444d5f035e1814043bf606151cf86e.
   Preuve artifacts/repro-v3-gpu-comparison.json ; cela ne compare pas encore
   les builds complets, toujours actifs. Revue259 approuvée ; revue260 IRQ ouverte.
+
+## Suite SANA-II et rythme des essais
+
+John demande un ou deux essais ciblés par changement, puis de poursuivre
+l'intégration ; pas de campagnes répétées pendant des heures. Les limites
+restent explicites et les défauts observés seront traités à l'usage.
+Réseau indiqué par John : `Apartmenthaus Berlin Mitte`, sans mot de passe.
+La VM utilise VZ NAT et la connexion du Mac ; aucune association Wi-Fi
+physique n'a été effectuée par ce travail.
+
+Le pilote résident `Devs/Networks/virtionet.device` est compilé dans le core
+66361f52ae : tâche IO unique, requêtes SANA-II, tampon DMA possédé par le
+transport, annulation et fermeture après reset acquitté. Ce premier frontend
+ne qualifie pas encore AROSTCP, les paquets via SANA, le multicast ou les
+statistiques par type. La preuve transport DHCP précédente reste distincte.
+
+La compilation a exposé un oubli de 5c177455fa : la cible globale
+`includes-copy` appelle aussi une cible make locale, supprimée par le renommage.
+Correction e5190e75f8 ; les quatre en-têtes copiés correspondent aux sources
+(`artifacts/virtio-headers-global-verdict.json`). La compilation réelle du
+frontend franchit maintenant cette étape. Le contrôle négatif VZ sur l'ancienne
+image échoue correctement avec `sana-device-not-run` en 3,88 s
+(`artifacts/vz-sana-negative`). Le passage positif reste à consigner.
+
+Passage positif `artifacts/vz-sana-lifecycle` : PASS 3,53 s, deux cycles
+OpenDevice/query/configuration/online/lecture pendante/AbortIO/offline/CloseDevice
+au sein d'un seul démarrage. Réouverture PCI/reset réussie. Le même démarrage
+valide le DHCP brut et son interruption, séparément du frontend SANA.
+Disque SHA256 `c67a79b6e37e5c8fd2d9bab11d7bfa24ab5904a614249b60aff9ca61d59ad130`,
+bundle `fffc374710f10044d3146274bbe324546eb33c956c091d3be7e28897038de27a`.
+Commande : `python3 tools/run-vz.py --disk build/sana-lifecycle.img
+--output artifacts/NEW --require-pci-hidd --require-sana-device --timeout 25`.
+Un positif et un négatif suffisent pour cette étape ; compilation de la pile
+existante AROSTCP lancée, journal `artifacts/arostcp-build.log`. Aucun trafic IP
+AROSTCP ni bail DHCP complet n'est encore qualifié.

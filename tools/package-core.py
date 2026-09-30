@@ -16,6 +16,7 @@ p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--virtio-gpu', action='store_true')
 p.add_argument('--pci-hidd', action='store_true')
 p.add_argument('--virtio-device', action='store_true')
+p.add_argument('--virtionet-device', action='store_true')
 p.add_argument('--startup-sequence', type=Path)
 p.add_argument('--desktop-session', help='1..3600 seconds or forever; omitted for boot proof')
 p.add_argument('--input-probe',action='store_true')
@@ -49,6 +50,8 @@ if a.xhci_driver and not a.pci_hidd:
     p.error('--xhci-driver requires --pci-hidd')
 if a.virtio_device and not a.pci_hidd:
     p.error('--virtio-device requires --pci-hidd')
+if a.virtionet_device and not a.pci_hidd:
+    p.error('--virtionet-device requires --pci-hidd')
 build = a.build.resolve()
 sdk = build / 'bin/apple-aarch64'
 output = a.output.resolve()
@@ -99,6 +102,8 @@ if a.pci_hidd:
 if a.virtio_device:
     pci_files += [(rel,sdk/'AROS'/rel) for rel in ['Devs/Drivers/bus.hidd',
         'Devs/Drivers/storage.hidd','Devs/virtio.device']]
+if a.virtionet_device:
+    pci_files += [('Devs/Networks/virtionet.device',sdk/'AROS/Devs/Networks/virtionet.device')]
 if a.xhci_driver:
     pci_files += [(rel,sdk/'AROS'/rel) for rel in ['Libs/poseidon.library','Devs/USBHardware/pcixhci.device']]
     request = output/'XHCITEST.REQ'
