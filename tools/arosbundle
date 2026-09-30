@@ -1,0 +1,275 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 John Knipper
+"""Create, inspect, and strictly verify an AROS boot bundle."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+from pathlib import Path
+import struct
+import sys
+
+
+ROOT = Path(__file__).resolve().parents[1]
+SCHEMA = json.loads((ROOT / "boot/abi/bundle.json").read_text(encoding="utf-8"))
+HEADER = struct.Struct("<QIIQQIIQQQ32s4Q")
+COMPONENT = struct.Struct("<QQQQQIIIIQ32s4Q")
+MAGIC = int.from_bytes(SCHEMA["header"]["magic"].encode("ascii"), "little")
+VERSION = SCHEMA["version"]
+MAX_BYTES = SCHEMA["limits"]["maximum_bundle_bytes"]
+MAX_COMPONENT_MEMORY = SCHEMA["limits"]["maximum_component_memory_bytes"]
+MAX_COMPONENTS = SCHEMA["limits"]["maximum_components"]
+MAX_ALIGNMENT = SCHEMA["limits"]["maximum_alignment"]
+TYPE = SCHEMA["component_types"]
+FORMAT = SCHEMA["component_formats"]
+FLAG = SCHEMA["component_flags"]
+DIGEST_OFFSET = 64
+DIGEST_SIZE = 32
+
+
+class BundleError(ValueError):
+    pass
+
+
+def align_up(value: int, alignment: int) -> int:
+    return (value + alignment - 1) & ~(alignment - 1)
+
+
+def bundle_digest(data: bytes) -> bytes:
+    work = bytearray(data)
+    work[DIGEST_OFFSET : DIGEST_OFFSET + DIGEST_SIZE] = bytes(DIGEST_SIZE)
+    return hashlib.sha256(work).digest()
+
+
+def parse_named_path(value: str) -> tuple[str, Path]:
+    if "=" not in value:
+        raise argparse.ArgumentTypeError("expected NAME=PATH")
+    name, path = value.split("=", 1)
+    if not name or not path:
+        raise argparse.ArgumentTypeError("expected non-empty NAME=PATH")
+    return name, Path(path)
+
+
+def parse_byte_count(value: str) -> int:
+    try:
+        result = int(value, 0)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("expected a byte count") from error
+    if result <= 0:
+        raise argparse.ArgumentTypeError("byte count must be positive")
+    return result
+
+
+def add_component(items: list[dict], name: str, path: Path, kind: int,
+                  form: int, flags: int, alignment: int = 4096,
+                  memory_size: int | None = None) -> None:
+    try:
+        payload = path.read_bytes()
+    except OSError as error:
+        raise BundleError(f"cannot read {path}: {error}") from error
+    if not payload:
+        raise BundleError(f"component is empty: {path}")
+    try:
+        encoded_name = name.encode("utf-8")
+    except UnicodeEncodeError as error:
+        raise BundleError(f"component name is not UTF-8: {name!r}") from error
+    if not encoded_name or b"\0" in encoded_name:
+        raise BundleError("component names must be non-empty UTF-8 without NUL")
+    if memory_size is None:
+        memory_size = len(payload)
+    if memory_size < len(payload):
+        raise BundleError(
+            f"component memory size is smaller than its payload: {path}")
+    if memory_size > MAX_COMPONENT_MEMORY:
+        raise BundleError(
+            f"component memory size exceeds {MAX_COMPONENT_MEMORY} bytes: {path}")
+    items.append({
+        "name": encoded_name,
+        "payload": payload,
+        "type": kind,
+        "format": form,
+        "flags": flags,
+        "alignment": alignment,
+        "memory_size": memory_size,
+    })
+
+
+def create_bundle(args: argparse.Namespace) -> bytes:
+    items: list[dict] = []
+    add_component(items, args.kernel_name, args.kernel, TYPE["kernel"],
+                  FORMAT["raw-position-independent"],
+                  FLAG["executable"] | FLAG["required"],
+                  memory_size=args.kernel_memory_size)
+    for name, path in args.component:
+        add_component(items, name, path, TYPE["component"], FORMAT["data"],
+                      FLAG["required"])
+    if args.ramdisk is not None:
+        add_component(items, args.ramdisk_name, args.ramdisk, TYPE["ramdisk"],
+                      FORMAT["data"], FLAG["required"])
+    if len(items) > MAX_COMPONENTS:
+        raise BundleError("too many components")
+
+    components_offset = HEADER.size
+    strings_offset = components_offset + len(items) * COMPONENT.size
+    strings = bytearray()
+    for item in items:
+        item["name_offset"] = len(strings)
+        strings.extend(item["name"])
+    cursor = strings_offset + len(strings)
+    for item in items:
+        cursor = align_up(cursor, item["alignment"])
+        item["data_offset"] = cursor
+        cursor += len(item["payload"])
+    if cursor > MAX_BYTES:
+        raise BundleError(f"bundle exceeds {MAX_BYTES} bytes")
+
+    output = bytearray(cursor)
+    output[strings_offset : strings_offset + len(strings)] = strings
+    for index, item in enumerate(items):
+        record = COMPONENT.pack(
+            item["data_offset"], len(item["payload"]), item["memory_size"],
+            0, item["alignment"], item["name_offset"], len(item["name"]),
+            item["type"], item["format"], item["flags"],
+            hashlib.sha256(item["payload"]).digest(), 0, 0, 0, 0)
+        start = components_offset + index * COMPONENT.size
+        output[start : start + COMPONENT.size] = record
+        start = item["data_offset"]
+        output[start : start + len(item["payload"])] = item["payload"]
+
+    output[: HEADER.size] = HEADER.pack(
+        MAGIC, VERSION, HEADER.size, len(output), 0, len(items), COMPONENT.size,
+        components_offset, strings_offset, len(strings), bytes(32), 0, 0, 0, 0)
+    output[DIGEST_OFFSET : DIGEST_OFFSET + DIGEST_SIZE] = bundle_digest(output)
+    return bytes(output)
+
+
+def checked_range(offset: int, size: int, total: int, label: str) -> tuple[int, int]:
+    if offset > total or size > total - offset:
+        raise BundleError(f"{label} is outside the bundle")
+    return offset, offset + size
+
+
+def verify_bundle(data: bytes) -> list[dict]:
+    if HEADER.size != SCHEMA["header"]["size"] or COMPONENT.size != SCHEMA["component"]["size"]:
+        raise BundleError("tool layout disagrees with schema")
+    if len(data) < HEADER.size or len(data) > MAX_BYTES:
+        raise BundleError("invalid bundle size")
+    values = HEADER.unpack_from(data)
+    (magic, version, header_size, total_size, flags, count, entry_size,
+     components_offset, strings_offset, strings_size, digest, *reserved) = values
+    if magic != MAGIC or version != VERSION or header_size != HEADER.size:
+        raise BundleError("unsupported bundle header")
+    if total_size != len(data) or flags != 0 or any(reserved):
+        raise BundleError("invalid bundle header values")
+    if count == 0 or count > MAX_COMPONENTS or entry_size != COMPONENT.size:
+        raise BundleError("invalid component table shape")
+    table_start, table_end = checked_range(
+        components_offset, count * entry_size, len(data), "component table")
+    strings_start, strings_end = checked_range(
+        strings_offset, strings_size, len(data), "string table")
+    if table_start < HEADER.size or strings_start < table_end:
+        raise BundleError("overlapping bundle metadata")
+    if components_offset % SCHEMA["component"]["alignment"]:
+        raise BundleError("misaligned component table")
+    if digest != bundle_digest(data):
+        raise BundleError("bundle SHA-256 mismatch")
+
+    result = []
+    ranges: list[tuple[int, int]] = []
+    kernels = 0
+    for index in range(count):
+        fields = COMPONENT.unpack_from(data, components_offset + index * entry_size)
+        (offset, size, memory_size, entry_offset, alignment, name_offset,
+         name_size, kind, form, component_flags, component_digest,
+         *component_reserved) = fields
+        if (any(component_reserved) or memory_size < size or size == 0 or
+                memory_size > MAX_COMPONENT_MEMORY):
+            raise BundleError(f"component {index} has invalid sizes/reserved fields")
+        if alignment < 16 or alignment > MAX_ALIGNMENT or alignment & (alignment - 1):
+            raise BundleError(f"component {index} has invalid alignment")
+        start, end = checked_range(offset, size, len(data), f"component {index}")
+        if start < strings_end or start % alignment:
+            raise BundleError(f"component {index} overlaps metadata or is misaligned")
+        for other_start, other_end in ranges:
+            if start < other_end and other_start < end:
+                raise BundleError(f"component {index} overlaps another component")
+        ranges.append((start, end))
+        name_start, name_end = checked_range(
+            name_offset, name_size, strings_size, f"component {index} name")
+        try:
+            name = data[strings_offset + name_start : strings_offset + name_end].decode("utf-8")
+        except UnicodeDecodeError as error:
+            raise BundleError(f"component {index} name is not UTF-8") from error
+        if not name or "\0" in name:
+            raise BundleError(f"component {index} name is invalid")
+        payload = data[start:end]
+        if hashlib.sha256(payload).digest() != component_digest:
+            raise BundleError(f"component {index} SHA-256 mismatch")
+        if kind == TYPE["kernel"]:
+            kernels += 1
+            if form != FORMAT["raw-position-independent"] or not (component_flags & FLAG["executable"]):
+                raise BundleError("kernel is not executable position-independent data")
+            if entry_offset >= size:
+                raise BundleError("kernel entry is outside its data")
+        elif kind not in (TYPE["component"], TYPE["ramdisk"]):
+            raise BundleError(f"component {index} has unknown type")
+        elif (form != FORMAT["data"] or component_flags & FLAG["executable"] or
+              entry_offset != 0):
+            raise BundleError(f"data component {index} has invalid format/flags")
+        if component_flags & ~(FLAG["executable"] | FLAG["required"]):
+            raise BundleError(f"component {index} has unknown flags")
+        result.append({"index": index, "name": name, "type": kind,
+                       "format": form, "flags": component_flags,
+                       "offset": offset, "size": size,
+                       "memory_size": memory_size,
+                       "entry_offset": entry_offset,
+                       "alignment": alignment,
+                       "sha256": component_digest.hex()})
+    if kernels != 1:
+        raise BundleError("bundle must contain exactly one kernel")
+    return result
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    create = subparsers.add_parser("create")
+    create.add_argument("--output", type=Path, required=True)
+    create.add_argument("--kernel", type=Path, required=True)
+    create.add_argument("--kernel-name", default="aros-kernel")
+    create.add_argument("--kernel-memory-size", type=parse_byte_count,
+                        help="preallocate and zero-fill this many bytes for the kernel")
+    create.add_argument("--component", type=parse_named_path, action="append", default=[])
+    create.add_argument("--ramdisk", type=Path)
+    create.add_argument("--ramdisk-name", default="SYS")
+    verify = subparsers.add_parser("verify")
+    verify.add_argument("bundle", type=Path)
+    inspect = subparsers.add_parser("inspect")
+    inspect.add_argument("bundle", type=Path)
+    args = parser.parse_args()
+
+    try:
+        if args.command == "create":
+            data = create_bundle(args)
+            verify_bundle(data)
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_bytes(data)
+            print(f"arosbundle result=PASS bytes={len(data)} output={args.output}")
+        else:
+            data = args.bundle.read_bytes()
+            components = verify_bundle(data)
+            print(f"arosbundle result=PASS bytes={len(data)} components={len(components)}")
+            if args.command == "inspect":
+                for component in components:
+                    print(json.dumps(component, sort_keys=True))
+    except (BundleError, OSError) as error:
+        print(f"arosbundle result=FAIL reason={error}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

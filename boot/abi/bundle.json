@@ -1,0 +1,19 @@
+{
+  "_license": "SPDX-License-Identifier: MIT",
+  "_copyright": "Copyright (c) 2026 John Knipper",
+  "abi": "AROS boot bundle",
+  "version": 1,
+  "byte_order": "little-endian",
+  "digest": "SHA-256; bundle digest is calculated with its own 32-byte field zeroed",
+  "header": {"size": 128, "alignment": 16, "magic": "AROSBNDL"},
+  "component": {"size": 128, "alignment": 16},
+  "component_types": {"kernel": 1, "component": 2, "ramdisk": 3},
+  "component_formats": {"raw-position-independent": 1, "data": 2},
+  "component_flags": {"executable": 1, "required": 2},
+  "limits": {
+    "maximum_bundle_bytes": 536870912,
+    "maximum_component_memory_bytes": 536870912,
+    "maximum_components": 1024,
+    "maximum_alignment": 2097152
+  }
+}
