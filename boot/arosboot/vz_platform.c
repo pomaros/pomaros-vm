@@ -133,7 +133,8 @@ static int find_pci_resources(struct EFI_SYSTEM_TABLE *system, struct VZPCI *out
 /* ACPI 6.6 sections 5.2.12 and 5.2.25. Bootstrap supports one GICv3
  * redistributor region and the non-secure physical/virtual timer pair. */
 struct VZInterrupts {
-    uint64_t distributor, redistributors;
+    uint64_t distributor, redistributors, msi_frame;
+    uint32_t msi_flags, msi_base, msi_count;
     uint32_t redistributor_bytes, timer[2], flags[2];
 };
 static int parse_interrupts(const uint8_t *madt, const uint8_t *gtdt,
@@ -151,6 +152,21 @@ static int parse_interrupts(const uint8_t *madt, const uint8_t *gtdt,
             if(length<24 || value.distributor || entry[20]!=3 || little(entry+16,4)) return 0;
             value.distributor=little(entry+8,8);
             if(!value.distributor || (value.distributor&65535) || value.distributor>UINT64_MAX-65536) return 0;
+        } else if(type==13) {
+            /* One non-secure MSI frame for this single-root VM profile.
+             * With flags bit 0 clear the count/base fields are NOT valid:
+             * retain no override, so the driver must read MSI_TYPER. */
+            if(length!=24 || value.msi_frame || little(entry+2,2)) return 0;
+            value.msi_frame=little(entry+8,8);
+            value.msi_flags=(uint32_t)little(entry+16,4);
+            if(!value.msi_frame || (value.msi_frame&4095) ||
+                value.msi_frame>UINT64_MAX-4096 || (value.msi_flags&~1U)) return 0;
+            if(value.msi_flags&1) {
+                value.msi_count=(uint32_t)little(entry+20,2);
+                value.msi_base=(uint32_t)little(entry+22,2);
+                if(value.msi_base<32 || !value.msi_count ||
+                    value.msi_base+value.msi_count>1020) return 0;
+            }
         } else if(type==14) {
             if(length<16 || value.redistributors || little(entry+2,2)) return 0;
             value.redistributors=little(entry+4,8);
@@ -164,6 +180,10 @@ static int parse_interrupts(const uint8_t *madt, const uint8_t *gtdt,
     if(!value.distributor || !value.redistributors ||
         (value.distributor<value.redistributors+value.redistributor_bytes &&
          value.redistributors<value.distributor+65536)) return 0;
+    if(value.msi_frame &&
+        ((value.msi_frame<value.distributor+65536 && value.distributor<value.msi_frame+4096) ||
+         (value.msi_frame<value.redistributors+value.redistributor_bytes &&
+          value.redistributors<value.msi_frame+4096))) return 0;
     for(unsigned i=0;i<2;++i) {
         value.timer[i]=(uint32_t)little(gtdt+56+8*i,4);
         uint32_t flags=(uint32_t)little(gtdt+60+8*i,4);
@@ -274,6 +294,29 @@ static int make_tree(void *memory, int capacity, const struct VMConsole *console
         FDT_STEP(fdt_property_u32(memory,"#interrupt-cells",3));
         FDT_STEP(fdt_property(memory,"interrupt-controller",NULL,0));
         FDT_STEP(fdt_property(memory,"reg",windows,sizeof(windows)));
+        if(irq->msi_frame) {
+            char name[21]="v2m@";
+            unsigned n=4,started=0;
+            for(int shift=60;shift>=0;shift-=4) {
+                unsigned digit=(unsigned)(irq->msi_frame>>shift)&15;
+                if(digit || started || !shift) { name[n++]="0123456789abcdef"[digit];started=1; }
+            }
+            name[n]=0;
+            fdt64_t frame[2]={cpu_to_fdt64(irq->msi_frame),cpu_to_fdt64(4096)};
+            FDT_STEP(fdt_property_u32(memory,"#address-cells",2));
+            FDT_STEP(fdt_property_u32(memory,"#size-cells",2));
+            FDT_STEP(fdt_property(memory,"ranges",NULL,0));
+            FDT_STEP(fdt_begin_node(memory,name));
+            FDT_STEP(fdt_property_string(memory,"compatible","arm,gic-v2m-frame"));
+            FDT_STEP(fdt_property_u32(memory,"phandle",2));
+            FDT_STEP(fdt_property(memory,"msi-controller",NULL,0));
+            FDT_STEP(fdt_property(memory,"reg",frame,sizeof(frame)));
+            if(irq->msi_flags&1) {
+                FDT_STEP(fdt_property_u32(memory,"arm,msi-base-spi",irq->msi_base));
+                FDT_STEP(fdt_property_u32(memory,"arm,msi-num-spis",irq->msi_count));
+            }
+            FDT_STEP(fdt_end_node(memory));
+        }
         FDT_STEP(fdt_end_node(memory));
         FDT_STEP(fdt_begin_node(memory,"timer"));
         FDT_STEP(fdt_property_string(memory,"compatible","arm,armv8-timer"));
@@ -303,6 +346,9 @@ static int make_tree(void *memory, int capacity, const struct VMConsole *console
         FDT_STEP(fdt_property_u32(memory,"#address-cells",3));
         FDT_STEP(fdt_property_u32(memory,"#size-cells",2));
         FDT_STEP(fdt_property_u32(memory,"linux,pci-domain",0));
+        /* No ITS/device-ID routing is inferred from an unrelated MADT entry.
+         * This profile only associates its sole root with its sole MSI frame. */
+        if(irq && irq->msi_frame) FDT_STEP(fdt_property_u32(memory,"msi-parent",2));
         FDT_STEP(fdt_property(memory,"reg",config,sizeof(config)));
         FDT_STEP(fdt_property(memory,"bus-range",buses,sizeof(buses)));
         FDT_STEP(fdt_property(memory,"ranges",ranges,(int)pci->count*28));
@@ -329,12 +375,16 @@ EFI_STATUS arosboot_vz_platform(struct EFI_SYSTEM_TABLE *system,struct AROSBootI
         ecam>UINT64_MAX-(((uint64_t)pci.last_bus+1)<<20)) return EFI_NOT_FOUND;
     pci.ecam=ecam;
     uint64_t ecam_end=ecam+(((uint64_t)pci.last_bus+1)<<20);
+    if(interrupts.msi_frame && interrupts.msi_frame<ecam_end &&
+        ecam<interrupts.msi_frame+4096) return EFI_LOAD_ERROR;
     for(unsigned i=0;i<pci.count;++i) {
         const struct VZPCIRange *r=&pci.ranges[i];
         if((r->cpu<ecam_end && ecam<r->cpu+r->size) ||
            (r->cpu<interrupts.distributor+65536 && interrupts.distributor<r->cpu+r->size) ||
            (r->cpu<interrupts.redistributors+interrupts.redistributor_bytes &&
-            interrupts.redistributors<r->cpu+r->size)) return EFI_LOAD_ERROR;
+            interrupts.redistributors<r->cpu+r->size) ||
+           (interrupts.msi_frame && r->cpu<interrupts.msi_frame+4096 &&
+            interrupts.msi_frame<r->cpu+r->size)) return EFI_LOAD_ERROR;
     }
     struct VMConsole *console=NULL;void *memory=NULL;
     EFI_STATUS status=arosboot_allocate_owned(system->boot_services,4096,4096,

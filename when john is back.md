@@ -951,3 +951,39 @@ Build standard `make -j8 kernel-virtio` PASS ; virtio.device SHA256
 `make test` PASS. Ancienne image entropie-only refusée dans
 `artifacts/vz-pci-block-queue-negative` malgré son boot et son DMA réussis.
 Revue 219 ; commits VM `c59b1fe`, core `eaa7e42a5e`.
+
+## MSI discovery and strict malformed-FDT checks
+
+The ACPI-to-FDT bridge retains the single MADT type-13 MSI frame for the
+single-root VM profile, as an `arm,gic-v2m-frame` child and PCI `msi-parent`.
+It rejects duplicates, reserved fields, invalid alignment/overflow, overlaps
+with GIC/ECAM/PCI apertures, and invalid overridden SPI ranges. Per ACPI 6.6
+§5.2.12.16, count/base are ignored when flags bit 0 is clear: the eventual
+controller driver must read MSI_TYPER. VZ's retained ACPI dump has exactly
+that case. No hardcoded VZ address or inferred ITS/device-ID route is used.
+This is discovery only: MSI frame mapping, allocation and PCI MSI-X delivery
+remain to implement; the shared block queue test still polls completions.
+
+Host parser tests cover both flags cases, FDT phandle association, absent
+frame, duplicate/truncated/misaligned/overlapping frames and invalid ranges.
+EFI build PASS, SHA256
+`0e406d54c4ba860909164b3c2a066a75c7cd3f5697258130dc6b70624fd097a9`.
+Boot regression artifacts `artifacts/vz-pci-msi-fdt` and
+`artifacts/hvf-pci-msi-fdt` PASS including resident PCI, entropy and block read.
+VZ input disk `d649709ca4218b251a0e9aad78455a3fe8d52c5a2bf617635ac0df96261ad5a6`;
+core bundle remains `162675ea4125a415a7d811f00ec7f92b3b6c6b4dc83bd44b0f43cda024d57f40`.
+These runs precede the following independent early-reader hardening.
+
+Running the whole suite with UBSan halt-on-error exposed an existing malformed
+FDT mutation reaching an unaligned token load in libfdt. AROSEarlyFDTOpen now
+rejects unaligned structure/reservation offsets before invoking libfdt.
+The explicit regression covers every invalid alignment bit and empty output
+state; the mutation survey remains. early-fdt and vz-platform tests compile
+with `-fno-sanitize-recover=all` so a sanitizer finding cannot be hidden behind
+a successful exit. A separate unaligned 64-bit property read in the new host
+test was replaced by libfdt's byte-safe accessor before qualification.
+Review 219 (owned block DMA and actual sector read) approved. SMP untouched.
+
+`UBSAN_OPTIONS=halt_on_error=1 make test` PASS after both fixes; detailed log
+`/tmp/vm-msi-host-tests-2.log`. Guest rebuild/boot of the early-reader change
+is the next regression gate before admitting MSI MMIO into the kernel map.

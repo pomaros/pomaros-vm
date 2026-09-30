@@ -56,7 +56,7 @@ int main(void) {
     unsigned char guard[128];memset(guard,0xa5,sizeof(guard));
     assert(make_tree(guard,64,&state,0x1000,NULL,NULL)==-FDT_ERR_NOSPACE);
     for(unsigned i=64;i<sizeof(guard);++i) assert(guard[i]==0xa5);
-    uint8_t madt[100]={0},gtdt[104]={0};
+    uint8_t madt[132]={0},gtdt[104]={0};
     memcpy(madt,"APIC",4);put(madt+4,84,4);
     madt[44]=12;madt[45]=24;put(madt+52,0x10000000,8);madt[64]=3;
     madt[68]=14;madt[69]=16;put(madt+72,0x10010000,8);put(madt+80,0x20000,4);
@@ -114,6 +114,55 @@ int main(void) {
     const fdt32_t *ranges=fdt_getprop(tree,bus,"ranges",&length);
     assert(ranges && length==56 && fdt32_to_cpu(ranges[7])==0x43000000 &&
         fdt32_to_cpu(ranges[8])==1 && fdt32_to_cpu(ranges[10])==1);
+    /* MADT MSI frame: flags=0 ignores even nonsense count/base fields.
+     * This matches VZ firmware, which supplies a frame without an override. */
+    memset(madt+84,0,48);put(madt+4,108,4);
+    madt[84]=13;madt[85]=24;put(madt+92,0x1fff0000,8);
+    put(madt+104,0xffff,2);put(madt+106,0xffff,2);sum(madt,108,9);
+    assert(parse_interrupts(madt,gtdt,&irq));
+    assert(irq.msi_frame==0x1fff0000 && !irq.msi_base && !irq.msi_count);
+    assert(make_tree(tree,sizeof(tree),&state,0x1000,&irq,&pci)==0);
+    int frame=fdt_path_offset(tree,"/interrupt-controller/v2m@1fff0000");
+    assert(frame>0 && fdt_node_check_compatible(tree,frame,"arm,gic-v2m-frame")==0);
+    const fdt64_t *frame_reg=fdt_getprop(tree,frame,"reg",&length);
+    assert(frame_reg && length==16 && fdt64_ld(frame_reg)==0x1fff0000 &&
+        fdt64_ld(frame_reg+1)==4096);
+    assert(fdt_getprop(tree,frame,"msi-controller",&length) && length==0);
+    assert(!fdt_getprop(tree,frame,"arm,msi-base-spi",NULL));
+    bus=fdt_path_offset(tree,"/pcie");
+    cells=fdt_getprop(tree,bus,"msi-parent",&length);
+    assert(cells && length==4 && fdt32_to_cpu(cells[0])==2);
+    assert(fdt_node_offset_by_phandle(tree,2)==frame);
+    put(madt+100,1,4);put(madt+104,128,2);put(madt+106,128,2);sum(madt,108,9);
+    assert(parse_interrupts(madt,gtdt,&irq) && irq.msi_base==128 && irq.msi_count==128);
+    assert(make_tree(tree,sizeof(tree),&state,0x1000,&irq,&pci)==0);
+    frame=fdt_path_offset(tree,"/interrupt-controller/v2m@1fff0000");
+    cells=fdt_getprop(tree,frame,"arm,msi-num-spis",&length);
+    assert(cells && length==4 && fdt32_to_cpu(*cells)==128);
+    cells=fdt_getprop(tree,frame,"arm,msi-base-spi",&length);
+    assert(cells && length==4 && fdt32_to_cpu(*cells)==128);
+    /* Reserved bits, invalid ranges, alignment/overflow and aliasing fail. */
+    put(madt+100,2,4);sum(madt,108,9);assert(!parse_interrupts(madt,gtdt,&irq));
+    put(madt+100,1,4);put(madt+104,0,2);sum(madt,108,9);assert(!parse_interrupts(madt,gtdt,&irq));
+    put(madt+104,128,2);put(madt+106,31,2);sum(madt,108,9);assert(!parse_interrupts(madt,gtdt,&irq));
+    put(madt+106,1000,2);sum(madt,108,9);assert(!parse_interrupts(madt,gtdt,&irq));
+    put(madt+106,128,2);madt[86]=1;sum(madt,108,9);assert(!parse_interrupts(madt,gtdt,&irq));
+    madt[86]=0;
+    const uint64_t invalid_frames[]={0,0x1fff0001,UINT64_MAX-4095,0x10000000,0x1002f000};
+    for(unsigned i=0;i<sizeof(invalid_frames)/sizeof(invalid_frames[0]);++i) {
+        put(madt+92,invalid_frames[i],8);sum(madt,108,9);
+        assert(!parse_interrupts(madt,gtdt,&irq));
+    }
+    put(madt+92,0x1fff0000,8);
+    madt[85]=23;sum(madt,108,9);assert(!parse_interrupts(madt,gtdt,&irq));
+    madt[85]=25;sum(madt,108,9);assert(!parse_interrupts(madt,gtdt,&irq));
+    madt[85]=24;
+    memcpy(madt+108,madt+84,24);put(madt+4,132,4);sum(madt,132,9);
+    assert(!parse_interrupts(madt,gtdt,&irq));
+    put(madt+4,84,4);sum(madt,84,9);assert(parse_interrupts(madt,gtdt,&irq));
+    assert(make_tree(tree,sizeof(tree),&state,0x1000,&irq,&pci)==0);
+    assert(fdt_path_offset(tree,"/interrupt-controller/v2m@1fff0000")==-FDT_ERR_NOTFOUND);
+    bus=fdt_path_offset(tree,"/pcie");assert(!fdt_getprop(tree,bus,"msi-parent",NULL));
     mem[30]=1;assert(!parse_pci_resources(resources,sizeof(resources),&pci));mem[30]=0;
     mem[14]=1;assert(!parse_pci_resources(resources,sizeof(resources),&pci));mem[14]=0;
     mem[1]=42;assert(!parse_pci_resources(resources,sizeof(resources),&pci));mem[1]=43;
@@ -121,5 +170,5 @@ int main(void) {
     resources[139]=1;assert(!parse_pci_resources(resources,sizeof(resources),&pci));
     sum(resources,sizeof(resources),139);assert(parse_pci_resources(resources,sizeof(resources),&pci));
     free(ecam);
-    puts("vz-platform result=PASS groups=ACPI-PCI,root-apertures,IRQ-bindings,FDT");
+    puts("vz-platform result=PASS groups=ACPI-PCI,root-apertures,IRQ-bindings,MSI-frame,FDT");
 }

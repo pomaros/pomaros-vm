@@ -25,7 +25,7 @@ def number(path,node,key,default):
 with tempfile.TemporaryDirectory() as temp:
  work=Path(temp);exe=work/'reader'
  sources=[fdt/'early_fdt.c',*[fdt/'libfdt'/n for n in ['fdt.c','fdt_ro.c','fdt_check.c']]]
- run(['clang','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',
+ run(['clang','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-fno-sanitize-recover=all',
       '-I'+str(fdt),'-I'+str(fdt/'libfdt'),str(root/'tests/early-fdt.c'),*map(str,sources),'-o',str(exe)])
  fixture=work/'portable.dtb'
  run(['dtc','-q','-I','dts','-O','dtb','-o',str(fixture),str(root/'tests/fdt/portable.dts')])

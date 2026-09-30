@@ -34,7 +34,7 @@ build/macaros-vm: src/main.swift entitlements.plist | build
 	codesign --force --sign - --entitlements entitlements.plist $@
 
 build/vz-platform-test: tests/vz-platform.c boot/arosboot/vz_platform.c include/vm-console.h $(FDT_SOURCES) | build
-	clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined \
+	clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -fno-sanitize-recover=all \
 	 -Iboot/arosboot/include -Iinclude -I$(FDT_DIR)/libfdt $< $(FDT_SOURCES) -o $@
 
 GIC_CONTRACT_SOURCES := $(AROS_CORE_SOURCE)/arch/aarch64-apple/bootstrap/stage2_tags.c \

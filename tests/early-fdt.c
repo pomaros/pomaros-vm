@@ -60,6 +60,17 @@ int main(int argc,char **argv)
         struct AROSEarlyFDT bad;assert(!AROSEarlyFDTOpen(&bad,small,cut));assert(!bad.blob);free(small);
     }
     data[0]^=1;assert(!AROSEarlyFDTOpen(&t,data,(size_t)n));data[0]^=1;
+    /* Misaligned structure and reservation blocks are rejected before any
+     * libfdt scalar access, with an empty output tree. */
+    const unsigned offset_lsb[]={11,19};
+    for(unsigned field=0;field<2;++field) {
+        unsigned at=offset_lsb[field];unsigned char saved=data[at];
+        for(unsigned bit=0;bit<(field?3:2);++bit) {
+            data[at]=saved^(1u<<bit);
+            assert(!AROSEarlyFDTOpen(&t,data,(size_t)n) && !t.blob);
+        }
+        data[at]=saved;
+    }
     /* Deterministic bounded mutation survey; valid survivors are walked too. */
     unsigned seed=0x41524f53,mutations=argc==3?2048:256;
     for(unsigned i=0;i<mutations;++i) {
