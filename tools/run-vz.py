@@ -13,6 +13,7 @@ import subprocess
 import time
 root=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser()
+p.add_argument('--require-desktop-session',type=int,metavar='SECONDS')
 p.add_argument('--require-usb-desktop',action='store_true')
 p.add_argument('--usb-input',action='store_true')
 p.add_argument('--require-xhci-driver',action='store_true')
@@ -30,6 +31,8 @@ p.add_argument('--disk',type=Path,required=True)
 p.add_argument('--output',type=Path,required=True)
 p.add_argument('--timeout',type=float,default=45)
 a=p.parse_args()
+if a.require_desktop_session is not None and (not a.desktop_startup or not 1 <= a.require_desktop_session <= 3600):
+    p.error('--require-desktop-session requires --desktop-startup and 1..3600 seconds')
 if a.require_usb_desktop and not (a.desktop_startup and a.usb_input):
     p.error('--require-usb-desktop requires --desktop-startup --usb-input')
 if a.require_xhci_enumeration and not a.require_xhci_driver:
@@ -64,6 +67,8 @@ markers=['[VM] OpenFirmware FDT + PCI config PASS',
 if a.desktop_startup:
     markers.remove('[VM] OpenFirmware FDT + PCI config PASS')
     markers += ['[VMPci] resident bridge registered', '[VM] virtio graphics driver registered']
+if a.require_desktop_session is not None:
+    markers += ['[KI] shell launched','[KI] hold bounded','[KI] hold complete']
 if a.require_usb_desktop: markers += ['[VM] desktop two HID bindings PASS']
 if a.require_pci_hidd:
     markers += ['[VM] PCI HIDD class + reserved console PASS',
@@ -96,6 +101,10 @@ with log.open('w') as out:
         while time.monotonic()-start<a.timeout:
             text=log.read_text(errors='replace')
             if 'FAIL:' in text: reason='guest-failure';break
+            if a.require_usb_desktop and '[KI] desktop stable' in text and '[VM] desktop two HID bindings PASS' not in text:
+                reason='desktop-without-hid-bindings';break
+            if a.require_desktop_session is not None and '[B2Q] AROS startup contract PASS' in text and '[KI] hold complete' not in text:
+                reason='desktop-session-not-run';break
             if a.require_gpu_scanout and not pixels_verified and '[VM] virtio GPU scanout ready' in text and capture_count<10:
                 window=re.search(r'window-id=(\d+)',text)
                 if window:
@@ -110,7 +119,8 @@ with log.open('w') as out:
                         expected=[(255,0,0),(0,255,0),(0,0,255),(255,255,255)]
                         pixels_verified=all(abs(a-b)<16 for pixel,color in zip(actual,expected) for a,b in zip(pixel,color))
                         (a.output/'pixels.json').write_text(json.dumps({'actual':actual,'expected':expected,'passed':pixels_verified})+'\n')
-            if (not a.require_gpu_scanout or pixels_verified) and all(text.count(marker)==1 for marker in markers): passed=True;reason='headless-startup-contract';break
+            session_ok=(a.require_desktop_session is None or (time.monotonic()-start>=a.require_desktop_session and text.count('[KI] tick')>=max(1,a.require_desktop_session//2)))
+            if session_ok and (not a.require_gpu_scanout or pixels_verified) and all(text.count(marker)==1 for marker in markers): passed=True;reason='headless-startup-contract';break
             if proc.poll() is not None: reason='early-exit';break
             time.sleep(.1)
     except Exception as error:
@@ -125,6 +135,7 @@ if a.require_gpu_scanout and not pixels_verified and reason=='timeout' and all(t
 boot=subprocess.run(['mtype','-i',str(disk),'::BOOT.LOG'],capture_output=True)
 (a.output/'firmware.log').write_bytes(boot.stdout)
 verdict={'result':'PASS' if passed else 'FAIL','reason':reason,
+         'desktop_session_seconds':a.require_desktop_session,'desktop_session_verified':passed and a.require_desktop_session is not None,
          'backend':'Virtualization.framework','graphics':a.require_gpu or a.desktop_startup,'usb_input_exposed':a.usb_input,'xhci_mapping_required':a.usb_input and a.require_pci_hidd,'input_verified':False,'usb_hid_bindings_verified':passed and a.require_usb_desktop,'xhci_driver_required':a.require_xhci_driver,'xhci_enumeration_required':a.require_xhci_enumeration,'usb_child_descriptors_verified':passed and a.require_xhci_enumeration,'usb_transfers_verified':False,'desktop_startup':a.desktop_startup,'desktop_pixels_verified':False,'gpu_query_required':a.require_gpu,'gpu_scanout_required':a.require_gpu_scanout,'pixels_verified':pixels_verified,'storage_phase':a.storage_phase,'filesystem_phase':a.filesystem_phase,
          'pci_hidd_required':a.require_pci_hidd,'msi_frame_required':a.require_msi_frame,'msi_irq_required':a.require_msi_irq,'virtio_device_required':a.require_virtio_device,
          'seconds':round(time.monotonic()-start,2),

@@ -6,6 +6,49 @@
 #include "vm-console.h"
 #include <libfdt.h>
 
+/* Optional ESP session policy: absent means the bounded boot proof. Values
+ * are decimal seconds 1..3600 or "forever", each terminated by one newline.
+ * Keep firmware policy separate from the portable kernel's chosen contract. */
+static int session_policy(char *text, size_t bytes) {
+    if(bytes == 8 && text[0]=='f' && text[1]=='o' && text[2]=='r' &&
+       text[3]=='e' && text[4]=='v' && text[5]=='e' && text[6]=='r' && text[7]=='\n') {
+        text[7]=0;return 1;
+    }
+    if(bytes<2 || bytes>5 || text[bytes-1]!='\n' || text[0]=='0')return 0;
+    unsigned value=0;
+    for(size_t i=0;i<bytes-1;++i) {
+        if(text[i]<'0' || text[i]>'9')return 0;
+        value=value*10+(unsigned)(text[i]-'0');
+    }
+    if(value<1 || value>3600)return 0;
+    text[bytes-1]=0;return 1;
+}
+static EFI_STATUS read_session_policy(EFI_HANDLE image, struct EFI_SYSTEM_TABLE *system,
+                                      char policy[16]) {
+    static const struct EFI_GUID loaded_guid={0x5b1b31a1,0x9562,0x11d2,{0x8e,0x3f,0,0xa0,0xc9,0x69,0x72,0x3b}};
+    static const struct EFI_GUID fs_guid={0x964e5b22,0x6459,0x11d2,{0x8e,0x39,0,0xa0,0xc9,0x69,0x72,0x3b}};
+    struct EFI_LOADED_IMAGE_PROTOCOL *loaded=NULL;
+    struct EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *fs=NULL;
+    struct EFI_FILE_PROTOCOL *root=NULL,*file=NULL;
+    EFI_CHAR16 path[]={'A','R','O','S','\\','S','E','S','S','I','O','N','.','C','F','G',0};
+    policy[0]=0;
+    EFI_STATUS status=system->boot_services->handle_protocol(image,&loaded_guid,(void **)&loaded);
+    if(EFI_ERROR(status))return status;
+    status=system->boot_services->handle_protocol(loaded->device_handle,&fs_guid,(void **)&fs);
+    if(EFI_ERROR(status))return status;
+    status=fs->open_volume(fs,&root);
+    if(EFI_ERROR(status))return status;
+    status=root->open(root,&file,path,1,0);
+    root->close(root);
+    if(status==EFI_NOT_FOUND)return EFI_SUCCESS;
+    if(EFI_ERROR(status))return status;
+    EFI_UINTN bytes=16;
+    status=file->read(file,&bytes,policy);
+    file->close(file);
+    if(EFI_ERROR(status))return status;
+    return session_policy(policy,bytes)?EFI_SUCCESS:EFI_LOAD_ERROR;
+}
+
 static uint64_t little(const uint8_t *p,unsigned n) {
     uint64_t v=0;for(unsigned i=0;i<n;++i) v|=(uint64_t)p[i]<<(i*8);return v;
 }
@@ -263,7 +306,7 @@ static int find_console(uint64_t ecam,struct VMConsole *state) {
 }
 /* Bounded sequential writer shared with the reference FDT implementation.
  * Firmware discovery ends here; the kernel consumes the resulting FDT. */
-static int make_tree(void *memory, int capacity, const struct VMConsole *console, uint64_t rsdp, const struct VZInterrupts *irq, const struct VZPCI *pci)
+static int make_tree(void *memory, int capacity, const struct VMConsole *console, uint64_t rsdp, const struct VZInterrupts *irq, const struct VZPCI *pci, const char *session)
 {
     fdt64_t reg[2]={cpu_to_fdt64(console->region_start),
         cpu_to_fdt64(console->region_end-console->region_start)};
@@ -278,6 +321,12 @@ static int make_tree(void *memory, int capacity, const struct VMConsole *console
     FDT_STEP(fdt_property_u64(memory,"aros,acpi-rsdp",rsdp));
     FDT_STEP(fdt_begin_node(memory,"chosen"));
     FDT_STEP(fdt_property_string(memory,"stdout-path","/console"));
+    if(session && session[0]) {
+        if(session[0]=='f')
+            FDT_STEP(fdt_property_string(memory,"aros,desktop-hold-forever","1"));
+        else
+            FDT_STEP(fdt_property_string(memory,"aros,desktop-hold-seconds",session));
+    }
     FDT_STEP(fdt_end_node(memory));
     if(irq) {
         fdt64_t windows[4]={cpu_to_fdt64(irq->distributor),cpu_to_fdt64(65536),
@@ -365,7 +414,10 @@ static int make_tree(void *memory, int capacity, const struct VMConsole *console
     return fdt_check_full(memory,(size_t)capacity);
 #undef FDT_STEP
 }
-EFI_STATUS arosboot_vz_platform(struct EFI_SYSTEM_TABLE *system,struct AROSBootInfo *info) {
+EFI_STATUS arosboot_vz_platform(EFI_HANDLE image,struct EFI_SYSTEM_TABLE *system,struct AROSBootInfo *info) {
+    char session[16];
+    EFI_STATUS policy_status=read_session_policy(image,system,session);
+    if(EFI_ERROR(policy_status))return policy_status;
     uint32_t ecam_last=0;
     uint64_t rsdp=0,ecam=find_ecam(system,&rsdp,&ecam_last);
     struct VZInterrupts interrupts;
@@ -404,7 +456,7 @@ EFI_STATUS arosboot_vz_platform(struct EFI_SYSTEM_TABLE *system,struct AROSBootI
         return status;
     }
     system->boot_services->set_mem(memory,4096,0);
-    if(make_tree(memory,4096,console,rsdp,&interrupts,&pci)) {
+    if(make_tree(memory,4096,console,rsdp,&interrupts,&pci,session)) {
         arosboot_free_owned(system->boot_services,memory);
         arosboot_free_owned(system->boot_services,console);
         return EFI_LOAD_ERROR;

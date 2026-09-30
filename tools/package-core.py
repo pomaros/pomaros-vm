@@ -17,6 +17,7 @@ p.add_argument('--virtio-gpu', action='store_true')
 p.add_argument('--pci-hidd', action='store_true')
 p.add_argument('--virtio-device', action='store_true')
 p.add_argument('--startup-sequence', type=Path)
+p.add_argument('--desktop-session', help='1..3600 seconds or forever; omitted for boot proof')
 p.add_argument('--usb-desktop', action='store_true')
 p.add_argument('--xhci-driver', action='store_true')
 p.add_argument('--xhci-enumerate', action='store_true')
@@ -26,6 +27,11 @@ p.add_argument('--profile', choices=['headless', 'wanderer'], default='headless'
 p.add_argument('--toolchain', type=Path, default=Path.home() / 'aros-crosstools')
 p.add_argument('--efi', type=Path, default=root / 'build/uefi/BOOTAA64.EFI')
 a = p.parse_args()
+if a.desktop_session is not None:
+    if a.profile != 'wanderer' or not a.virtio_gpu:
+        p.error('--desktop-session requires wanderer and --virtio-gpu')
+    if a.desktop_session != 'forever' and not (a.desktop_session.isascii() and a.desktop_session.isdecimal() and not a.desktop_session.startswith('0') and 1 <= int(a.desktop_session) <= 3600):
+        p.error('--desktop-session must be 1..3600 or forever')
 if a.startup_sequence and (a.profile != 'wanderer' or a.usb_desktop):
     p.error('--startup-sequence requires wanderer without --usb-desktop')
 if a.usb_desktop and not (a.profile == 'wanderer' and a.virtio_gpu):
@@ -134,16 +140,18 @@ data = bundle['create_bundle'](args)
 entries = bundle['verify_bundle'](data)
 (output / 'AROS').mkdir()
 (output / 'EFI/BOOT').mkdir(parents=True)
+if a.desktop_session is not None:
+    (output/'AROS/SESSION.CFG').write_text(a.desktop_session+'\n')
 destination = output / 'AROS/GEN0.BND'
 destination.write_bytes(data)
 subprocess.run(['python3', str(root / 'tools/boot_generation.py'), 'create',
                 '--bundle', str(destination), '--sequence', '1', '--slot', '0',
                 '--state', 'accepted', '--output', str(output / 'AROS/BOOT0.ID')], check=True)
 shutil.copyfile(efi, output / 'EFI/BOOT/BOOTAA64.EFI')
-inputs = ([pci_probe] if a.pci_hidd else []) + [path for _, path in pci_files] + [stage2, efi, probe, ramdisk] + [path for _, path in components] + programs
+inputs = ([output/'AROS/SESSION.CFG'] if a.desktop_session is not None else []) + ([pci_probe] if a.pci_hidd else []) + [path for _, path in pci_files] + [stage2, efi, probe, ramdisk] + [path for _, path in components] + programs
 manifest = {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in inputs}
 (output / 'provenance.json').write_text(json.dumps({
-    'profile': a.profile, 'usb_desktop': a.usb_desktop, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,
+    'profile': a.profile, 'desktop_session': a.desktop_session, 'usb_desktop': a.usb_desktop, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,
     'source_revision': revision, 'configure_command': configure_command,
     'inputs': manifest, 'bundle_sha256': hashlib.sha256(data).hexdigest(),
 }, indent=2) + '\n')

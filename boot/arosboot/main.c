@@ -599,8 +599,8 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, struct EFI_SYSTEM_TABLE *system)
 
     status = copy_fdt(system, boot_info);
     if (status == EFI_NOT_FOUND) {
-        extern EFI_STATUS arosboot_vz_platform(struct EFI_SYSTEM_TABLE *, struct AROSBootInfo *);
-        status = arosboot_vz_platform(system,boot_info);
+        extern EFI_STATUS arosboot_vz_platform(EFI_HANDLE, struct EFI_SYSTEM_TABLE *, struct AROSBootInfo *);
+        status = arosboot_vz_platform(image,system,boot_info);
         if (!EFI_ERROR(status)) {
             print_ascii(system,"AROSBOOTAA64: ACPI platform bridge + virtio console prepared\r\n");
             print_pci_tree(system,(const void *)(uintptr_t)boot_info->fdt_physical);

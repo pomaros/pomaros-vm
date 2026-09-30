@@ -2074,3 +2074,38 @@ has been attempted. Full stage-six goal remains open; SMP untouched.
   ne satisfait pas la gate HID (timeout attendu à 6,11 s).
 - Ces tests portent sur VZ mono-cœur ; ils ne valident ni des événements
   clavier/souris, ni une session prolongée, ni le matériel physique.
+
+## Session VZ maintenue après le lancement du bureau
+
+- Le chargeur lit une politique optionnelle AROS/SESSION.CFG sur son ESP :
+  secondes 1..3600 ou forever, suivies d'un seul saut de ligne. Traduction
+  vers les propriétés chosen déjà utilisées par open_shell_and_hold ; pas de
+  nouveau mécanisme noyau, pas de changement SMP. Absence = preuve de boot.
+  Les propriétés sont des chaînes décimales, conformément au lecteur noyau.
+- `--desktop-session` au packaging et `--require-desktop-session` dans le
+  runner rendent ce chemin reproductible. Le runner exige shell, début/fin
+  de période, nombre de ticks, durée hôte et contrat normal de démarrage.
+  Les événements et pixels restent explicitement non vérifiés.
+- `vz-usb-desktop-session30` PASS 32,37 s : shell et fenêtre alive ouverts,
+  input.device ouvert, 15 ticks, hold complete, puis contrat de démarrage.
+  Core95f8c95032 inchangé. Bundle89def052eb4f9879f7aafa285bb58bff285bbd0f507cdf717e31ad5d61743af5.
+  Disque c3f1205e67ccf8b2bad6ed595bc39041a0943d502764520492c8b4743a76643d.
+  EFI e6b21692a8a4b838e880c2cee89ff116a121b7e63e48fd42cd791ba77b53cc55.
+  Ce premier package précède l'ajout du hash SESSION.CFG à inputs ; sa valeur
+  desktop_session=30 et l'identité du disque sont enregistrées.
+- Sans politique, `vz-usb-desktop-session-default` PASS 2,50 s. La gate
+  exigeant 30 s sur cette même image échoue explicitement en 2,35 s
+  (`vz-desktop-session-missing`, desktop-session-not-run).
+- Revues250/251 approuvées. La remarque251 est traitée : une image sans
+  VMUSB échoue désormais dès desktop stable, raison desktop-without-hid-bindings,
+  en 1,64 s (`vz-usb-desktop-missing-explicit`), sans attendre un timeout.
+- Tests ASan/UBSan du parseur/FDT : valeurs limites, entrées malformées,
+  absence, propriétés bounded/forever exclusives ; PASS après correction
+  d'une double déclaration locale dans le test. Build EFI -Werror PASS.
+- Limites : 30 s de session ordonnancée n'est pas une qualification prolongée.
+  Pas de frappe ou mouvement hôte observé dans une fenêtre invitée. Le mode
+  forever est exposé pour l'usage interactif mais n'est pas qualifié comme
+  stable à long terme. Prochain travail : observation et livraison des entrées
+  réelles, puis durées longues/annulations USB. M1 et Pi non utilisés.
+- Suite `make test` complète PASS (artifacts/desktop-session-host-tests.log),
+  y compris ABI x18, FDT/early-FDT, GIC, PCI et virtio ; pas de test physique.

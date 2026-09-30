@@ -21,6 +21,15 @@ static void sum(uint8_t *p,unsigned size,unsigned offset) {
     p[offset]=0;uint8_t v=0;for(unsigned i=0;i<size;++i) v+=p[i];p[offset]=(uint8_t)-v;
 }
 int main(void) {
+    char policy[16];
+    const char *valid[]={"1\n","30\n","3600\n","forever\n"};
+    const char *invalid[]={"","0\n","01\n","3601\n","-1\n","1","1\nX","forever","forever\nX","99999\n"};
+    for(unsigned i=0;i<sizeof(valid)/sizeof(*valid);++i) {
+        strcpy(policy,valid[i]);assert(session_policy(policy,strlen(policy)));
+    }
+    for(unsigned i=0;i<sizeof(invalid)/sizeof(*invalid);++i) {
+        strcpy(policy,invalid[i]);assert(!session_policy(policy,strlen(policy)));
+    }
     uint8_t rsdp[36]={0},xsdt[44]={0},mcfg[60]={0};
     memcpy(rsdp,"RSD PTR ",8);rsdp[15]=2;put(rsdp+20,36,4);put(rsdp+24,(uintptr_t)xsdt,8);
     memcpy(xsdt,"XSDT",4);put(xsdt+4,sizeof(xsdt),4);put(xsdt+36,(uintptr_t)mcfg,8);
@@ -50,11 +59,21 @@ int main(void) {
     put(cfg+0x4c,8,4);assert(!find_console((uintptr_t)ecam,&state));
     _Alignas(8) unsigned char tree[4096];
     memset(tree,0,sizeof(tree));
-    assert(make_tree(tree,sizeof(tree),&state,0x1000,NULL,NULL)==0);
+    assert(make_tree(tree,sizeof(tree),&state,0x1000,NULL,NULL,NULL)==0);
     assert(fdt_check_full(tree,sizeof(tree))==0);
     assert(fdt_path_offset(tree,"/chosen")>0 && fdt_path_offset(tree,"/console")>0);
+    int chosen=fdt_path_offset(tree,"/chosen"),length;
+    assert(!fdt_getprop(tree,chosen,"aros,desktop-hold-seconds",&length));
+    assert(make_tree(tree,sizeof(tree),&state,0x1000,NULL,NULL,"30")==0);
+    chosen=fdt_path_offset(tree,"/chosen");
+    assert(!strcmp(fdt_getprop(tree,chosen,"aros,desktop-hold-seconds",&length),"30"));
+    assert(!fdt_getprop(tree,chosen,"aros,desktop-hold-forever",&length));
+    assert(make_tree(tree,sizeof(tree),&state,0x1000,NULL,NULL,"forever")==0);
+    chosen=fdt_path_offset(tree,"/chosen");
+    assert(!strcmp(fdt_getprop(tree,chosen,"aros,desktop-hold-forever",&length),"1"));
+    assert(!fdt_getprop(tree,chosen,"aros,desktop-hold-seconds",&length));
     unsigned char guard[128];memset(guard,0xa5,sizeof(guard));
-    assert(make_tree(guard,64,&state,0x1000,NULL,NULL)==-FDT_ERR_NOSPACE);
+    assert(make_tree(guard,64,&state,0x1000,NULL,NULL,NULL)==-FDT_ERR_NOSPACE);
     for(unsigned i=64;i<sizeof(guard);++i) assert(guard[i]==0xa5);
     uint8_t madt[132]={0},gtdt[104]={0};
     memcpy(madt,"APIC",4);put(madt+4,84,4);
@@ -67,7 +86,7 @@ int main(void) {
     assert(parse_interrupts(madt,gtdt,&irq));
     assert(irq.distributor==0x10000000 && irq.redistributors==0x10010000);
     assert(irq.timer[0]==30 && irq.timer[1]==27 && irq.flags[1]==4);
-    assert(make_tree(tree,sizeof(tree),&state,0x1000,&irq,NULL)==0);
+    assert(make_tree(tree,sizeof(tree),&state,0x1000,&irq,NULL,NULL)==0);
     int timer=fdt_path_offset(tree,"/timer");
     assert(fdt_stringlist_search(tree,timer,"interrupt-names","virt")==1);
     const fdt32_t *cells=fdt_getprop(tree,timer,"interrupts",NULL);
@@ -109,8 +128,8 @@ int main(void) {
     assert(pci.count==2 && pci.last_bus==255 && pci.ranges[1].flags==0x43000000);
     for(size_t n=0;n<sizeof(resources);++n) assert(!parse_pci_resources(resources,n,&pci));
     pci.ecam=0x40000000;
-    assert(make_tree(tree,sizeof(tree),&state,0x1000,NULL,&pci)==0);
-    int bus=fdt_path_offset(tree,"/pcie"),length;
+    assert(make_tree(tree,sizeof(tree),&state,0x1000,NULL,&pci,NULL)==0);
+    int bus=fdt_path_offset(tree,"/pcie");
     const fdt32_t *ranges=fdt_getprop(tree,bus,"ranges",&length);
     assert(ranges && length==56 && fdt32_to_cpu(ranges[7])==0x43000000 &&
         fdt32_to_cpu(ranges[8])==1 && fdt32_to_cpu(ranges[10])==1);
@@ -121,7 +140,7 @@ int main(void) {
     put(madt+104,0xffff,2);put(madt+106,0xffff,2);sum(madt,108,9);
     assert(parse_interrupts(madt,gtdt,&irq));
     assert(irq.msi_frame==0x1fff0000 && !irq.msi_base && !irq.msi_count);
-    assert(make_tree(tree,sizeof(tree),&state,0x1000,&irq,&pci)==0);
+    assert(make_tree(tree,sizeof(tree),&state,0x1000,&irq,&pci,NULL)==0);
     int frame=fdt_path_offset(tree,"/interrupt-controller/v2m@1fff0000");
     assert(frame>0 && fdt_node_check_compatible(tree,frame,"arm,gic-v2m-frame")==0);
     const fdt64_t *frame_reg=fdt_getprop(tree,frame,"reg",&length);
@@ -135,7 +154,7 @@ int main(void) {
     assert(fdt_node_offset_by_phandle(tree,2)==frame);
     put(madt+100,1,4);put(madt+104,128,2);put(madt+106,128,2);sum(madt,108,9);
     assert(parse_interrupts(madt,gtdt,&irq) && irq.msi_base==128 && irq.msi_count==128);
-    assert(make_tree(tree,sizeof(tree),&state,0x1000,&irq,&pci)==0);
+    assert(make_tree(tree,sizeof(tree),&state,0x1000,&irq,&pci,NULL)==0);
     frame=fdt_path_offset(tree,"/interrupt-controller/v2m@1fff0000");
     cells=fdt_getprop(tree,frame,"arm,msi-num-spis",&length);
     assert(cells && length==4 && fdt32_to_cpu(*cells)==128);
@@ -160,7 +179,7 @@ int main(void) {
     memcpy(madt+108,madt+84,24);put(madt+4,132,4);sum(madt,132,9);
     assert(!parse_interrupts(madt,gtdt,&irq));
     put(madt+4,84,4);sum(madt,84,9);assert(parse_interrupts(madt,gtdt,&irq));
-    assert(make_tree(tree,sizeof(tree),&state,0x1000,&irq,&pci)==0);
+    assert(make_tree(tree,sizeof(tree),&state,0x1000,&irq,&pci,NULL)==0);
     assert(fdt_path_offset(tree,"/interrupt-controller/v2m@1fff0000")==-FDT_ERR_NOTFOUND);
     bus=fdt_path_offset(tree,"/pcie");assert(!fdt_getprop(tree,bus,"msi-parent",NULL));
     mem[30]=1;assert(!parse_pci_resources(resources,sizeof(resources),&pci));mem[30]=0;

@@ -473,3 +473,26 @@ that host key/pointer events reached a guest window, or prolonged guest use.
 For startup barrier regression fixtures, `package-core.py --startup-sequence PATH`
 accepts an explicit 1–512 byte script with the Wanderer profile, without
 `--usb-desktop`. The package records the script hash in its input manifest.
+
+### Desktop session policy
+
+Build the EFI loader with `make -C boot/arosboot`. For a live desktop, package
+with `--profile wanderer --virtio-gpu --usb-desktop --desktop-session forever`.
+Use that loader with `--efi build/uefi/BOOTAA64.EFI`. Launch the resulting disk
+with `build/macaros-vm DISK_IMAGE STATE_DIRECTORY` to show its VZ window.
+The process owns the session until it is stopped. Keyboard/pointer event
+acceptance requires separate qualification; HID binding does not prove it.
+
+For automated runs, use `--desktop-session 30` at packaging and
+`--desktop-startup --usb-input --require-usb-desktop --require-desktop-session 30
+--timeout 45` with `tools/run-vz.py`. The runner requires shell launch, bounded
+hold completion, at least one tick per two requested seconds and the normal
+startup contract; it also checks elapsed host time. A session not run, or a
+ready desktop without the required HID marker, fails explicitly.
+
+The package writes `AROS/SESSION.CFG` with ASCII decimal seconds (1–3600) or
+`forever`, followed by one newline, and records its hash. The VZ ACPI bridge
+translates it into existing `aros,desktop-hold-seconds` or
+`aros,desktop-hold-forever` chosen strings. An absent file selects the boot
+proof with no hold. Invalid contents reject the platform setup. This is VZ
+loader policy; a firmware-provided FDT uses its own chosen properties.
