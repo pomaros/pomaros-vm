@@ -2014,3 +2014,63 @@ has been attempted. Full stage-six goal remains open; SMP untouched.
   clavier/pointeur et les livrer au bureau VZ. Les deux descripteurs ne prouvent
   pas cette livraison. AbortIO/NAK/flush/RTISO/déconnexion restent ouverts avant
   qualification prolongée. Réseau, clipboard et échanges restent à réaliser.
+
+## Classe HID chargée dans le bureau VZ
+
+- Build existant `kernel-usb-classes-hid` terminé. Le profil opt-in
+  `--profile wanderer --virtio-gpu --usb-desktop` place Poseidon, xHCI,
+  hub/hubss/hid et la commande VMUSB dans SYS (1,44 Mio, 12 fichiers).
+  La Startup-Sequence exécute VMUSB, G4Ready puis EndCLI. La génération FAT
+  accepte un script explicite avec Wanderer ; le script par défaut reste testé.
+- L'essai d'ajout des cinq modules USB aux résidents était refusé par la preuve
+  exacte de profil (vz-usb-desktop-first, 0x3ff). Ce montage a été retiré :
+  les classes sont chargées normalement depuis DOS, sans changer le profil
+  résident ou sa validation.
+- `vz-usb-desktop-dos` expose une course (0x90b) : le lanceur de bureau à
+  priorité -1 démarre dès que la commande avant G4Ready attend une IO.
+  Core `c7008b3a4c` attend un signal explicite SIGBREAKF_CTRL_F ; G4Ready
+  publie le drapeau puis signale. Cela traite aussi le signal reçu avant Wait.
+  La priorité seule n'est plus considérée comme une barrière de démarrage.
+- `vz-usb-desktop-ready-signal` PASS 2,36 s : deux périphériques enfants
+  connectés/configurés avec interface liée à la classe HID effectivement
+  chargée, puis Wanderer/foreground et contrat de démarrage. Bundle
+  `824698847e93fbba4642494063679f7225e9b02f94f52ec7daaf6b3f40489999`,
+  disque `64cbe4425cc9f7f4e39769992dcab59c30b73eb01124a52409552ac38acbb7a4`.
+- Régression bureau standard sans VMUSB `vz-desktop-ready-regression` PASS
+  1,72 s. Build du noyau PASS avec avertissement préexistant de type de
+  pointeur ligne 1047 ; aucune modification liée à cet avertissement.
+- Le runner `--require-usb-desktop` exige les bindings et le desktop ; sa
+  preuve est distincte des événements, `input_verified=false` conservé.
+  VMUSB garde Poseidon ouvert : les classes et tâches actives lui appartiennent.
+- Prochaine étape indispensable : une session de bureau continuellement
+  ordonnancée et l'injection/réception réelle d'événements dans une fenêtre.
+  Le profil de preuve actuel retourne au chargeur après son verdict ; un
+  bureau dessiné et un binding HID ne constituent pas une session interactive.
+  Le mécanisme existant `open_shell_and_hold` utilise des propriétés chosen
+  desktop-hold, absentes du FDT VM ; examiner boot/arosboot/vz_platform.c et
+  les modes du lanceur pour séparer exécution normale et qualification bornée.
+  Pas de SMP, ni d'essai physique M1/Pi. Revue noyau 250 demandée.
+
+### Revue de la barrière de démarrage et tests négatifs
+
+- La revue 250 identifie une limite de c7008b3a4c : sans G4Ready, une attente
+  sans timer peut rester bloquée. Le code natif ab97ed7453 traitait déjà ce cas.
+  Core final 95f8c95032 reprend son helper wait_for_initial_cli et l'ordre
+  drapeau/priorité/signal de G4Ready, en préservant les adaptations VM.
+  Le helper attend le signal ou le timer et échoue si Boot Mount disparaît
+  sans avoir annoncé la disponibilité. Le commit initial n'est pas le résultat
+  final qualifié.
+- `vz-usb-desktop-native-wait` PASS 2,29 s avec ce noyau : démarrage du bureau
+  et deux bindings HID. Bundle
+  `89def052eb4f9879f7aafa285bb58bff285bbd0f507cdf717e31ad5d61743af5`,
+  disque `16b1ab4fae5009bfc2da1f6579c295e4231fde842b3a0402f978ff3461eeafb8`.
+- `vz-desktop-no-g4ready` : échec attendu en 1,74 s, C_DETAIL=0x90b,
+  script EndCLI sans G4Ready, plutôt qu'un timeout. `vz-desktop-no-wanderer` :
+  échec attendu en 2,43 s, C_DETAIL=0x529 et vecteur d'exception nul.
+  Ce second fixture réutilise le mutateur FAT12 de l'intégration pour retirer
+  l'entrée Wanderer ; bundle et BOOT0.ID recalculés, provenance négative
+  distincte sous build/desktop-no-wanderer/negative-provenance.json.
+- `vz-usb-desktop-missing-proof` : le bureau standard dépourvu de VMUSB
+  ne satisfait pas la gate HID (timeout attendu à 6,11 s).
+- Ces tests portent sur VZ mono-cœur ; ils ne valident ni des événements
+  clavier/souris, ni une session prolongée, ni le matériel physique.

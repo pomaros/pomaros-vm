@@ -16,6 +16,8 @@ p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--virtio-gpu', action='store_true')
 p.add_argument('--pci-hidd', action='store_true')
 p.add_argument('--virtio-device', action='store_true')
+p.add_argument('--startup-sequence', type=Path)
+p.add_argument('--usb-desktop', action='store_true')
 p.add_argument('--xhci-driver', action='store_true')
 p.add_argument('--xhci-enumerate', action='store_true')
 p.add_argument('--build', type=Path, required=True)
@@ -24,6 +26,10 @@ p.add_argument('--profile', choices=['headless', 'wanderer'], default='headless'
 p.add_argument('--toolchain', type=Path, default=Path.home() / 'aros-crosstools')
 p.add_argument('--efi', type=Path, default=root / 'build/uefi/BOOTAA64.EFI')
 a = p.parse_args()
+if a.startup_sequence and (a.profile != 'wanderer' or a.usb_desktop):
+    p.error('--startup-sequence requires wanderer without --usb-desktop')
+if a.usb_desktop and not (a.profile == 'wanderer' and a.virtio_gpu):
+    p.error('--usb-desktop requires --profile wanderer --virtio-gpu')
 if a.virtio_gpu and a.profile != 'wanderer':
     p.error('--virtio-gpu requires wanderer profile')
 if a.pci_hidd and a.profile != 'headless':
@@ -94,11 +100,28 @@ if a.xhci_enumerate:
     request = output/'XHCIENUM.REQ'
     request.write_text('xhci-child-enumeration-v1\n')
     pci_files += [('XHCIENUM.REQ', request)]
+if a.usb_desktop:
+    pci_files += [(rel,sdk/'AROS'/rel) for rel in ['Libs/poseidon.library',
+        'Devs/USBHardware/pcixhci.device','Classes/USB/hub.class',
+        'Classes/USB/hubss.class','Classes/USB/hid.class']]
 ramdisk = output / 'SYS.img'
 image_command = ['python3', str(root / 'tools/make-fat12-image.py'), '--abi-probe', str(probe)]
 if a.pci_hidd:
     image_command += ['--file', f'PCIPROBE={pci_probe}']
-    for rel, path in pci_files: image_command += ['--file', f'{rel}={path}']
+for rel, path in pci_files: image_command += ['--file', f'{rel}={path}']
+if a.startup_sequence:
+    startup=output/'Startup-Sequence'
+    shutil.copyfile(a.startup_sequence,startup)
+    image_command += ['--startup-sequence',str(startup)]
+    pci_files += [('Startup-Sequence',startup)]
+if a.usb_desktop:
+    usb_command=output/'VMUSB'
+    subprocess.run([str(root/'tools/build-abi-probe'),'--sdk',str(sdk),
+        '--crosstools',str(a.toolchain.resolve()),'--profile','usb-desktop',str(usb_command)],check=True)
+    startup=output/'Startup-Sequence'
+    startup.write_text('SYS:VMUSB\nG4Ready\nEndCLI\n')
+    image_command += ['--file',f'VMUSB={usb_command}','--startup-sequence',str(startup)]
+    pci_files += [('VMUSB',usb_command),('Startup-Sequence',startup)]
 if programs:
     image_command += ['--wanderer', str(programs[0])]
 subprocess.run(image_command + [str(ramdisk)], check=True)
@@ -120,7 +143,7 @@ shutil.copyfile(efi, output / 'EFI/BOOT/BOOTAA64.EFI')
 inputs = ([pci_probe] if a.pci_hidd else []) + [path for _, path in pci_files] + [stage2, efi, probe, ramdisk] + [path for _, path in components] + programs
 manifest = {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in inputs}
 (output / 'provenance.json').write_text(json.dumps({
-    'profile': a.profile, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,
+    'profile': a.profile, 'usb_desktop': a.usb_desktop, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,
     'source_revision': revision, 'configure_command': configure_command,
     'inputs': manifest, 'bundle_sha256': hashlib.sha256(data).hexdigest(),
 }, indent=2) + '\n')

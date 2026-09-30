@@ -218,8 +218,6 @@ def build_image(abi_probe: bytes | None = None,
         files.append((None, APPLE_TIMER_DIAG_NAME, apple_timer_diag))
         files.append((None, APPLE_TIMER_DIAG_REQUIREMENT_NAME,
                       APPLE_TIMER_DIAG_REQUIREMENT))
-    if wanderer is not None and startup_sequence is not None:
-        raise ValueError("custom startup sequence cannot accompany Wanderer")
     if startup_sequence is not None and (
             not startup_sequence or
             len(startup_sequence) > MAX_STARTUP_SEQUENCE_SIZE):
@@ -408,8 +406,8 @@ def build_image(abi_probe: bytes | None = None,
                 tree_file_count += 1
 
     nested_file_count = 0
-    effective_startup = (STARTUP_SEQUENCE if wanderer is not None
-                         else startup_sequence)
+    effective_startup = (startup_sequence if startup_sequence is not None
+                         else STARTUP_SEQUENCE if wanderer is not None else None)
     if effective_startup is not None:
         directory_cluster = next_cluster
         startup_cluster = directory_cluster + 1

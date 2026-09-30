@@ -13,6 +13,7 @@ import subprocess
 import time
 root=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser()
+p.add_argument('--require-usb-desktop',action='store_true')
 p.add_argument('--usb-input',action='store_true')
 p.add_argument('--require-xhci-driver',action='store_true')
 p.add_argument('--require-xhci-enumeration',action='store_true')
@@ -29,6 +30,8 @@ p.add_argument('--disk',type=Path,required=True)
 p.add_argument('--output',type=Path,required=True)
 p.add_argument('--timeout',type=float,default=45)
 a=p.parse_args()
+if a.require_usb_desktop and not (a.desktop_startup and a.usb_input):
+    p.error('--require-usb-desktop requires --desktop-startup --usb-input')
 if a.require_xhci_enumeration and not a.require_xhci_driver:
     p.error('--require-xhci-enumeration requires --require-xhci-driver')
 if a.require_xhci_driver and not (a.usb_input and a.require_pci_hidd):
@@ -61,6 +64,7 @@ markers=['[VM] OpenFirmware FDT + PCI config PASS',
 if a.desktop_startup:
     markers.remove('[VM] OpenFirmware FDT + PCI config PASS')
     markers += ['[VMPci] resident bridge registered', '[VM] virtio graphics driver registered']
+if a.require_usb_desktop: markers += ['[VM] desktop two HID bindings PASS']
 if a.require_pci_hidd:
     markers += ['[VM] PCI HIDD class + reserved console PASS',
                 '[VM] PCI subsystem enumerate + remove PASS',
@@ -121,7 +125,7 @@ if a.require_gpu_scanout and not pixels_verified and reason=='timeout' and all(t
 boot=subprocess.run(['mtype','-i',str(disk),'::BOOT.LOG'],capture_output=True)
 (a.output/'firmware.log').write_bytes(boot.stdout)
 verdict={'result':'PASS' if passed else 'FAIL','reason':reason,
-         'backend':'Virtualization.framework','graphics':a.require_gpu or a.desktop_startup,'usb_input_exposed':a.usb_input,'xhci_mapping_required':a.usb_input and a.require_pci_hidd,'input_verified':False,'xhci_driver_required':a.require_xhci_driver,'xhci_enumeration_required':a.require_xhci_enumeration,'usb_child_descriptors_verified':passed and a.require_xhci_enumeration,'usb_transfers_verified':False,'desktop_startup':a.desktop_startup,'desktop_pixels_verified':False,'gpu_query_required':a.require_gpu,'gpu_scanout_required':a.require_gpu_scanout,'pixels_verified':pixels_verified,'storage_phase':a.storage_phase,'filesystem_phase':a.filesystem_phase,
+         'backend':'Virtualization.framework','graphics':a.require_gpu or a.desktop_startup,'usb_input_exposed':a.usb_input,'xhci_mapping_required':a.usb_input and a.require_pci_hidd,'input_verified':False,'usb_hid_bindings_verified':passed and a.require_usb_desktop,'xhci_driver_required':a.require_xhci_driver,'xhci_enumeration_required':a.require_xhci_enumeration,'usb_child_descriptors_verified':passed and a.require_xhci_enumeration,'usb_transfers_verified':False,'desktop_startup':a.desktop_startup,'desktop_pixels_verified':False,'gpu_query_required':a.require_gpu,'gpu_scanout_required':a.require_gpu_scanout,'pixels_verified':pixels_verified,'storage_phase':a.storage_phase,'filesystem_phase':a.filesystem_phase,
          'pci_hidd_required':a.require_pci_hidd,'msi_frame_required':a.require_msi_frame,'msi_irq_required':a.require_msi_irq,'virtio_device_required':a.require_virtio_device,
          'seconds':round(time.monotonic()-start,2),
          'input_disk_sha256':hashlib.sha256(a.disk.read_bytes()).hexdigest(),

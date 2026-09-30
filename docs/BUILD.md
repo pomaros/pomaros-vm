@@ -455,3 +455,21 @@ For Poseidon child-device discovery, build `kernel-usb-classes-hub` and
 root enumeration and at least two connected child devices with device
 descriptors. It does not qualify keyboard/pointer input or cancellation.
 Both modes use isolated image copies and preserve `input_verified=false`.
+
+### Poseidon HID binding in the VZ desktop
+
+Build `kernel-usb-classes-hid` in addition to the hub classes. Package with
+`--profile wanderer --virtio-gpu --usb-desktop`. The SYS image contains the
+Poseidon library, xHCI device, hub/hubss/HID classes and VMUSB command.
+Its Startup-Sequence runs VMUSB before G4Ready and EndCLI. Driver loading runs
+in the normal DOS process; the boot-resident profile is unchanged.
+
+Run with `--desktop-startup --usb-input --require-usb-desktop`. This requires
+both normal desktop startup and two connected, configured child devices with
+interfaces bound to the loaded HID class. `usb_hid_bindings_verified` records
+that result; `input_verified` remains false. Binding alone does not demonstrate
+that host key/pointer events reached a guest window, or prolonged guest use.
+
+For startup barrier regression fixtures, `package-core.py --startup-sequence PATH`
+accepts an explicit 1–512 byte script with the Wanderer profile, without
+`--usb-desktop`. The package records the script hash in its input manifest.
