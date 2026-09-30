@@ -14,12 +14,14 @@ build/x18.bin: build/x18.o
 build/x18-probe: src/x18-probe.c entitlements.plist | build
 	clang -Wall -Wextra -Werror -O2 $< -framework Hypervisor -o $@
 	codesign --force --sign - --entitlements entitlements.plist $@
-test: all build/vz-platform-test build/gic-contract-test
+test: all build/vz-platform-test build/gic-contract-test build/pci-ecam-access-test
 	python3 tests/x18.py
 	python3 tests/virt-fdt.py
 	python3 tests/early-fdt.py
 	build/vz-platform-test
 	build/gic-contract-test
+	build/pci-ecam-access-test
+	python3 tests/pci-ecam-codegen.py
 	python3 tools/gen-bootinfo.py --check
 	cmp include/vm-console.h ../aros-core-vm/arch/aarch64-apple/include/aros/apple/vmconsole.h
 clean:
@@ -52,3 +54,8 @@ build/openfirmware-fdt-test: tests/openfirmware-fdt.c $(OF_SOURCE)/of_fdt.c $(OF
 	clang -std=c11 -Wall -Wextra -Werror -Wno-ignored-attributes -fsanitize=address,undefined \
 	 -I$(OF_SOURCE) -idirafter $(AROS_VM_SDK)/AROS/Developer/include \
 	 -I$(FDT_DIR) -I$(FDT_DIR)/libfdt $< $(FDT_DIR)/early_fdt.c $(FDT_SOURCES) -o $@
+
+PCI_SOURCE := $(AROS_CORE_SOURCE)/rom/hidds/pci
+build/pci-ecam-access-test: tests/pci-ecam-access.c $(PCI_SOURCE)/ecam/access.h | build
+	clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined \
+	 -I$(PCI_SOURCE) $< -o $@

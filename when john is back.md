@@ -505,3 +505,29 @@ au silence VZ intermittent déjà conservé ; sa cause n’est pas encore établ
 Restent le PCI HIDD et l’admission des mappings/DMA/IRQ, puis les pilotes VZ
 GPU et entrées. Ces lectures de configuration ne prouvent aucun transfert DMA,
 aucune interruption de périphérique, aucun bureau VZ. L’étape 6 reste ouverte.
+
+
+## Accès ECAM réutilisables — 30 septembre
+
+Core `52cc57c5c9` ajoute `rom/hidds/pci/ecam/access.h`, sans dépendance Apple,
+FDT, DMA ou SMP. Le mapping est fourni par la plateforme. Les adresses sont
+vérifiées : bus relatif au premier bus, fonction, registre, largeur, alignement,
+limites de mapping et débordement de pointeur. Les accès 8/16/32 bits sont
+little-endian, avec stores de la largeur exacte. Le futur HIDD doit remplacer
+les wrappers PCI par défaut qui font read-modify-write sur 32 bits pour éviter
+de toucher les bits d’état write-one-to-clear adjacents au mot de commande.
+
+Tests ASan/UBSan : limites et premier bus non nul, débordements, stores de
+largeurs différentes. Ce modèle en RAM ne simule pas le W1C ; un test de code
+AArch64 produit vérifie séparément une seule transaction strb/strh/str-w.
+`vz-ecam-access` et `hvf-ecam-access` passent : découverte par OpenFirmware,
+lectures des IDs à trois largeurs et réécriture inchangée du mot de commande.
+Bundle `0173f51021ea0b17cf03afb90b9c0741ea977bc26766c8a24809e2237f4a324c`.
+Ce probe tourne sous Supervisor et ne change ni le bus mastering ni les BARs.
+
+Le HIDD n’est pas encore raccordé. Ne pas utiliser SuperState/UserState comme
+raccourci sur ce port : le passage EL0 SuperState y est explicitement non
+implémenté. Il faut une admission de mapping explicite ou une opération
+Supervisor sérialisée. La découverte commune doit réutiliser OpenFirmware,
+les classes PCI et les translations validées, sans importer les hypothèses
+PLIC/Sv39/DesignWare du pilote RISC-V. Revue OpenFirmware #208 approuvée.
