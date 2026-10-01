@@ -6,7 +6,9 @@ Macaros VM application. It follows the runtime boundary of hosted Macaros's
 `f44b2ce96738f2af4522310f7b5e44b54fd9f1ee`): C, Classes, Devs, Extras, Fonts, L, Libs, Locale,
 Prefs, S, Storage, System, Tools, Utilities and WBStartup, with desktop icons.
 Zed, Ferail and Moonstone are excluded, as are the Developer SDK, debug symbols,
-crash files and native Apple diagnostic commands. Hosted Macaros is reference
+crash files and native Apple diagnostic commands. Runtime Devs payloads use
+an explicit portable/VM allowlist; Apple hardware modules are excluded from
+that directory. Hosted Macaros is reference
 material only: its executables and macOS drivers are never copied into the VM.
 
 The build uses the VM-configured AArch64 SDK with ordinary x18 and pinned AROS
@@ -36,12 +38,13 @@ Signing is local/ad-hoc, not Developer ID notarization or public publication.
 ## Disk and startup
 
 The fixed disk layout stays 64 MiB boot plus 256 MiB WORK. A small RAM system
-starts storage, mounts WORK and waits for its publication. It then assigns SYS
+starts storage, mounts WORK and waits for its publication. It starts the VM shutdown and input services from RAM, then assigns SYS
 to `VMWORK0:System` (the `WORK:System` directory), updates the normal AROS
-assigns, loads datatypes/preferences and starts the existing VM desktop/services.
+assigns, loads datatypes/preferences and starts the desktop and network stack.
 System files and preferences are persistent, and the full distribution does not
 have to fit in the 16 MiB bootstrap RAM filesystem. Applications and documents
-can use the rest of WORK. Shutdown still flushes/inhibits VMWORK0.
+can use the rest of WORK. Startup stages are recorded in
+`WORK:distribution-startup.log`.
 
 The distribution app uses the separate `Distribution` profile under
 `~/Library/Application Support/Macaros VM/`. Opening it does not replace the
