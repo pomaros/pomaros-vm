@@ -141,6 +141,12 @@ int main(void) {
     assert(parse_interrupts(madt,gtdt,&irq));
     assert(irq.msi_frame==0x1fff0000 && !irq.msi_base && !irq.msi_count);
     assert(make_tree(tree,sizeof(tree),&state,0x1000,&irq,&pci,NULL)==0);
+    const char *fdt_output=getenv("AROS_VZ_FDT_OUTPUT");
+    if(fdt_output) {
+        FILE *file=fopen(fdt_output,"wb");assert(file);
+        assert(fwrite(tree,1,fdt_totalsize(tree),file)==(size_t)fdt_totalsize(tree));
+        assert(fclose(file)==0);
+    }
     int frame=fdt_path_offset(tree,"/interrupt-controller/v2m@1fff0000");
     assert(frame>0 && fdt_node_check_compatible(tree,frame,"arm,gic-v2m-frame")==0);
     const fdt64_t *frame_reg=fdt_getprop(tree,frame,"reg",&length);

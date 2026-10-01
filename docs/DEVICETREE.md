@@ -57,11 +57,14 @@ Distribution disks are preserved. The updated resource and command must travel
 together; copying the command alone to the previous VM reports an old resource.
 
 Build-time binding checks are in `bindings/fdt-core.json` and
-`tools/validate-fdt-bindings.py`. They validate enabled nodes matched by the
-current ARM GIC, timer and PL011 compatible strings, including required
-properties, encoded value types and unknown properties. Other nodes remain
-visible and unbound. Run `python3 tests/fdt-bindings.py` for a positive fixture
-and misspelled-property/type controls, or pass one or more compiled trees as
-`--tree TREE.dtb` to the validator. This is a narrow, dependency-free start on
-roadmap `[DT1]`, not its full schema corpus or physical Pi/Apple qualification;
-those require their real boot trees and platform binding tests.
+`tools/validate-fdt-bindings.py`. They validate enabled GICv2/v3, GICv2m MSI,
+ARM timer, PL011 and generic PCI ECAM nodes. The checker rejects missing,
+unknown or mistyped properties; verifies `reg` and `ranges` tuple widths using
+the relevant bus cell counts; and resolves explicit interrupt/MSI supplier
+phandles. Other nodes remain visible and unbound. Run
+`python3 tests/fdt-bindings.py` to check the VZ generator's actual output, a
+portable fixture and five malformed-tree controls, or pass compiled trees as
+`--tree TREE.dtb` to the validator. The captured QEMU `virt` and canonicalized
+Pi 4 QEMU trees also pass. This is still a narrow subset of roadmap `[DT1]`:
+full YAML/dt-schema bindings, Pi firmware and m1n1 tree corpora, and physical
+platform binding tests remain open.

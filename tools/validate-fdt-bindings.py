@@ -31,6 +31,33 @@ def nodes(tree):
         todo.extend(node.rstrip('/') + '/' + child for child in children)
 
 
+def parent(node):
+    return node.rsplit('/', 1)[0] or '/'
+
+
+def cell_count(tree, node, name, default):
+    result = subprocess.run(['fdtget', '-t', 'x', str(tree), node, name],
+                            capture_output=True, text=True)
+    if result.returncode:
+        return default
+    values = result.stdout.split()
+    if len(values) != 1:
+        raise ValueError(f'{node}: invalid {name}')
+    value = int(values[0], 16)
+    if value > 4:
+        raise ValueError(f'{node}: unsupported {name}={value}')
+    return value
+
+
+def tuple_width(tree, node, kind):
+    if kind == 'reg':
+        bus = parent(node)
+        return cell_count(tree, bus, '#address-cells', 2) + cell_count(tree, bus, '#size-cells', 1)
+    return (cell_count(tree, node, '#address-cells', 2) +
+            cell_count(tree, parent(node), '#address-cells', 2) +
+            cell_count(tree, node, '#size-cells', 1))
+
+
 def enabled(tree, node):
     while True:
         result = subprocess.run(['fdtget', '-t', 's', str(tree), node, 'status'],
@@ -45,8 +72,26 @@ def enabled(tree, node):
 def validate(tree, schemas):
     errors = []
     bound = 0
-    for node in nodes(tree):
-        properties = set(subprocess.check_output(['fdtget', '-p', str(tree), node], text=True).splitlines())
+    paths = list(nodes(tree))
+    properties_by_node = {
+        node: set(subprocess.check_output(['fdtget', '-p', str(tree), node], text=True).splitlines())
+        for node in paths
+    }
+    phandles = {}
+    for node, properties in properties_by_node.items():
+        for key in ('phandle', 'linux,phandle'):
+            if key not in properties:
+                continue
+            raw = property_bytes(tree, node, key)
+            value = int.from_bytes(raw, 'big') if len(raw) == 4 else 0
+            if not value or value == 0xffffffff:
+                errors.append(f'{node}: invalid {key}')
+            elif value in phandles and phandles[value] != node:
+                errors.append(f'{node}: duplicate {key}={value}')
+            else:
+                phandles[value] = node
+    for node in paths:
+        properties = properties_by_node[node]
         if 'compatible' not in properties:
             continue
         compatibles = strings(property_bytes(tree, node, 'compatible'))
@@ -83,11 +128,29 @@ def validate(tree, schemas):
             kind = types[name]
             valid = {'flag': lambda: not data,
                      'u32': lambda: len(data) == 4,
+                     'two-cells': lambda: len(data) == 8,
                      'cells': lambda: bool(data) and len(data) % 4 == 0,
                      'cells-or-empty': lambda: len(data) % 4 == 0,
-                     'strings': lambda: strings(data) is not None}[kind]()
+                     'strings': lambda: strings(data) is not None,
+                     'reg': lambda: bool(data) and tuple_width(tree, node, 'reg') > 0 and
+                         len(data) % (4 * tuple_width(tree, node, 'reg')) == 0,
+                     'ranges': lambda: len(data) == 0 or tuple_width(tree, node, 'ranges') > 0 and
+                         len(data) % (4 * tuple_width(tree, node, 'ranges')) == 0,
+                     'ranges-required': lambda: bool(data) and tuple_width(tree, node, 'ranges') > 0 and
+                         len(data) % (4 * tuple_width(tree, node, 'ranges')) == 0}[kind]()
             if not valid:
                 errors.append(f'{node}: {name} has invalid {kind} encoding')
+        for key, marker in (('interrupt-parent', 'interrupt-controller'),
+                            ('msi-parent', 'msi-controller')):
+            if key not in properties:
+                continue
+            raw = property_bytes(tree, node, key)
+            if len(raw) != 4:
+                continue  # The u32 type error was reported above.
+            supplier = phandles.get(int.from_bytes(raw, 'big'))
+            if (supplier is None or marker not in properties_by_node[supplier] or
+                    not enabled(tree, supplier)):
+                errors.append(f'{node}: {key} has no enabled {marker} supplier')
     return bound, errors
 
 

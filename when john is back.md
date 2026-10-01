@@ -3999,14 +3999,16 @@ profile disk after reviewing the new image (docs/DISTRIBUTION.md).
 
 Portable FDT follow-up: `bindings/fdt-core.json` and
 `tools/validate-fdt-bindings.py` are a small build-time binding subset for
-enabled GIC, ARM timer and PL011 nodes. It rejects missing, mistyped and
-unknown properties in nodes AROS claims to bind. The positive VM FDT and a
-canonicalized Raspberry Pi 4 QEMU FDT both pass (three matched nodes each);
-two injected typo/type controls fail. This validator has no machine addresses
-or root-model switch. It is groundwork for roadmap DT1, not full DT1 and
-not Pi/Apple physical qualification. Follow-up: add full YAML/dt-schema
-bindings and the actual m1n1 and Pi firmware trees, then bind runtime drivers
-from those descriptions. SMP remains reserved for bsek.
+enabled GIC, GICv2m MSI, ARM timer, PL011 and PCI ECAM nodes. It rejects
+missing, mistyped and unknown properties, malformed `reg`/`ranges` tuples,
+and unresolved interrupt/MSI supplier phandles. The VZ platform test now
+exports its generated tree for the binding test; the captured QEMU VM FDT and
+a canonicalized Raspberry Pi 4 QEMU FDT also pass (seven matched nodes across
+those two). Five injected typo/type/tuple/phandle controls fail as intended.
+This validator has no machine addresses or root-model switch. It is groundwork
+for roadmap DT1, not full DT1 or physical Pi/Apple qualification. Follow-up:
+add full YAML/dt-schema bindings and the actual m1n1 and Pi firmware trees,
+then bind runtime drivers from those descriptions. SMP remains reserved for bsek.
 
 John explicitly authorized stopping/relaunching the VM for tests. On
 2026-10-02, the migrated Stage6Final→Stage6French disk also booted in VZ with

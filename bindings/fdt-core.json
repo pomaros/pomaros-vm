@@ -2,16 +2,16 @@
   "arm,gic-400": {
     "required": ["compatible", "reg", "#interrupt-cells", "interrupt-controller"],
     "properties": {
-      "reg": "cells", "#interrupt-cells": "u32", "interrupt-controller": "flag",
-      "#address-cells": "u32", "#size-cells": "u32", "ranges": "cells-or-empty",
+      "reg": "reg", "#interrupt-cells": "u32", "interrupt-controller": "flag",
+      "#address-cells": "u32", "#size-cells": "u32", "ranges": "ranges",
       "interrupts": "cells", "interrupt-parent": "u32"
     }
   },
   "arm,gic-v3": {
     "required": ["compatible", "reg", "#interrupt-cells", "interrupt-controller"],
     "properties": {
-      "reg": "cells", "#interrupt-cells": "u32", "interrupt-controller": "flag",
-      "#address-cells": "u32", "#size-cells": "u32", "ranges": "cells-or-empty",
+      "reg": "reg", "#interrupt-cells": "u32", "interrupt-controller": "flag",
+      "#address-cells": "u32", "#size-cells": "u32", "ranges": "ranges",
       "#redistributor-regions": "u32", "redistributor-stride": "cells",
       "interrupts": "cells", "interrupt-parent": "u32"
     }
@@ -27,11 +27,29 @@
   "arm,pl011": {
     "required": ["compatible", "reg"],
     "properties": {
-      "reg": "cells", "interrupts": "cells", "interrupt-parent": "u32",
+      "reg": "reg", "interrupts": "cells", "interrupt-parent": "u32",
       "clocks": "cells", "clock-names": "strings", "current-speed": "u32",
       "pinctrl-0": "cells", "pinctrl-names": "strings",
       "arm,primecell-periphid": "u32", "cts-event-workaround": "flag",
       "skip-init": "flag", "uart-has-rtscts": "flag"
+    }
+  },
+  "arm,gic-v2m-frame": {
+    "required": ["compatible", "reg", "msi-controller"],
+    "properties": {
+      "reg": "reg", "msi-controller": "flag", "#msi-cells": "u32",
+      "arm,msi-base-spi": "u32", "arm,msi-num-spis": "u32"
+    }
+  },
+  "pci-host-ecam-generic": {
+    "required": ["compatible", "device_type", "#address-cells", "#size-cells",
+                 "reg", "bus-range", "ranges"],
+    "properties": {
+      "device_type": "strings", "#address-cells": "u32", "#size-cells": "u32",
+      "reg": "reg", "bus-range": "two-cells", "ranges": "ranges-required",
+      "linux,pci-domain": "u32", "msi-parent": "u32", "msi-map": "cells",
+      "dma-coherent": "flag", "interrupt-map": "cells",
+      "interrupt-map-mask": "cells", "#interrupt-cells": "u32"
     }
   }
 }
