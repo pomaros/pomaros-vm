@@ -7,8 +7,7 @@ the protocol can be carried by another transport for physical machines.
 `VMSync` bridges clipboard unit 0 to the host service. The VZ launcher supplies
 its general pasteboard with `--host-services`; `--clipboard-test` substitutes a
 private named pasteboard for qualification. The guest engine passes VZ tests
-with the real clipboard device. Desktop auto-start is packaged but has not yet
-been qualified with Wanderer.
+with the real clipboard device. Desktop auto-start also passes a bounded VZ session with Wanderer and USB/HID.
 
 ## Data and conversion
 
@@ -79,9 +78,9 @@ conflicts, unchanged revisions, recursive session refusal/reopen, and the file
 CLI/persistence gate. Each requires 19 positive bridge IRQ closure counters and
 exact markers; the host pasteboard seed and guest/file fixtures are checked.
 The image fixture is a two-color ILBM; broader format coverage belongs to the
-host codec tests. This does not prove interactive desktop paste, simultaneous
-commands from separate tasks, forced transport failure recovery, or prolonged
-operation of the daemon loop.
+host codec tests. The separate desktop gate verifies the actual background process and a
+foreground session; neither gate proves GUI menu/keyboard paste, forced
+transport failure recovery, or prolonged reliability.
 
 ## Guest operation
 
@@ -108,5 +107,17 @@ For the desktop, package with `--profile wanderer --virtio-gpu --usb-desktop
 paths. The package includes both commands/devices and starts VMSync from the
 startup sequence. It expands SYS to the existing 16 MiB FAT layout to fit the
 USB and host-service components. Launch with `--gpu --usb-input --host-services`.
-The expansion and startup contents are verified during packaging; runtime
-desktop auto-start and actual copy/paste remain unqualified.
+The expansion and startup contents are verified during packaging.
+
+Add `--clipboard-probe --desktop-session 20` for the desktop qualification
+package. Run it with `tools/run-vz.py --desktop-startup --usb-input
+--require-usb-desktop --require-desktop-session 20 --require-desktop-clipboard`,
+plus disk/output paths. The runner selects an isolated named Mac pasteboard.
+A separate guest process reads the exact initial seed through clipboard.device,
+holds the foreground transport session across two polling periods, writes text,
+and checks that the daemon publishes it after release. It also executes the
+independently loaded VMExchange HELLO, imports and exports an image, then checks
+unchanged host/local revisions over two more polling periods. This process
+never invokes the sync engine itself. All startup, HID, tick and probe markers
+must pass. Normal session contention/reopen is covered; GUI editing commands,
+forced transport failures and prolonged reliability are not.

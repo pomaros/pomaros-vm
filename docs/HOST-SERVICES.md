@@ -28,7 +28,8 @@ against an isolated FAT
 volume, checks refusal to overwrite a guest destination, and verifies bytes
 from the host after two fresh VMs. The [clipboard bridge](CLIPBOARD.md) also passes a real guest-device VZ gate.
 Both clients serialize the exclusive guest stream; background polling skips busy
-sessions. Desktop auto-start is packaged but remains unqualified.
+sessions. Desktop auto-start and foreground session contention pass a bounded VZ
+clipboard session with Wanderer.
 Host power-loss durability and concurrent host modification during download
 are not qualified; a download is not a snapshot.
 
@@ -51,4 +52,4 @@ downloads it through the command and refuses a second download onto the same
 name. The restart phase verifies the first file survived and writes a second
 file. The runner checks both the host Shared directory and the guest disk image.
 Only file-backed test disks are touched. This does not qualify host power loss
-or desktop auto-start.
+or GUI-driven file selection.

@@ -102,3 +102,87 @@ done:
     clip_mark(okay?"[VM] clipboard device text image sync no-echo PASS\n":"[VM] clipboard device text image sync no-echo FAIL\n");
     return okay;
 }
+
+#ifdef VM_CLIPBOARD_DESKTOP
+#include "client.c"
+int __nowbsupport=1;
+struct WBStartup *WBenchMsg;
+int __nostdiowin=1;
+static BOOL waitGuest(struct Clipboard *clip,const UBYTE *data,ULONG bytes)
+{
+    for(unsigned i=0;i<80;++i) {
+        if(clipEquals(clip,data,bytes))return TRUE;
+        Delay(5);
+    }
+    return FALSE;
+}
+static BOOL waitHost(const UBYTE *data,ULONG bytes)
+{
+    for(unsigned i=0;i<40;++i) {
+        if(hostEquals(data,bytes))return TRUE;
+        Delay(5);
+    }
+    return FALSE;
+}
+static BOOL hostRevision(UQUAD *revision)
+{
+    struct VMExchangeClient c;UBYTE request[8],reply[12];ULONG got;
+    if(!VMExchangeOpen(&c))return FALSE;
+    putLE(request,(UQUAD)-1,8);
+    BOOL okay=VMExchangeRequest(&c,8,request,8,reply,12,&got) && got==12;
+    if(okay)*revision=getLE(reply,8);
+    VMExchangeClose(&c);return okay;
+}
+int main(void)
+{
+    struct Clipboard clip={0};BOOL okay=FALSE,seeded=FALSE;
+    /* This process never calls syncOnce. The independently loaded VMSync
+       background process must perform every synchronization. */
+    if(!openClip(&clip))goto done;
+    for(unsigned i=0;i<100 && !seeded;++i) {
+        ULONG bytes;LONG id;UBYTE *p=readClip(&clip,&bytes,&id);
+        const char *seed="Macaros clipboard qualification";
+        ULONG length=strlen(seed),stride=8+length+(length&1);
+        seeded=p && bytes==12+2*stride && !memcmp(p+8,"FTXTCHRS",8) &&
+            getBE(p+16)==length && !memcmp(p+20,seed,length) &&
+            !memcmp(p+12+stride,"UTF8",4) && getBE(p+16+stride)==length &&
+            !memcmp(p+20+stride,seed,length);
+        if(p)FreeVec(p);
+        if(!seeded)Delay(5);
+    }
+    if(!seeded)goto done;
+    clip_mark("[VM] desktop daemon clipboard seed PASS\n");
+    /* Hold the shared session across two poll periods, then let the daemon
+       publish the pending guest copy after the foreground session closes. */
+    struct VMExchangeClient held;
+    if(!VMExchangeOpen(&held))goto done;
+    LONG written;
+    BOOL wrote=writeClip(&clip,textClip,sizeof(textClip),&written);
+    Delay(100);
+    VMExchangeClose(&held);
+    if(!wrote || !waitHost(textClip,sizeof(textClip)))goto done;
+    clip_mark("[VM] desktop daemon busy session recovery PASS\n");
+    BPTR command=LoadSeg((CONST_STRPTR)"SYS:C/VMExchange");
+    if(!command)goto done;
+    UBYTE arguments[]="HELLO\n";
+    LONG result=RunCommand(command,65536,arguments,sizeof(arguments)-1);
+    UnLoadSeg(command);
+    if(result)goto done;
+    UQUAD revision;
+    if(!hostRevision(&revision) || !hostPublish(imageClip,sizeof(imageClip),revision) ||
+       !waitGuest(&clip,imageClip,sizeof(imageClip)))goto done;
+    UBYTE otherImage[sizeof(imageClip)];memcpy(otherImage,imageClip,sizeof(imageClip));
+    otherImage[sizeof(otherImage)-2]=0;
+    if(!writeClip(&clip,otherImage,sizeof(otherImage),&written) ||
+       !waitHost(otherImage,sizeof(otherImage)))goto done;
+    UQUAD stable,after;LONG local=clipID(&clip);
+    if(!hostRevision(&stable))goto done;
+    Delay(100);
+    if(!hostRevision(&after) || after!=stable || clipID(&clip)!=local)goto done;
+    okay=TRUE;
+done:
+    closeClip(&clip);
+    clip_mark(okay?"[VM] desktop clipboard daemon text image no-echo PASS\n":"FAIL: desktop clipboard daemon\n");
+    return okay?0:20;
+}
+#endif

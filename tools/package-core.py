@@ -26,6 +26,7 @@ p.add_argument('--network-stack', action='store_true')
 p.add_argument('--network-echo-request', type=Path)
 p.add_argument('--startup-sequence', type=Path)
 p.add_argument('--desktop-session', help='1..3600 seconds or forever; omitted for boot proof')
+p.add_argument('--clipboard-probe',action='store_true')
 p.add_argument('--input-probe',action='store_true')
 p.add_argument('--usb-desktop', action='store_true')
 p.add_argument('--xhci-driver', action='store_true')
@@ -52,6 +53,8 @@ if a.network_echo_request:
     a.network_stack=True
 if a.network_stack:
     a.virtionet_device=True
+if a.clipboard_probe and not (a.host_services and a.profile=='wanderer' and a.desktop_session):
+    p.error('--clipboard-probe requires a desktop host-service session')
 if a.input_probe and (not a.usb_desktop or a.desktop_session is None):
     p.error('--input-probe requires --usb-desktop and --desktop-session')
 if a.desktop_session is not None:
@@ -180,7 +183,7 @@ desktop_services = a.host_services and a.profile=='wanderer'
 expanded_system = a.network_stack or desktop_services
 def deferred_file(rel):
     return (a.network_stack and rel.startswith('System/Network/')) or (desktop_services and rel in {
-        'C/VMExchange','C/VMSync','Devs/clipboard.device','Devs/vmbridge.device'})
+        'C/VMExchange','C/VMSync','Devs/clipboard.device','Devs/vmbridge.device','VMCLIP'})
 ramdisk = output / 'SYS.img'
 image_command = ['python3', str(root / 'tools/make-fat12-image.py'), '--abi-probe', str(probe)]
 if a.pci_hidd:
@@ -206,6 +209,14 @@ if a.usb_desktop:
     pci_files.append(('VMUSB',usb_command))
 if a.host_services and a.profile=='wanderer':
     startup_lines='Run >NIL: SYS:C/VMSync\n'+(startup_lines or 'G4Ready\nEndCLI\n')
+if a.clipboard_probe:
+    clipboard_command=output/'VMCLIP'
+    subprocess.run([str(root/'tools/build-abi-probe'),'--sdk',str(sdk),
+        '--crosstools',str(a.toolchain.resolve()),'--profile','desktop-clipboard',str(clipboard_command)],check=True)
+    # Start after VMSync without making desktop startup depend on the probe.
+    startup_lines=startup_lines.replace('Run >NIL: SYS:C/VMSync\n',
+        'Run >NIL: SYS:C/VMSync\nRun >NIL: SYS:VMCLIP\n',1)
+    pci_files.append(('VMCLIP',clipboard_command))
 if startup_lines is not None:
     startup=output/'Startup-Sequence'
     startup.write_text(startup_lines)
@@ -240,7 +251,7 @@ shutil.copyfile(efi, output / 'EFI/BOOT/BOOTAA64.EFI')
 inputs = ([output/'AROS/SESSION.CFG'] if a.desktop_session is not None else []) + ([pci_probe] if a.pci_hidd else []) + [path for _, path in pci_files] + [stage2, efi, probe, ramdisk] + [path for _, path in components] + programs
 manifest = {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in inputs}
 (output / 'provenance.json').write_text(json.dumps({
-    'profile': a.profile, 'clipboard_sync': a.clipboard_sync, 'file_commands': a.file_commands, 'command_startup': a.command_startup, 'vsock_device': a.vsock_device, 'host_services': a.host_services, 'network_stack': a.network_stack, 'virtionet_device': a.virtionet_device, 'input_probe': a.input_probe, 'desktop_session': a.desktop_session, 'usb_desktop': a.usb_desktop, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,
+    'profile': a.profile, 'clipboard_probe': a.clipboard_probe, 'clipboard_sync': a.clipboard_sync, 'file_commands': a.file_commands, 'command_startup': a.command_startup, 'vsock_device': a.vsock_device, 'host_services': a.host_services, 'network_stack': a.network_stack, 'virtionet_device': a.virtionet_device, 'input_probe': a.input_probe, 'desktop_session': a.desktop_session, 'usb_desktop': a.usb_desktop, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,
     'source_revision': revision, 'configure_command': configure_command,
     'inputs': manifest, 'bundle_sha256': hashlib.sha256(data).hexdigest(),
 }, indent=2) + '\n')

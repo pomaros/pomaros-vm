@@ -6,7 +6,7 @@ set -eu
 
 usage()
 {
-    echo "usage: build-abi-probe [--profile cli|tls|workbench|platform|pci|usb-desktop|desktop-input] [--sdk SDK_ROOT] [--sdk-tools DIR] [--crosstools DIR] OUTPUT" >&2
+    echo "usage: build-abi-probe [--profile cli|tls|workbench|platform|pci|usb-desktop|desktop-input|desktop-clipboard] [--sdk SDK_ROOT] [--sdk-tools DIR] [--crosstools DIR] OUTPUT" >&2
     exit 2
 }
 
@@ -61,6 +61,9 @@ case "$profile" in
     pci)
         source_file="$project_root/tests/pci-hidd-probe.c"
         ;;
+    desktop-clipboard)
+        source_file="$project_root/tests/clipboard-sync.c"
+        ;;
     desktop-input)
         source_file="$project_root/tests/desktop-input.c"
         ;;
@@ -114,6 +117,9 @@ export COMPILER_PATH="$sdk_tools:$crosstools/bin"
 
 # Device qualification reuses the actual PCI, virtio and USB transports.
 set --
+if [ "$profile" = desktop-clipboard ]; then
+    set -- -DVM_CLIPBOARD_DESKTOP
+fi
 if [ "$profile" = platform ]; then
     set -- "$project_root/tests/command-startup.c"
 fi

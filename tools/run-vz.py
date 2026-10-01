@@ -16,6 +16,7 @@ root=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser()
 p.add_argument('--require-desktop-session',type=int,metavar='SECONDS')
 p.add_argument('--require-host-services',action='store_true')
+p.add_argument('--require-desktop-clipboard',action='store_true')
 p.add_argument('--require-clipboard-sync',action='store_true')
 p.add_argument('--require-file-commands',action='store_true')
 p.add_argument('--require-vsock-device',action='store_true')
@@ -45,6 +46,8 @@ p.add_argument('--disk',type=Path,required=True)
 p.add_argument('--output',type=Path,required=True)
 p.add_argument('--timeout',type=float,default=45)
 a=p.parse_args()
+if a.require_desktop_clipboard and not (a.desktop_startup and a.require_desktop_session):
+    p.error('--require-desktop-clipboard requires a desktop session')
 if a.require_clipboard_sync: a.require_file_commands=True
 if a.require_file_commands:
     a.require_host_services=True
@@ -93,7 +96,7 @@ pixels_verified=False
 capture_count=0
 passed=False;reason='timeout';start=time.monotonic()
 with log.open('w') as out:
-    proc=subprocess.Popen([str(root/'build/macaros-vm'),str(disk),str(a.output/'state'),'--headless']+(['--gpu-window'] if a.require_gpu_scanout or a.require_input else ['--gpu'] if a.require_gpu or a.desktop_startup else [])+(['--usb-input'] if a.usb_input else [])+(['--input-probe'] if a.require_input else [])+(['--network'] if a.require_network_config else [])+(['--vsock-probe'] if a.require_vsock else [])+(['--host-services'] if a.require_host_services else [])+(['--clipboard-test'] if a.require_clipboard_sync else []),stdout=out,stderr=subprocess.STDOUT)
+    proc=subprocess.Popen([str(root/'build/macaros-vm'),str(disk),str(a.output/'state'),'--headless']+(['--gpu-window'] if a.require_gpu_scanout or a.require_input else ['--gpu'] if a.require_gpu or a.desktop_startup else [])+(['--usb-input'] if a.usb_input else [])+(['--input-probe'] if a.require_input else [])+(['--network'] if a.require_network_config else [])+(['--vsock-probe'] if a.require_vsock else [])+(['--host-services'] if a.require_host_services or a.require_desktop_clipboard else [])+(['--clipboard-test'] if a.require_clipboard_sync or a.require_desktop_clipboard else []),stdout=out,stderr=subprocess.STDOUT)
     try:
         while time.monotonic()-start<a.timeout:
             text=log.read_text(errors='replace')
@@ -142,6 +145,8 @@ with log.open('w') as out:
             bridge_irqs=re.findall(r'\[VMBridge\] closed IRQ completions=(\d+)',text)
             bridge_irq_ok=not a.require_vsock_device or (len(bridge_irqs)==2 and all(int(n)>0 for n in bridge_irqs))
             services_ok=not a.require_host_services
+            if a.require_desktop_clipboard:
+                services_ok=text.count('clipboard-test private named pasteboard seeded')==1 and len(bridge_irqs)>=10 and all(int(n)>0 for n in bridge_irqs)
             if a.require_host_services and '[VM] host file put get containment PASS' in text:
                 shared=a.output/'state/Shared';fixture=shared/'vmbridge-qualification.bin'
                 expected=bytes((i*37+i//251)&255 for i in range(65536))
@@ -174,6 +179,7 @@ verdict={'result':'PASS' if passed else 'FAIL','reason':reason,
          'vsock_stream_verified':passed and a.require_vsock,
          'vsock_device_verified':passed and a.require_vsock_device,
          'vsock_device_irq_verified':passed and (a.require_vsock_device or a.require_host_services),
+         'desktop_clipboard_daemon_verified':passed and a.require_desktop_clipboard,
          'clipboard_sync_engine_verified':passed and a.require_clipboard_sync,
          'host_file_exchange_verified':passed and a.require_host_services,
          'file_commands_verified':passed and a.require_file_commands,

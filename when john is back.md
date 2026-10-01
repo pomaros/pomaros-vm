@@ -2753,3 +2753,41 @@ That desktop package has NOT been boot-qualified. Next: verify daemon auto-start
 with Wanderer and actual text/image paste, plus cross-task file contention and
 failure recovery. No extra VM runs after the two focused guest tests, no M1/SMP.
 Stage6 remains active; the other checklist gaps remain intact.
+
+## Actual desktop daemon and host UDP gateway
+
+artifacts/vz-desktop-clipboard PASS, 22.86s, with a 20-second guest desktop hold,
+Wanderer startup, USB/HID bindings and ticks. The probe is a separate normal
+AROS process, not a caller of syncOnce: it reads the exact Mac seed, holds a
+foreground VMExchange session across two polling intervals while a guest text
+copy is pending, verifies publication after release, runs the separately loaded
+VMExchange HELLO, imports/exports a two-color ILBM, and checks stable host/guest
+revisions across two further intervals. The real auto-started VMSync performs
+all synchronization. Named host pasteboard only. GUI menu/keyboard editing and
+forced transport failures are not covered.
+Disk eaa91ebcdd1fcbbf55df55f18d23a401c0d4008148bec5494ab717f739c730d4;
+launcher b2e99ffd87dc3b645ef7ad9a72c82d5ae12a5b1dd7cbefd8283acd81d9fc23b3;
+VMCLIP e65f7248b7cb1d767cd76aeb857709f5f8ea4b2e6150f244ad9987c2a5c6d536.
+Core unchanged at f83a2ba5b1. Added explicit desktop probe packaging/runner
+contracts; general host-file gates are not silently substituted.
+
+artifacts/vz-network-gateway PASS, 2.57s. The existing AROSTCP socket test sent
+32 random challenge bytes to 192.168.64.1:59239 and received the exact reply.
+Independent artifacts/network-gateway-peer/verdict.json PASS records receipt
+from DHCP guest 192.168.64.5:1024. No guest driver or stack change was needed.
+Because bridge100 did not exist before VM startup, the bounded peer bound an
+ephemeral wildcard socket and advertised the explicit NAT bridge address;
+only the per-run challenge is answered. The tool requires a unicast advertised
+address and matching address for specific binds. Socket closed on success.
+Disk 0500bfd01868216a7a4e000dd5ba437389d26ba7d7a2f5cc4385ff85b46964b3;
+launcher same as above. This establishes working UDP through the NAT gateway,
+not the cause of earlier Wi-Fi-address peer failures. DNS/TCP and automatic
+network startup in the desktop remain. Host Wi-Fi route was en0 via 10.0.170.2;
+no association, firewall or M1 state changed.
+
+Exactly two VM runs in this step, both passed; no prolonged test loop. Next:
+DNS through the DHCP-provided resolver and desktop network startup, then the
+remaining stage-six checklist (including visual acceptance, GPU IRQs and current
+build reproducibility). Goal remains active, no SMP work.
+Desktop marker-admission controls also pass 40 positive/negative cases in
+artifacts/desktop-clipboard-marker-controls.json; original VM verdict unchanged.

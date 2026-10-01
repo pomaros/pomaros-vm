@@ -50,4 +50,7 @@ covers 64 KiB upload/readback and the standalone `VMExchange HELLO` command.
 CLI PUT/GET also pass on the isolated guest FAT volume across a VM restart.
 The [clipboard bridge](docs/CLIPBOARD.md) passes guest-device VZ tests for text
 and images. A desktop package with `--host-services` starts VMSync automatically;
-its desktop runtime acceptance remains tracked in [stage 6](docs/STAGE6.md).
+a bounded VZ desktop session verifies the daemon, text/images and foreground
+session contention. [Network qualification](docs/NETWORK.md) covers DHCP and
+an AROSTCP UDP round trip through the host NAT gateway. Remaining acceptance
+is tracked in [stage 6](docs/STAGE6.md).
