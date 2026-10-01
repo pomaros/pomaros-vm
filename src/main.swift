@@ -3,6 +3,10 @@
 import AppKit
 import Virtualization
 
+let bundledLaunch = CommandLine.arguments.count==1 || CommandLine.arguments[1].hasPrefix("--")
+let suppliedOptions=Array(CommandLine.arguments.dropFirst(bundledLaunch ? 1:3))
+let launchOptions=Array(Set((bundledLaunch ? ["--network","--host-services"] : []) + suppliedOptions))
+
 @available(macOS 13.0, *)
 final class Application: NSObject, NSApplicationDelegate, NSWindowDelegate, VZVirtualMachineDelegate, VZVirtioSocketListenerDelegate {
   var hostServices: HostServices?
@@ -12,19 +16,17 @@ final class Application: NSObject, NSApplicationDelegate, NSWindowDelegate, VZVi
   var window: NSWindow!
   var machineView: VZVirtualMachineView?
   let serialInput = Pipe()
-  let headless = CommandLine.arguments.contains("--headless")
+  let headless = launchOptions.contains("--headless")
   var terminationSignal: DispatchSourceSignal?
   var inputProbeTimer: DispatchSourceTimer?
   var shutdownPoll: DispatchSourceTimer?
   var terminationPending=false
   var allowTermination=false
   var stopping=false
-  let disk: URL
-  let state: URL
-  init(disk: URL, state: URL) {
-    self.disk = disk
-    self.state = state
-  }
+  let storage: VMStorage
+  var disk:URL { storage.disk }
+  var state:URL { storage.state }
+  init(storage:VMStorage) { self.storage=storage }
   func listener(_ listener: VZVirtioSocketListener,
                 shouldAcceptNewConnection connection: VZVirtioSocketConnection,
                 from socketDevice: VZVirtioSocketDevice) -> Bool {
@@ -94,18 +96,18 @@ final class Application: NSObject, NSApplicationDelegate, NSWindowDelegate, VZVi
         fileHandleForWriting: .standardOutput)
       console.ports[0] = port
       config.consoleDevices = [console]
-      if !headless || CommandLine.arguments.contains("--gpu") || CommandLine.arguments.contains("--gpu-window") {
+      if !headless || launchOptions.contains("--gpu") || launchOptions.contains("--gpu-window") {
         let graphics = VZVirtioGraphicsDeviceConfiguration()
         graphics.scanouts = [
           VZVirtioGraphicsScanoutConfiguration(widthInPixels: 1024, heightInPixels: 768)
         ]
         config.graphicsDevices = [graphics]
       }
-      if !headless || CommandLine.arguments.contains("--usb-input") {
+      if !headless || launchOptions.contains("--usb-input") {
         config.keyboards = [VZUSBKeyboardConfiguration()]
         config.pointingDevices = [VZUSBScreenCoordinatePointingDeviceConfiguration()]
       }
-      if CommandLine.arguments.contains("--network") {
+      if launchOptions.contains("--network") {
         let network=VZVirtioNetworkDeviceConfiguration()
         let macFile=state.appendingPathComponent("mac-address.txt")
         if FileManager.default.fileExists(atPath:macFile.path) {
@@ -123,17 +125,17 @@ final class Application: NSObject, NSApplicationDelegate, NSWindowDelegate, VZVi
         print("network-config attachment=NAT mac=\(network.macAddress.string)")
         fflush(stdout)
       }
-      if CommandLine.arguments.contains("--vsock-probe") || CommandLine.arguments.contains("--host-services") {
+      if launchOptions.contains("--vsock-probe") || launchOptions.contains("--host-services") {
         config.socketDevices=[VZVirtioSocketDeviceConfiguration()]
       }
       config.entropyDevices = [VZVirtioEntropyDeviceConfiguration()]
       try config.validate()
       machine = VZVirtualMachine(configuration: config)
       machine.delegate = self
-      if CommandLine.arguments.contains("--host-services"),
+      if launchOptions.contains("--host-services"),
          let device=machine.socketDevices.first as? VZVirtioSocketDevice {
         let pasteboard: NSPasteboard
-        if CommandLine.arguments.contains("--clipboard-test") {
+        if launchOptions.contains("--clipboard-test") {
           pasteboard=NSPasteboard(name:NSPasteboard.Name("org.aros.vm.test."+UUID().uuidString))
           pasteboard.clearContents()
           guard pasteboard.setString("Macaros clipboard qualification",forType:.string) else {
@@ -146,12 +148,12 @@ final class Application: NSObject, NSApplicationDelegate, NSWindowDelegate, VZVi
         services.attach(to:device);hostServices=services
         print("host-services port=4051 directory=\(services.directory.path)");fflush(stdout)
       }
-      if CommandLine.arguments.contains("--vsock-probe"),
+      if launchOptions.contains("--vsock-probe"),
          let device=machine.socketDevices.first as? VZVirtioSocketDevice {
         let listener=VZVirtioSocketListener();listener.delegate=self
         socketListener=listener;device.setSocketListener(listener,forPort:4050)
       }
-      if !headless || CommandLine.arguments.contains("--gpu-window") {
+      if !headless || launchOptions.contains("--gpu-window") {
         let view = VZVirtualMachineView()
         view.virtualMachine = machine
         machineView = view
@@ -183,7 +185,7 @@ final class Application: NSObject, NSApplicationDelegate, NSWindowDelegate, VZVi
         case .success:
           print("vm-start backend=Virtualization.framework result=PASS guest_boot=UNVERIFIED")
           fflush(stdout)
-          if CommandLine.arguments.contains("--input-probe") {
+          if launchOptions.contains("--input-probe") {
             let timer=DispatchSource.makeTimerSource(queue:.main)
             self.inputProbeTimer=timer
             timer.schedule(deadline:.now(),repeating:0.1)
@@ -253,7 +255,7 @@ final class Application: NSObject, NSApplicationDelegate, NSWindowDelegate, VZVi
     if allowTermination { return .terminateNow }
     if terminationPending { return .terminateCancel }
     terminationPending=true
-    if let services=hostServices, !CommandLine.arguments.contains("--force-stop") {
+    if let services=hostServices, !launchOptions.contains("--force-stop") {
       services.requestShutdown()
       print("[HOST] guest shutdown requested");fflush(stdout)
       let timer=DispatchSource.makeTimerSource(queue:.main)
@@ -291,23 +293,51 @@ final class Application: NSObject, NSApplicationDelegate, NSWindowDelegate, VZVi
   }
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 }
-let options = Array(CommandLine.arguments.dropFirst(3))
+let options = launchOptions
 if options.contains("--input-probe") && options.contains("--headless") && (!options.contains("--gpu-window") || !options.contains("--usb-input")) {
   fputs("--input-probe requires a VZ window and USB input\n",stderr);exit(2)
 }
-if CommandLine.arguments.count < 3 || options.count != Set(options).count
+if (!bundledLaunch && CommandLine.arguments.count < 3) || suppliedOptions.count != Set(suppliedOptions).count
   || options.contains(where: { $0 != "--headless" && $0 != "--gpu" && $0 != "--gpu-window" && $0 != "--usb-input" && $0 != "--input-probe" && $0 != "--network" && $0 != "--vsock-probe" && $0 != "--host-services" && $0 != "--clipboard-test" && $0 != "--force-stop" }) {
   fputs("usage: macaros-vm DISK_IMAGE STATE_DIRECTORY [--headless] [--gpu] [--gpu-window] [--usb-input] [--input-probe] [--network] [--vsock-probe] [--host-services] [--clipboard-test] [--force-stop]\n", stderr)
   exit(2)
 }
 if #available(macOS 13.0, *) {
   let app = NSApplication.shared
-  app.setActivationPolicy(CommandLine.arguments.contains("--headless") && !CommandLine.arguments.contains("--gpu-window") ? .prohibited : .regular)
-  let delegate = Application(
-    disk: URL(fileURLWithPath: CommandLine.arguments[1]),
-    state: URL(fileURLWithPath: CommandLine.arguments[2]))
-  app.delegate = delegate
-  app.run()
+  app.setActivationPolicy(launchOptions.contains("--headless") && !launchOptions.contains("--gpu-window") ? .prohibited : .regular)
+  do {
+    let storage:VMStorage
+    if bundledLaunch {
+      guard let seed=Bundle.main.url(forResource:"System",withExtension:"img") else {
+        throw NSError(domain:"MacarosVM",code:1,userInfo:[NSLocalizedDescriptionKey:"No bundled system image; supply DISK_IMAGE and STATE_DIRECTORY for command-line use."])
+      }
+      let state:URL
+      if let override=ProcessInfo.processInfo.environment["MACAROS_VM_STATE_DIRECTORY"] {
+        state=URL(fileURLWithPath:override,isDirectory:true)
+      } else {
+        state=try FileManager.default.url(for:.applicationSupportDirectory,in:.userDomainMask,appropriateFor:nil,create:true)
+          .appendingPathComponent("Macaros VM/Default",isDirectory:true)
+      }
+      storage=try VMStorage(state:state,seed:seed)
+    } else {
+      storage=try VMStorage(state:URL(fileURLWithPath:CommandLine.arguments[2]),disk:URL(fileURLWithPath:CommandLine.arguments[1]))
+    }
+    let delegate=Application(storage:storage)
+    app.delegate=delegate
+    let menu=NSMenu();let item=NSMenuItem();menu.addItem(item)
+    let applicationMenu=NSMenu();item.submenu=applicationMenu
+    applicationMenu.addItem(withTitle:"Quit Macaros VM",action:#selector(NSApplication.terminate(_:)),keyEquivalent:"q")
+    app.mainMenu=menu
+    app.run()
+    withExtendedLifetime(delegate) {}
+  } catch {
+    fputs("Macaros VM: \(error.localizedDescription)\n",stderr)
+    if bundledLaunch && !options.contains("--headless") {
+      let alert=NSAlert();alert.messageText="Macaros VM could not start"
+      alert.informativeText=error.localizedDescription;alert.runModal()
+    }
+    exit(1)
+  }
 } else {
   fatalError("macOS 13 or later required")
 }

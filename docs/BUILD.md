@@ -593,3 +593,28 @@ VM running; --force-stop explicitly bypasses this handshake. run-vz uses that
 bypass for boot-contract qualification; run-shutdown-vz.py tests the real
 handshake. This flushes filesystem buffers, not unsaved application data, and
 only covers the configured WORK device.
+
+### Standalone macOS application
+
+After building the launcher and a normal `--work-volume --network-stack
+--usb-desktop --desktop-session forever` package, commit source changes and run:
+
+```sh
+python3 tools/package-app.py --esp artifacts/desktop-safe-quit-bundle --output 'artifacts/Macaros VM.app'
+```
+
+The app includes its boot disk, guest provenance and license notices. It is
+ad-hoc signed for private local use, not notarized for public distribution.
+Opening it without arguments starts the desktop with network and host services.
+First launch copies the seed into
+`~/Library/Application Support/Macaros VM/Default/system.img`. Later launches
+reuse that disk and state (including NVRAM, MAC and Shared directory). Updating
+or replacing the app does not replace a populated disk. A failed initial copy
+is not published as system.img. Both state and disk are locked while running.
+
+`MACAROS_VM_STATE_DIRECTORY` overrides the state location for isolated testing.
+Bundled mode also accepts flags such as `--headless --gpu --usb-input
+--clipboard-test`; no disk/state positional arguments are then needed. The
+explicit `DISK_IMAGE STATE_DIRECTORY [flags]` command-line form remains available.
+The app has a Quit menu; window close and Quit use the guest shutdown handshake.
+First-launch storage behavior is exercised by `make test-vm-storage`.

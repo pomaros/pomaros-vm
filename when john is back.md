@@ -3033,3 +3033,29 @@ acceptance. No SMP or physical M1/Pi work.
 
 Normal bundle SHA256: 8beb80ffe18add4b3fb6872f3c7edb58baf2ff682dfaa2b4157ba20845437d63
 Final launcher SHA256: 693f7f342a47e4a5548eda7817cad502bf42dea04bfce398282c464b9cf25af0
+
+## Standalone app and first-launch storage implementation — 2026-10-01
+
+Following aros-next/docs/AARCH64.md's self-contained application requirement:
+new VMStorage copies a bundled immutable seed once into Application Support,
+using a temporary file, fsync and rename under a state lock. Existing disks
+are never overwritten by a new seed. Disk inode and state locks stay owned
+for the full Application lifetime; final disk symlinks/nonregular files are
+refused. CLI uses the same ownership mechanism on its explicit disk/state.
+Default state: ~/Library/Application Support/Macaros VM/Default; explicit
+MACAROS_VM_STATE_DIRECTORY supports isolated bundle qualification.
+
+Launcher accepts no-argument bundle launch (network and host services enabled),
+bundle flags, or its existing explicit disk/state CLI. Added Quit menu and GUI
+startup-error alert. package-app.py requires a clean VM checkout and a live,
+probe-free WORK/USB/network/host-services package with shutdown participation.
+It builds a private ad-hoc signed .app, verifies signing, records input hashes
+and copies separate host/AROS license notices. No public distribution/notarization
+claim. Replacing the application intentionally does not upgrade the user's disk.
+
+make test-vm-storage PASS: real copy and subsequent seed replacement preserve
+personal bytes; concurrent same-state/same-disk admission fails; failed-copy
+retry works and no partial disk is published; symlink disk refused. Launcher
+build passes warnings-as-errors. Initial test build caught throwing expressions
+inside Swift precondition autoclosures; fixed without suppressions. Actual .app
+VZ boot/signature validation follows this implementation commit.
