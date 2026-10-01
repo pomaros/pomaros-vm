@@ -3923,3 +3923,13 @@ Reproducibility: two new isolated builds from frozen core2d167429e3 started
 under `artifacts/repro-final-stage6-20261001`; results to append when complete.
 The build includes kernel-openfirmware and workbench-c-devicetree, compares
 all generated product/SDK files and stage2. No native/Pi/SMP work.
+
+The test probes and runner are now tracked as tests/stage6-transport.c,
+tests/stage6-image.c and tests/stage6-vz.py. The signed app
+`artifacts/stage6-release/Macaros VM.app` (profile Distribution-Stage6)
+passes the identical isolated probe run in21.27s:
+`artifacts/vz-stage6-final-1/verdict.json`. Host launcherSHA256
+66a78e0a26d9cb518d93e402f40f2b6c133133c63c7616ebb1a800f310ccf69b.
+Normal first-launch acceptance in progress at
+`artifacts/vz-stage6-release-normal/`. Manual host VZ image judgment
+requested from John with exact MultiView command in docs/STAGE6.md.

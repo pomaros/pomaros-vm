@@ -6,7 +6,7 @@ set -eu
 
 usage()
 {
-    echo "usage: build-abi-probe [--profile cli|tls|workbench|platform|pci|usb-desktop|desktop-input|desktop-clipboard|desktop-network|desktop-work|desktop-shutdown|desktop-soak] [--sdk SDK_ROOT] [--sdk-tools DIR] [--crosstools DIR] OUTPUT" >&2
+    echo "usage: build-abi-probe [--profile cli|tls|workbench|platform|pci|usb-desktop|desktop-input|desktop-clipboard|desktop-network|desktop-work|desktop-shutdown|desktop-soak|stage6-transport|stage6-image] [--sdk SDK_ROOT] [--sdk-tools DIR] [--crosstools DIR] OUTPUT" >&2
     exit 2
 }
 
@@ -60,6 +60,12 @@ case "$profile" in
         ;;
     pci)
         source_file="$project_root/tests/pci-hidd-probe.c"
+        ;;
+    stage6-transport)
+        source_file="$project_root/tests/stage6-transport.c"
+        ;;
+    stage6-image)
+        source_file="$project_root/tests/stage6-image.c"
         ;;
     desktop-soak)
         source_file="$project_root/tests/desktop-soak.c"
@@ -134,6 +140,9 @@ if [ "$profile" = desktop-network ]; then
 fi
 if [ "$profile" = desktop-clipboard ]; then
     set -- -DVM_CLIPBOARD_DESKTOP
+fi
+if [ "$profile" = stage6-transport ]; then
+    set -- "${AROS_CORE_SOURCE:-$project_root/../aros-core-vm}/workbench/tools/VMExchange/client.c"
 fi
 if [ "$profile" = platform ]; then
     set -- "$project_root/tests/command-startup.c"

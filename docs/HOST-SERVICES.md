@@ -102,3 +102,8 @@ sockets without stopping the VM; it is inert in normal launches. The paired
 is in `artifacts/vz-stage6-image-cut-close-2/`; the fixture disk is isolated.
 This covers stream interruption and recovery, not a host process crash or
 macOS power loss.
+
+The repeatable runner is `python3 tests/stage6-vz.py --app APP --output
+NEW_DIRECTORY`; it builds both guest probes with `tools/build-abi-probe`.
+The signed app replay passes at `artifacts/vz-stage6-final-1/`, including
+source/copy/host byte comparisons after clean stop.

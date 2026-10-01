@@ -89,7 +89,28 @@ pixel in a region inside the window. This proves guest GUI image decoding
 and drawing. A human still needs to judge what appears in the macOS VZ view;
 macOS screen-capture preflight is false for this agent. No physical input or
 Raspberry Pi result is inferred. Evidence:
-`artifacts/vz-stage6-image-cut-close-2/verdict.json`, console and the
-`stage6-image.txt` read back from WORK after clean stop. The first cut-only
+`artifacts/vz-stage6-image-cut-close-2/verdict.json` and the permanent
+`tests/stage6-vz.py` replay against the signed app at
+`artifacts/vz-stage6-final-1/verdict.json` (PASS, 21.27 seconds). The runner
+compiles two guest probes, patches only an isolated disk, checks the console,
+WORK and host Shared bytes after clean stop, and keeps exact binary hashes. The first cut-only
 run also passed; the first image attempt did not start because a test-only
 probe had a compile-time format warning, fixed before the combined run.
+
+To repeat the bounded VM test from a configured SDK and new output directory:
+
+```sh
+python3 tests/stage6-vz.py --app "artifacts/stage6-release/Macaros VM.app" \
+  --output artifacts/vz-stage6-repeat
+```
+
+For John's visual check, launch that app normally and run:
+
+```text
+SYS:Utilities/MultiView SYS:Prefs/Presets/Wallpapers/2007-comp-entries/04-Mithrandir_wallpaperupdated.jpg
+```
+
+The final app uses the fresh `Distribution-Stage6` profile. Its normal first
+launch is qualified separately from the injected probes. The image should be
+visible in the macOS VM view; the guest pixel readback alone does not assert
+what the host presented.
