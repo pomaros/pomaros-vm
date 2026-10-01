@@ -54,7 +54,8 @@ def main():
         shutil.copy2(launcher,binary/'MacarosVM')
         subprocess.run(['python3',str(root/'tools/make-disk.py'),'--esp',str(a.esp),
                         '--output',str(resources/'System.img')],check=True)
-        info={'CFBundleIdentifier':'me.jkn.macaros-vm','CFBundleName':'Macaros VM',
+        identifier='me.jkn.macaros-vm'+('' if a.profile_name=='Default' else '.'+a.profile_name.lower().replace('_','-'))
+        info={'CFBundleIdentifier':identifier,'CFBundleName':'Macaros VM',
               'CFBundleDisplayName':'Macaros VM','CFBundleExecutable':'MacarosVM',
               'CFBundlePackageType':'APPL','CFBundleShortVersionString':'0.1.0',
               'CFBundleVersion':'1','MacarosVMProfileName':a.profile_name,'LSMinimumSystemVersion':'13.0','NSHighResolutionCapable':True}

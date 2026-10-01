@@ -114,6 +114,7 @@ def package(a):
         (system / name).mkdir(exist_ok=True)
     (system / 'Prefs/Env-Archive').mkdir(parents=True, exist_ok=True)
     (system / 'Prefs/Env-Archive/HOME').write_text('WORK:')
+    shutil.copy2(ROOT / 'distribution/ReadMe', system / 'ReadMe')
     for name in ['LICENSE', 'LICENSE.GPL', 'LICENSE.LGPL', 'LICENSE.Author', 'LEGAL']:
         shutil.copy2(source / name, system / name)
     # This runs only after the existing storage readiness barrier. Explicit

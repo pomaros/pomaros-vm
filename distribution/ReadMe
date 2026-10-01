@@ -1,0 +1,21 @@
+Macaros VM — AROS distribution
+
+Open System, Tools, Utilities and Prefs for the standard AROS applications.
+From a Shell, for example:
+
+  CPUInfo
+  SYS:Tools/Editor
+  SYS:Utilities/MultiView
+  SYS:Utilities/Clock
+
+Save your documents on WORK:. System files and saved preferences persist too.
+Control+Option+Escape releases the mouse and keyboard to macOS. Click the VM
+window to return to AROS. Quit the application normally to flush the disk.
+
+The Mac clipboard synchronizes with AROS clipboard unit 0. Individual programs
+provide their own Copy/Paste commands. VMExchange transfers files through the
+profile's Shared folder; text and supported images can use the clipboard.
+
+This application uses the Distribution profile and leaves the existing Default
+profile intact. Zed, Ferail and third-party hosted Macaros applications are not
+part of this distribution. See the LICENSE files for AROS licensing.
