@@ -396,7 +396,15 @@ Build `kernel-hidd-virtiogfx` in the configured VM core. The module reuses the
 framebuffer chunky bitmap/display classes, replacing pixel presentation with
 virtio GPU transfer/flush. It uses deferred boot-mode display setup, has separate OOP class IDs and retains its PCI/DMA
 context for the display lifetime. The initial mode is 1024x768 truecolor;
-completion is polled, with reset quarantine on failure. This profile includes
+commands wait for registered PCI queue interrupts with a one-second timer.device
+bound, retaining reset quarantine on failure. Queue parsing remains in task
+context; the callback only acknowledges and signals the serialized caller.
+This implementation uses the existing single-CPU IRQ lifetime contract.
+The VM desktop readiness observer samples at timer ticks so sleeping render
+commands cannot make a tight observation loop expire prematurely.
+Use `run-vz.py --require-gpu-irq --desktop-startup` with the desktop run flags
+to require actual interrupt completion. The changed path passes in VZ; earlier
+HVF pixel evidence predates this IRQ change. This profile includes
 OpenFirmware and PCI/ECAM/vmpci residents and replaces the EFI graphics resident.
 The kernel verifies their exact order, priorities and flags.
 

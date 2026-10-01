@@ -3230,3 +3230,42 @@ Reproduction uses new network-tcp-server.py, package-core --network-tcp-request,
 and run-vz --require-network-tcp; see docs/NETWORK.md. Current full guest rebuild
 supervisor 20748/exec46525 remains live, configurations A/B PASS; no final build
 comparison verdict yet. No SMP or M1 work.
+
+## Resident GPU interrupt completion — 2026-10-01
+
+Core 14461d32e8 removes the transport command busy loop. Registers a PCI
+interrupt and routes queue0 through the existing transport contract; enables
+queue notifications. Callback acknowledges ISR and signals the active caller.
+Each serialized command borrows a caller signal, arms a one-second timer request,
+waits for used-ring completion AND an interrupt, validates descriptor/fence,
+detaches its waiter, aborts/drains the timer and releases the signal. No queue
+parsing in IRQ context. Close removes the interrupt only after acknowledged
+hardware reset; reset failure retains the quarantined context and dependencies.
+This uses the existing UP lifetime contract; no SMP work or SMP claim.
+
+First bounded VZ run artifacts/vz-desktop-gpu-irq FAIL3.62s: IRQ completion
+and graphics registration already PASS, but the desktop readiness observer
+exhausted 1024 immediate Reschedule iterations while Initial CLI still lived.
+It no longer monopolizes rendering while the GPU is pending. Corrected the VM
+observer to Delay(1) between samples, preserving all conditions and 64 stable
+observations. Native branch retains its original scheduling behavior.
+Initial attempted make target kernel-apple-quick was unknown despite exit0;
+read the log and actually built kernel-kernel-quick, which compiled the changed
+coldstart_proof.c and relinked kernel.resource. No success inferred from exit0.
+
+Second and final VZ run artifacts/vz-desktop-gpu-irq-paced PASS25.41s, 20-second
+hold, strict IRQ marker plus desktop/USB/HID/DHCP/DNS/clipboard daemon gates.
+No more guest runs for this change. No timeout injection, HVF IRQ, VZ pixel or
+teardown fault-injection qualification claimed. Existing HVF pixel proof predates
+this change. App-ready is not silently replaced with this candidate.
+Fixture artifacts/desktop-gpu-irq-paced-fixture/fixture.json records full source
+diff and prior core provenance; only kernel.resource and virtiogfx.hidd were
+replaced, every other bundled payload hash was asserted identical. Construction
+script artifacts/qualify-gpu-irq-paced.py retained. GPU SHA256
+dc56c9564670b65776542943f5928bbe6ad19cd8897a42ae3a4e2796d26d5705.
+Bundle SHA256 0a08ced6a175ce8904870132e4458f3185d4e2be54e4b351f28f7364be77227e.
+Input disk SHA256 13c29984e9873a64d76bbd1fdd7d7684a3e15d15b638afabcfccf9727c85bb11.
+
+Full independent rebuild supervisor20748/exec46525 remains live, using frozen
+core d3301fb648. Its eventual verdict will not include this later GPU change.
+Keep that scope explicit; do not mutate or restart the frozen comparison.

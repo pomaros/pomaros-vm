@@ -40,6 +40,7 @@ p.add_argument('--require-xhci-enumeration',action='store_true')
 p.add_argument('--desktop-startup',action='store_true')
 p.add_argument('--require-gpu-scanout',action='store_true')
 p.add_argument('--require-gpu',action='store_true')
+p.add_argument('--require-gpu-irq',action='store_true')
 p.add_argument('--filesystem-phase',choices=['write','restart'])
 p.add_argument('--storage-phase',choices=['write','restart'])
 p.add_argument('--require-pci-hidd',action='store_true')
@@ -92,6 +93,7 @@ if a.usb_input and not (a.desktop_startup or a.require_gpu):
     p.error('--usb-input requires a graphics profile')
 if a.desktop_startup and (a.require_gpu or a.require_pci_hidd):
     p.error('--desktop-startup uses the resident desktop, not the PCI/GPU probe profile')
+if a.require_gpu_irq and not a.desktop_startup: p.error('--require-gpu-irq requires resident desktop')
 if a.require_gpu_scanout and not a.require_gpu: p.error('--require-gpu-scanout requires --require-gpu')
 if a.require_gpu and not a.require_pci_hidd: p.error('--require-gpu requires --require-pci-hidd')
 if a.filesystem_phase and not a.require_virtio_device: p.error('--filesystem-phase requires --require-virtio-device')
@@ -202,6 +204,7 @@ verdict={'result':'PASS' if passed else 'FAIL','reason':reason,
          'network_dns_verified':passed and a.require_network_dns,
          'network_host_udp_verified':passed and a.require_network_echo,
          'network_tcp_verified':passed and a.require_network_tcp,
+         'gpu_irq_verified':passed and a.require_gpu_irq,
          'network_stack_address_verified':passed and a.require_network_stack,
          'network_config_verified':passed and a.require_network_config,'network_packets_verified':passed and a.require_network_packets,'network_irq_verified':passed and a.require_network_irq,'input_events_withheld':a.no_input_events,'desktop_session_seconds':a.require_desktop_session,'desktop_session_verified':passed and a.require_desktop_session is not None,
          'backend':'Virtualization.framework','host_shutdown_mode':'force-stop','graphics':a.require_gpu or a.desktop_startup,'usb_input_exposed':a.usb_input,'xhci_mapping_required':a.usb_input and a.require_pci_hidd,'input_verified':passed and a.require_input,'usb_hid_bindings_verified':passed and a.require_usb_desktop,'xhci_driver_required':a.require_xhci_driver,'xhci_enumeration_required':a.require_xhci_enumeration,'usb_child_descriptors_verified':passed and a.require_xhci_enumeration,'usb_transfers_verified':False,'desktop_startup':a.desktop_startup,'desktop_pixels_verified':False,'gpu_query_required':a.require_gpu,'gpu_scanout_required':a.require_gpu_scanout,'pixels_verified':pixels_verified,'storage_phase':a.storage_phase,'filesystem_phase':a.filesystem_phase,

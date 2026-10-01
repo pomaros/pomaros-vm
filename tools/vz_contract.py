@@ -54,6 +54,7 @@ def expected_markers(a):
         markers += (['[VM] storage write flush PASS','[VM] storage write readback PASS'] if a.storage_phase=='write' else ['[VM] storage restart read PASS'])
     if a.filesystem_phase:
         markers += ['[VM] filesystem mount PASS', '[VM] filesystem '+('write flush' if a.filesystem_phase=='write' else 'restart')+' PASS']
+    if getattr(a,'require_gpu_irq',False): markers += ['[VM] virtio graphics IRQ completion PASS']
     if a.require_gpu: markers += ['[VM] virtio GPU display query PASS']
     if a.require_gpu_scanout: markers += ['[VM] virtio GPU scanout cleanup PASS']
     counts={marker:1 for marker in markers}
