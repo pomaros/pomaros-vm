@@ -2592,3 +2592,38 @@ Pas encore de fichiers/presse-papiers, ni validation de reset défaillant, press
 de RST étrangers, expiration de Close ou usage prolongé. Revue 267 approuvée.
 Prochaine étape : protocole de services au-dessus de l’IO résident, accès fichiers
 et clipboard texte/images ; diagnostic UDP via passerelle vmnet toujours ouvert.
+
+
+## File services: partial native evidence and command startup investigation
+
+Core 899da8c0f1 fixes AbortIO after data has already moved: report the partial
+transfer rather than cancellation. Review 268 approved. VZ
+artifacts/vz-vmbridge-abort-fixed passes both 64 KiB cycles, flush, abort and
+reopen (1.74 s). Core 3b7065280f adds VMExchange and its protocol client;
+318cadde19 adds temporary command-entry diagnostics.
+
+HostServices serves a pinned Shared directory on vsock port4051. Socket-pair
+qualification passes (artifacts/host-services-test.log), including no-replace,
+traversal/symlink refusal, incomplete upload cleanup and malformed frames.
+See docs/HOST-SERVICES.md for the interface and limits.
+
+VZ artifacts/vz-host-services and vz-host-services-trace remain FAIL at their
+35 s and 20 s deadlines. The protocol workload completes upload, no-replace
+refusal and readback before closing the first device connection (183/181 IRQs).
+The second run's host file has 65536 correct bytes and SHA256
+51fe7c95debcfefba857851144285f2450a5f2355c37dd6d99a5733b73e0ae6a.
+LoadSeg returns, but RunCommand never reaches the command main diagnostic.
+This does not qualify the CLI or the complete file-service gate.
+
+Static investigation: the unrelocated startup instruction is b .; the full
+relocation table DOES contain its JUMP26 to .text+8 at the END of the table.
+An initial claim based on the table head was wrong and corrected on board.
+Minimal linker and both strip-tool checks preserve that relocation; no linker
+change is justified. Artifacts/startup-relocation retains this experiment.
+NewStackSwap's inline assembly omits some caller-clobbered registers, but this
+build keeps its operands in callee-saved registers: no causal claim or fix made.
+Next: inspect the loaded entry and independently locate guest execution before
+another acceptance run. No more blind VZ repetitions. No M1 or SMP work.
+
+Host Wi-Fi supplied by John: Apartmenthaus Berlin Mitte, no password. No network
+association changed; VZ NAT uses the host connection. Clipboard remains open.
