@@ -44,3 +44,14 @@ synthetic DOS/OpenFirmware APIs under ASan/UBSan. It checks string lists,
 unaligned big-endian cells, malformed strings, bounded previews, escaped output,
 redaction, missing/old resources, selection, depth, Ctrl+C and output failure.
 It is complemented by command execution in the actual VM, not a hardware claim.
+
+VM qualification (2026-10-01): six invocations in the distribution guest passed
+(overview, all properties, compatible selection, hex, missing node, depth zero).
+The tree contained seven nodes including GICv3, its MSI frame, the ARM timer,
+PCI ECAM and virtio console. Final evidence: `artifacts/vz-devicetree-4/`;
+the whole desktop/command/shutdown check took 6.49 seconds.
+
+The ready application is `artifacts/distribution-devicetree/Macaros VM.app`.
+It uses a fresh `Distribution-DeviceTree` profile so existing Default and
+Distribution disks are preserved. The updated resource and command must travel
+together; copying the command alone to the previous VM reports an old resource.

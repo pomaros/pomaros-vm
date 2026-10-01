@@ -3852,3 +3852,37 @@ Remaining: normal user exercise of tools/preferences and a future coordinated
 distribution upgrade mechanism. Boot-only updater deliberately rejects these
 disks because WORK:System and the kernel must advance together. Shutdown
 failure recovery limitation is documented in docs/DISTRIBUTION.md.
+
+## DeviceTree inspector — 2026-10-01
+
+John asked for simple VM inspection now, reusable for bare metal/Pi later.
+Core2d167429e3 adds C:DeviceTree and public OF_GetNodeName, with resource1.0
+and a version check before using the new vector. No private structures or
+hardware-specific tables in the command. PATH, PROPERTIES, PROPERTY, HEX and
+DEPTH options; bounded escaped values, Ctrl+C, explicit missing-node errors.
+This is the retained firmware tree, not the roadmap's live DEVTREE: filesystem,
+overlay AddDeviceTree, driver binding/grants or hotplug implementation.
+bootargs/.state withheld until diagnostic authority can be integrated.
+
+VMf963220 includes command, docs and14 ASan/UBSan host scenarios, all PASS.
+Resource and command quick builds PASS. Distribution explicitly builds both
+resource and command so a new command never ships with an older API.
+Ready app: artifacts/distribution-devicetree/Macaros VM.app, fresh profile
+Distribution-DeviceTree; existing profiles untouched. Embedded VM revision
+f963220/core2d167429e3; later target dependency/docs edits do not change binaries.
+
+Real guest PASS: artifacts/vz-devicetree-4,6.49seconds. Six RunCommand
+invocations: summary0/all-properties0/compatible0/hex0/missing-node10/depth0.
+Seven firmware nodes shown, including GICv3/v2m,timer,PCI ECAM,console.
+Desktop readiness/HID/GPU, disk exclusivity and clean quiesce/stop also PASS.
+Test-only IPrefs wrapper on isolated disk runs command then invokes original
+IPrefs through SystemTags; packaged seed and binaries stay untouched.
+SeedSHA256 cdc2483510d90b6c3bc749cf5d413aa75baa745a92f51d0b1702eb2cdc89839d.
+
+Failed checks retained: attempts1/2 executed commands but the test wrapper
+used RunCommand/UnLoadSeg for daemon IPrefs, causing an execution fault.
+SystemTags gives IPrefs its own normal process/segment lifetime. Attempt3
+booted/stopped cleanly and returned all expected statuses, but scorer assumed
+lowercase hex whereas DOS emits uppercase; corrected in final attempt4.
+No product code was changed to bypass those failures. No physical/Pi acceptance
+or SMP work claimed. Next: ordinary user use; later live-tree/backend expansion.
