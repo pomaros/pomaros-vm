@@ -48,4 +48,5 @@ with a probe-free seed. Bundled VZ mode passes first-launch copy, desktop/HID
 startup, state/disk exclusivity and guest-acknowledged shutdown; host tests prove
 later seed changes preserve personal disk bytes. Normal location is Application
 Support/Macaros VM/Default. This is not Finder-click or VZ pixel verification,
-and app/launcher/updated guest reproducibility still needs comparison.
+and updated full guest reproducibility still needs comparison. Independent launcher
+builds and same-input signed app packaging have passed their comparisons.

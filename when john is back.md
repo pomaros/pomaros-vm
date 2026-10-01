@@ -3195,3 +3195,10 @@ snapshot push URL is disabled. Inventories include all AROS/SDK files, modes,
 symlink targets and stage2. No comparison success is claimed before its final
 verdict. The next run uses the new core epoch changes and includes the components
 missing from the old 18,069-file comparison.
+
+Full comparison launched at /Users/jkn/Build/macaros-vm/repro-current-20261001
+from core d3301fb648 and VM tools 0613f3b. Supervisor exec session 46525,
+PID 20748; log artifacts/repro-current-supervisor.log. Configuration A passed;
+B is in progress. Inspect the existing process/handle before any restart.
+verdict.json is RUNNING, not acceptance. Both revisions were pushed privately;
+board review 280 covers the epoch change and comparison driver.
