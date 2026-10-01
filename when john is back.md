@@ -3674,3 +3674,11 @@ execution, so importing the tool does not parse arguments or create an app.
 Focused checks accept the real qualified manifest and reject each absent
 feature, each probe flag and absent shutdown participation. No VM rerun for
 this packaging-only change.
+
+The integrated desktop packager now includes the unchanged Tools/Editor already
+qualified above. Configure initializes its pinned catalogue; the complete-build
+target/product list now requires Editor (23 targets, 29 required ELFs). Those
+counts describe the next complete reconstruction, not a new comparison result.
+Existing 22-target/28-product proof remains scoped to its original payload.
+Editor is added to expanded SYS only for the desktop with host services; it
+is not auto-started. This exposes the tested editing workflow in the normal app.

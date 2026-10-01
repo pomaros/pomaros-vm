@@ -231,10 +231,12 @@ if a.work_volume:
             '--crosstools',str(a.toolchain.resolve()),'--profile','desktop-shutdown' if a.shutdown_probe else 'desktop-work',str(command)],check=True)
         pci_files.append(('VMWORK',command))
 desktop_services = a.host_services and a.profile=='wanderer'
+if desktop_services:
+    pci_files.append(('Tools/Editor',sdk/'AROS/Tools/Editor'))
 expanded_system = a.network_stack or a.profile=='wanderer'
 def deferred_file(rel):
     return (a.soak_probe and rel=='VMSOAK') or (a.work_volume and rel in {'VMWORK','C/Mount','C/LoadResource','L/fat-handler','Devs/WORK.mount','Devs/Drivers/bus.hidd','Devs/Drivers/storage.hidd','Devs/virtio.device'}) or (a.profile=='wanderer' and rel in {'C/Assign','C/MakeDir'}) or (a.network_stack and (rel.startswith('System/Network/') or rel in {'VMNET','Libs/rexxsyslib.library','Libs/commodities.library','Libs/keymap.library','Devs/Networks/virtionet.device'})) or (desktop_services and rel in {
-        'C/VMExchange','C/VMSync','Devs/clipboard.device','Devs/vmbridge.device','VMCLIP'})
+        'C/VMExchange','C/VMSync','Devs/clipboard.device','Devs/vmbridge.device','VMCLIP','Tools/Editor'})
 ramdisk = output / 'SYS.img'
 image_command = ['python3', str(root / 'tools/make-fat12-image.py'), '--abi-probe', str(probe)]
 if a.pci_hidd:

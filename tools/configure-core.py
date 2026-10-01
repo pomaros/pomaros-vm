@@ -39,7 +39,7 @@ env=dict(os.environ,SOURCE_DATE_EPOCH=epoch,TZ='UTC')
 subprocess.run(['git', '-C', str(source), 'submodule', 'update', '--init', '--',
                 'rom/dos/catalogs', 'workbench/c/LoadResource/catalogs',
                 'workbench/c/R/catalogs', 'workbench/libs/asl/catalogs',
-                'workbench/libs/muimaster/catalogs',
+                'workbench/libs/muimaster/catalogs', 'workbench/tools/Edit/catalogs',
                 'workbench/system/Wanderer/Catalogs'], check=True)
 command = [str(source / 'configure'), '--target=apple-aarch64',
            '--enable-vm-guest', '--with-toolchain=llvm', '--with-aros-toolchain=yes',

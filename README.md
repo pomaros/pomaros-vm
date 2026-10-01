@@ -18,7 +18,10 @@ Save persistent files on `WORK:`. `SYS:` and `RAM:` are RAM-backed in this
 image. Quit the application normally to let the guest flush WORK before the
 VM stops. Text and supported images in AROS clipboard unit 0 synchronize with
 the Mac clipboard; individual applications must implement their Copy/Paste
-commands. See [clipboard formats and limits](docs/CLIPBOARD.md).
+commands. The integrated desktop includes the existing AROS editor: launch
+`SYS:Tools/Editor` from the Shell and save documents on `WORK:`. Its text
+Copy/Paste path has been exercised through the VZ view and Mac clipboard.
+See [clipboard formats and limits](docs/CLIPBOARD.md).
 
 The profile's `Shared` folder is the Mac side of file exchange. In the AROS
 Shell, for example:
