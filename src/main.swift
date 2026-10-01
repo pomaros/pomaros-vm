@@ -128,7 +128,8 @@ final class Application: NSObject, NSApplicationDelegate, VZVirtualMachineDelega
       machine.delegate = self
       if CommandLine.arguments.contains("--host-services"),
          let device=machine.socketDevices.first as? VZVirtioSocketDevice {
-        let services=try HostServices(directory:state.appendingPathComponent("Shared",isDirectory:true))
+        let services=try HostServices(directory:state.appendingPathComponent("Shared",isDirectory:true),
+                                      clipboard:ClipboardStore(pasteboard:.general))
         services.attach(to:device);hostServices=services
         print("host-services port=4051 directory=\(services.directory.path)");fflush(stdout)
       }

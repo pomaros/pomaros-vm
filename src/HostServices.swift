@@ -11,10 +11,12 @@ import Virtualization
 final class HostServices: NSObject, VZVirtioSocketListenerDelegate {
   let directory: URL
   let rootFD: Int32
-  private var active=false
+  private var active=0
+  private let clipboard: ClipboardStore?
   private let listener=VZVirtioSocketListener()
-  init(directory: URL) throws {
+  init(directory: URL, clipboard: ClipboardStore? = nil) throws {
     self.directory=directory
+    self.clipboard=clipboard
     try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true)
     rootFD=Darwin.open(directory.path,O_RDONLY|O_DIRECTORY|O_NOFOLLOW)
     if rootFD<0 { throw NSError(domain:NSPOSIXErrorDomain,code:Int(errno)) }
@@ -25,15 +27,15 @@ final class HostServices: NSObject, VZVirtioSocketListenerDelegate {
   func listener(_ listener: VZVirtioSocketListener,
                 shouldAcceptNewConnection connection: VZVirtioSocketConnection,
                 from socketDevice: VZVirtioSocketDevice) -> Bool {
-    guard !active else { return false }
+    guard active<4 else { return false }
     let fd=connection.fileDescriptor
     guard fd>=0, fcntl(fd,F_SETFL,fcntl(fd,F_GETFL)|O_NONBLOCK)==0 else { return false }
     var noSignal:Int32=1
     guard setsockopt(fd,SOL_SOCKET,SO_NOSIGPIPE,&noSignal,socklen_t(MemoryLayout<Int32>.size))==0 else { return false }
-    active=true
+    active+=1
     DispatchQueue.global().async { [self] in
       serve(fd)
-      DispatchQueue.main.async { [self] in connection.close();active=false }
+      DispatchQueue.main.async { [self] in connection.close();active-=1 }
     }
     return true
   }
@@ -75,6 +77,8 @@ final class HostServices: NSObject, VZVirtioSocketListenerDelegate {
   func serve(_ fd:Int32) {
     var upload:Int32 = -1, download:Int32 = -1
     var temporary="",destination="",uploaded:UInt64=0,downloaded:UInt64=0,downloadSize:UInt64=0
+    var clipSnapshot:[UInt8]?,clipUpload:[UInt8]?
+    var clipOffset=0,clipSize=0,clipRevision:UInt64=0
     defer {
       if upload>=0 { Darwin.close(upload) }
       if download>=0 { Darwin.close(download) }
@@ -154,6 +158,56 @@ final class HostServices: NSObject, VZVirtioSocketListenerDelegate {
       case 7:
         if download<0 || !body.isEmpty { status=2 }
         else { Darwin.close(download);download = -1 }
+      case 8: // clipboard snapshot: last seen revision -> revision + byte count
+        if body.count != 8 { status=1 }
+        else if let clipboard {
+          DispatchQueue.main.sync {
+            do {
+              let (revision,content)=try clipboard.snapshot(after:number(body,0,8))
+              clipSnapshot=content;clipOffset=0
+              response=[UInt8](repeating:0,count:12)
+              put(&response,0,revision,8);put(&response,8,UInt64(content?.count ?? 0),4)
+            } catch ClipboardStore.Failure.changed { status=6 }
+              catch { status=5 }
+          }
+        } else { status=5 }
+      case 9: // read the immutable snapshot in bounded chunks
+        if body.count != 4 || clipSnapshot == nil { status=2 }
+        else {
+          let wanted=Int(number(body,0,4))
+          if wanted<1 || wanted>65536 { status=1 }
+          else if let snapshot=clipSnapshot {
+            let end=min(clipOffset+wanted,snapshot.count)
+            response=Array(snapshot[clipOffset..<end]);clipOffset=end
+            if clipOffset==snapshot.count { clipSnapshot=nil }
+          }
+        }
+      case 10: // begin conditional clipboard upload: revision + total byte count
+        if clipboard == nil { status=5 }
+        else if body.count != 12 { status=1 }
+        else if clipUpload != nil { status=2 }
+        else {
+          let size=Int(number(body,8,4))
+          if size<12 || size>ClipboardCodec.maximumBytes { status=1 }
+          else { clipRevision=number(body,0,8);clipSize=size;clipUpload=[] }
+        }
+      case 11:
+        if clipUpload == nil { status=2 }
+        else if body.isEmpty || body.count>clipSize-clipUpload!.count { status=1 }
+        else { clipUpload!.append(contentsOf:body) }
+      case 12: // publish only a complete, decodable clip and current revision
+        if !body.isEmpty || clipUpload?.count != clipSize || clipUpload == nil { status=2 }
+        else if let clipboard,let content=clipUpload {
+          clipUpload=nil
+          DispatchQueue.main.sync {
+            do {
+              let revision=try clipboard.publish(content,replacing:clipRevision)
+              response=[UInt8](repeating:0,count:8);put(&response,0,revision,8)
+            } catch ClipboardStore.Failure.changed {
+              status=6;response=[UInt8](repeating:0,count:8);put(&response,0,clipboard.revision,8)
+            } catch { status=5 }
+          }
+        } else { status=5 }
       default:status=5
       }
       put(&header,12,UInt64(response.count),4);put(&header,16,status,4)

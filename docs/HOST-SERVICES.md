@@ -16,16 +16,18 @@ The MVHS version 1 frame has a 20-byte little-endian header: magic `MVHS`,
 16-bit version, 16-bit operation, 32-bit increasing request ID, 32-bit payload
 length and 32-bit status. Payloads are bounded to 65536 bytes. Operations are
 HELLO (1), PUT_BEGIN (2), PUT_CHUNK (3), PUT_COMMIT (4), GET_BEGIN (5),
-GET_CHUNK (6) and GET_END (7). Only one connection is admitted at a time.
+GET_CHUNK (6) and GET_END (7). At most four connections are admitted, including
+connections finishing shutdown.
 Status values are success (0), invalid request (1), invalid state (2), IO
 failure (3), destination exists (4) and unsupported operation (5).
 
 Host socket-pair tests and the complete VZ service gate pass: upload/readback
 of 64 KiB, path/overwrite refusal, and the standalone command HELLO after closing
-and reopening the device. The separate file-command gate exercises CLI PUT/GET against an isolated FAT
+and reopening the device. The separate file-command gate exercises CLI PUT/GET
+against an isolated FAT
 volume, checks refusal to overwrite a guest destination, and verifies bytes
-from the host after two fresh VMs. Clipboard is not
-implemented.
+from the host after two fresh VMs. Clipboard is not implemented on the guest. The [host clipboard endpoint](CLIPBOARD.md) is
+implemented with separate host qualification.
 Host power-loss durability and concurrent host modification during download
 are not qualified; a download is not a snapshot.
 

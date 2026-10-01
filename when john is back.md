@@ -2680,3 +2680,34 @@ Write disk 96a14208d8c7ca4882bd7ed2c91a251c4477064c6bb211a35fac95720da6e03f;
 restart disk 1d5ac06c2f9f829144aa2a46e2df19e268c772dc7d7161faffcb8d6e4e4fc4a6.
 Only these two focused boots; no extended qualification or M1/SMP work.
 Next: automatic text/image clipboard and desktop integration.
+
+
+## Host clipboard endpoint and format conversion
+
+Added original MIT ClipboardCodec/ClipboardStore, wired into HostServices and
+the VZ launcher's --host-services option. MVHS ops8..12 capture an immutable
+IFF clipboard snapshot or conditionally publish a fully received one. Main-queue
+NSPasteboard access, 16MiB payload/4MP image bounds, revision conflict status6,
+disconnect discards pending upload. At most4 host connections allow old socket
+cleanup to overlap a new guest session. No simultaneous guest device opens are
+claimed: its single-stream constraint still needs session serialization in the
+future synchronization daemon.
+
+Text preserves Unicode in UTF8 plus a Latin-1 CHRS fallback; older CHRS-only
+apps see '?' for unmappable characters. ILBM indexed/24-bit RGB, ByteRun1,
+binary mask and PNG conversion are supported. Partial alpha, HAM, dynamic
+palettes, rotated and multi-frame images are rejected; no silent flattening.
+Format specifications and full wire contract: docs/CLIPBOARD.md.
+
+artifacts/clipboard-codec-test.log PASS: bounds/truncation, Unicode, Latin-1,
+independent indexed/masked ByteRun1 fixture, 17-pixel row padding, true-color PNG
+round trip, stale/malformed write refusal. artifacts/clipboard-services-test.log
+PASS: real socket framing, >64KiB Unicode snapshot, PNG publication, stale
+revision conflict, size limit and abandoned upload. Tests use private named
+pasteboards only; the user's general clipboard was not modified.
+
+Host launcher compiles and signs; file-service host regression passes. The first
+combined build had a missing codec/store dependency in the file-service test
+Makefile rule; fixed without changing behavior. No clipboard VM run yet. Guest
+clipboard.device integration, auto-sync/anti-echo/reconnect and desktop startup
+are next; stage6 remains active and incomplete.

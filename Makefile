@@ -29,8 +29,8 @@ test: all build/vz-platform-test build/gic-contract-test build/pci-ecam-access-t
 clean:
 	rm -rf build
 
-build/macaros-vm: src/main.swift src/HostServices.swift entitlements.plist | build
-	swiftc -target arm64-apple-macos13.0 -O -warnings-as-errors -framework AppKit -framework Virtualization src/main.swift src/HostServices.swift -o $@
+build/macaros-vm: src/main.swift src/HostServices.swift src/ClipboardCodec.swift src/ClipboardStore.swift entitlements.plist | build
+	swiftc -target arm64-apple-macos13.0 -O -warnings-as-errors -framework AppKit -framework Virtualization src/main.swift src/HostServices.swift src/ClipboardCodec.swift src/ClipboardStore.swift -o $@
 	codesign --force --sign - --entitlements entitlements.plist $@
 
 build/vz-platform-test: tests/vz-platform.c boot/arosboot/vz_platform.c include/vm-console.h $(FDT_SOURCES) | build
@@ -197,5 +197,17 @@ build/vsock-stream-test: tests/vsock-stream.c $(VIRTIO_SOURCE)/vsock_stream.c $(
 .PHONY: test-host-services
 test-host-services: build/host-services-test
 	build/host-services-test
-build/host-services-test: src/HostServices.swift tests/host-services.swift | build
-	swiftc -target arm64-apple-macos13.0 -O -warnings-as-errors -framework Virtualization src/HostServices.swift tests/host-services.swift -o $@
+build/host-services-test: src/HostServices.swift src/ClipboardCodec.swift src/ClipboardStore.swift tests/host-services.swift | build
+	swiftc -target arm64-apple-macos13.0 -O -warnings-as-errors -framework AppKit -framework Virtualization src/HostServices.swift src/ClipboardCodec.swift src/ClipboardStore.swift tests/host-services.swift -o $@
+
+.PHONY: test-clipboard-codec
+test-clipboard-codec: build/clipboard-codec-test
+	build/clipboard-codec-test
+build/clipboard-codec-test: tests/clipboard-codec.swift src/ClipboardCodec.swift src/ClipboardStore.swift | build
+	swiftc -target arm64-apple-macos13.0 -O -warnings-as-errors -framework AppKit tests/clipboard-codec.swift src/ClipboardCodec.swift src/ClipboardStore.swift -o $@
+
+.PHONY: test-clipboard-services
+test-clipboard-services: build/clipboard-services-test
+	build/clipboard-services-test
+build/clipboard-services-test: tests/clipboard-services.swift src/HostServices.swift src/ClipboardCodec.swift src/ClipboardStore.swift | build
+	swiftc -target arm64-apple-macos13.0 -O -warnings-as-errors -framework AppKit -framework Virtualization tests/clipboard-services.swift src/HostServices.swift src/ClipboardCodec.swift src/ClipboardStore.swift -o $@
