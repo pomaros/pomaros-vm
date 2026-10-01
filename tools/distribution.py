@@ -25,7 +25,7 @@ REQUIRED = ['Libs/jfif.library', 'Libs/png.library', 'Libs/z1.library', 'Libs/fr
             'L/pipe-handler', 'L/afs-handler', 'L/sfs-handler', 'C/IPrefs', 'C/VMExchange', 'C/VMSync', 'System/Wanderer/Wanderer',
             'Tools/Editor', 'Tools/Calculator', 'Utilities/Clock',
             'Utilities/MultiView', 'Utilities/More', 'Prefs/ScreenMode',
-            'Prefs/Locale', 'Prefs/Input', 'S/Shell-Startup', 'Devs/Keymaps/pc104_usa', 'Libs/datatypes.library',
+            'Prefs/Locale', 'Prefs/Input', 'S/Shell-Startup', 'Devs/Keymaps/pc104_usa', 'Devs/Keymaps/pc105_f', 'Libs/datatypes.library',
             'Classes/DataTypes/picture.datatype', 'Classes/DataTypes/ilbm.datatype',
             'Classes/DataTypes/png.datatype', 'Classes/DataTypes/jpeg.datatype',
             'Prefs/Presets/Themes/AROSDefault/system/config', 'Fonts/Open Sans Regular.font']
@@ -141,6 +141,9 @@ def package(a):
     shutil.copy2(source / 'workbench/devs/DOSDrivers/PIPE', system / 'Devs/DOSDrivers/PIPE')
     (system / 'Prefs/Env-Archive').mkdir(parents=True, exist_ok=True)
     (system / 'Prefs/Env-Archive/HOME').write_text('WORK:')
+    # LoadKeymap RESTORE applies this on first boot. Later choices made with
+    # LoadKeymap replace the saved preference on the user's own WORK volume.
+    (system / 'Prefs/Env-Archive/Keymap').write_text('pc105_f\n')
     shutil.copy2(ROOT / 'distribution/ReadMe', system / 'ReadMe')
     (system / 'Prefs/Env-Archive/SYS').mkdir(exist_ok=True)
     (system / 'Prefs/Env-Archive/SYS/theme.var').write_text('THEMES:AROSDefault\n')

@@ -46,6 +46,12 @@ have to fit in the 16 MiB bootstrap RAM filesystem. Applications and documents
 can use the rest of WORK. Startup stages are recorded in
 `WORK:distribution-startup.log`.
 
+New profiles start with the French PC105 AZERTY keymap. The boot sequence runs
+`LoadKeymap RESTORE` from `ENVARC:Keymap`; `LoadKeymap pc105_f` applies it to
+an already running VM and saves the choice for later boots. Users can choose
+another installed keymap with the same command. An existing profile keeps its
+own saved preference when a new app is packaged.
+
 The distribution app uses the separate `Distribution` profile under
 `~/Library/Application Support/Macaros VM/`. Opening it does not replace the
 existing minimal `Default` profile. An explicit `MACAROS_VM_STATE_DIRECTORY`
