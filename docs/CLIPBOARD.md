@@ -119,5 +119,13 @@ and checks that the daemon publishes it after release. It also executes the
 independently loaded VMExchange HELLO, imports and exports an image, then checks
 unchanged host/local revisions over two more polling periods. This process
 never invokes the sync engine itself. All startup, HID, tick and probe markers
-must pass. Normal session contention/reopen is covered; GUI editing commands,
-forced transport failures and prolonged reliability are not.
+must pass. Normal session contention/reopen is covered. A separate existing-Editor test
+passes text Paste/Edit/Save/Select All/Copy through host VZ-view events, with
+independent WORK-file and private Mac pasteboard byte checks and clean shutdown.
+It waits for desktop startup before launching Editor and for its active document
+before input. Editor requires its pinned `workbench/tools/Edit/catalogs` Git
+submodule; it is not part of the normal application payload. The exact test
+artifacts and earlier failed preparations are recorded in
+[`when john is back.md`](../when%20john%20is%20back.md). Physical shortcuts,
+GUI image operations, forced transport failures and prolonged reliability
+are not qualified by this text-editor test.
