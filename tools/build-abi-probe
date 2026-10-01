@@ -6,7 +6,7 @@ set -eu
 
 usage()
 {
-    echo "usage: build-abi-probe [--profile cli|tls|workbench|platform|pci|usb-desktop|desktop-input|desktop-clipboard|desktop-network|desktop-work] [--sdk SDK_ROOT] [--sdk-tools DIR] [--crosstools DIR] OUTPUT" >&2
+    echo "usage: build-abi-probe [--profile cli|tls|workbench|platform|pci|usb-desktop|desktop-input|desktop-clipboard|desktop-network|desktop-work|desktop-shutdown] [--sdk SDK_ROOT] [--sdk-tools DIR] [--crosstools DIR] OUTPUT" >&2
     exit 2
 }
 
@@ -61,7 +61,7 @@ case "$profile" in
     pci)
         source_file="$project_root/tests/pci-hidd-probe.c"
         ;;
-    desktop-work)
+    desktop-work|desktop-shutdown)
         source_file="$project_root/tests/desktop-work.c"
         ;;
     desktop-network)
@@ -123,6 +123,9 @@ export COMPILER_PATH="$sdk_tools:$crosstools/bin"
 
 # Device qualification reuses the actual PCI, virtio and USB transports.
 set --
+if [ "$profile" = desktop-shutdown ]; then
+    set -- -DVM_WORK_SHUTDOWN
+fi
 if [ "$profile" = desktop-network ]; then
     set -- -DVM_NETWORK_DESKTOP
 fi

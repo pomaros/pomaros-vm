@@ -16,6 +16,7 @@ p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--virtio-gpu', action='store_true')
 p.add_argument('--pci-hidd', action='store_true')
 p.add_argument('--virtio-device', action='store_true')
+p.add_argument('--shutdown-probe', action='store_true')
 p.add_argument('--work-probe', action='store_true')
 p.add_argument('--work-volume', action='store_true', help='mount the appended 256 MiB WORK volume made by make-disk --work-volume')
 p.add_argument('--virtionet-device', action='store_true')
@@ -41,6 +42,9 @@ p.add_argument('--profile', choices=['headless', 'wanderer'], default='headless'
 p.add_argument('--toolchain', type=Path, default=Path.home() / 'aros-crosstools')
 p.add_argument('--efi', type=Path, required=True, help='explicit built UEFI loader; no implicit stale build selection')
 a = p.parse_args()
+if a.shutdown_probe:
+    if a.work_probe: p.error('--shutdown-probe and --work-probe are mutually exclusive')
+    a.work_probe=True
 if a.clipboard_sync:
     if a.profile!='headless': p.error('--clipboard-sync is the headless qualification; use --host-services for the desktop')
     a.file_commands=True
@@ -48,6 +52,7 @@ if a.file_commands:
     a.host_services=True;a.virtio_device=True
 if a.command_startup and (a.profile!='headless' or a.host_services or a.vsock_device):
     p.error('--command-startup requires headless without host services or vsock device')
+if a.work_volume: a.host_services=True
 if a.host_services: a.vsock_device=True
 if a.vsock_device and not (a.pci_hidd or (a.profile=='wanderer' and a.virtio_gpu)):
     p.error('--vsock-device requires --pci-hidd or a resident virtio-GPU desktop')
@@ -209,7 +214,7 @@ if a.work_volume:
     if a.work_probe:
         command=output/'VMWORK'
         subprocess.run([str(root/'tools/build-abi-probe'),'--sdk',str(sdk),
-            '--crosstools',str(a.toolchain.resolve()),'--profile','desktop-work',str(command)],check=True)
+            '--crosstools',str(a.toolchain.resolve()),'--profile','desktop-shutdown' if a.shutdown_probe else 'desktop-work',str(command)],check=True)
         pci_files.append(('VMWORK',command))
 desktop_services = a.host_services and a.profile=='wanderer'
 expanded_system = a.network_stack or a.profile=='wanderer'
@@ -259,6 +264,7 @@ if a.network_probe:
         'Run >T:AROSTCP-startup.log SYS:System/Network/AROSTCP/C/AROSTCP\nRun >NIL: SYS:VMNET\n',1)
     pci_files.append(('VMNET',network_command))
 if a.work_volume:
+    startup_lines=startup_lines.replace('SYS:C/VMSync\n','SYS:C/VMSync VOLUME=VMWORK0:\n')
     startup_lines='SYS:C/LoadResource DEVS:Drivers/bus.hidd DEVS:Drivers/storage.hidd\nSYS:C/Mount VMWORK0: FROM DEVS:WORK.mount\n'+(startup_lines or 'G4Ready\nEndCLI\n')
 if a.work_volume:
     # FAT replies to handler startup before publishing the volume name.
@@ -304,7 +310,7 @@ shutil.copyfile(efi, output / 'EFI/BOOT/BOOTAA64.EFI')
 inputs = ([output/'AROS/SESSION.CFG'] if a.desktop_session is not None else []) + ([pci_probe] if a.pci_hidd else []) + [path for _, path in pci_files] + [stage2, efi, probe, ramdisk] + [path for _, path in components] + programs
 manifest = {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in inputs}
 (output / 'provenance.json').write_text(json.dumps({
-    'profile': a.profile, 'work_volume': a.work_volume, 'work_probe': a.work_probe, 'clipboard_probe': a.clipboard_probe, 'clipboard_sync': a.clipboard_sync, 'file_commands': a.file_commands, 'command_startup': a.command_startup, 'vsock_device': a.vsock_device, 'host_services': a.host_services, 'network_dns': a.network_dns, 'network_probe': a.network_probe, 'network_stack': a.network_stack, 'virtionet_device': a.virtionet_device, 'input_probe': a.input_probe, 'desktop_session': a.desktop_session, 'usb_desktop': a.usb_desktop, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,
+    'profile': a.profile, 'work_volume': a.work_volume, 'work_probe': a.work_probe, 'shutdown_probe': a.shutdown_probe, 'clipboard_probe': a.clipboard_probe, 'clipboard_sync': a.clipboard_sync, 'file_commands': a.file_commands, 'command_startup': a.command_startup, 'vsock_device': a.vsock_device, 'host_services': a.host_services, 'network_dns': a.network_dns, 'network_probe': a.network_probe, 'network_stack': a.network_stack, 'virtionet_device': a.virtionet_device, 'input_probe': a.input_probe, 'desktop_session': a.desktop_session, 'usb_desktop': a.usb_desktop, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,
     'source_revision': revision, 'configure_command': configure_command,
     'inputs': manifest, 'bundle_sha256': hashlib.sha256(data).hexdigest(),
 }, indent=2) + '\n')

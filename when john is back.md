@@ -2976,3 +2976,60 @@ handshake: the probe's explicit flush is not a product shutdown guarantee.
 Next implementation: clean host-requested shutdown, then app packaging and
 remaining stage-six acceptance (visual/input, GPU IRQ, full rebuild comparison,
 TCP and bounded sustained use). No SMP, no physical M1/Pi validation claimed.
+
+## Host-requested clean WORK shutdown — 2026-10-01
+
+Core 8b6693cc27 adds VMSync VOLUME=device:. MVHS ops 13/14 carry a host-generated
+request token and success/failure acknowledgement over the existing shared
+service gate. Guest Inhibit on VMWORK0 drains FAT/device buffers, retains the
+inhibited state, and retries its ACK after transport loss. It does not claim to
+save unsaved application buffers or flush arbitrary additional devices.
+Packaging WORK now implies host-service modules and starts VMSync with that
+explicit device. Default/ONCE clipboard behavior remains separately available.
+
+HostServices accepts only the current nonzero token, repeated identical ACKs,
+and explicit failure; stale/unsolicited/contradictory ACKs are rejected. Host
+quit/window close/SIGTERM waits before machine.stop. Timeout only reports waiting;
+flush failure keeps the VM running. --force-stop is an explicit bypass, selected
+by the existing run-vz boot-contract runner and recorded in its verdict. The new
+run-shutdown-vz.py never uses the bypass and marks forced timeout cleanup FAIL.
+
+make test-host-services PASS: file-service tests plus token idempotence, failure
+retry and stale-response refusal. Guest command build PASS; host launcher builds
+with warnings-as-errors. First VZ run artifacts/vz-desktop-shutdown FAIL after
+23.44 s: terminateLater stalled host service progress; no ACK, forced harness
+cleanup. Corrected host path returns terminateCancel while asynchronously waiting
+in the normal app loop; completion reissues terminate only after VZ stops.
+This attribution is based on the code change and successful retry, not a captured
+AppKit stack. The failed artifact remains unchanged.
+
+artifacts/vz-desktop-shutdown-eventloop PASS 3.73 s. The probe writes and closes
+65536 bytes without explicitly flushing or inhibiting. Runner waits for desktop
+and HID startup, sends SIGTERM, requires ordered host-request, guest-quiesce,
+host-ACK markers and exit 0, then independently reads exact file bytes on macOS.
+No claim that the FAT timer had not already flushed before quit. No GUI clicking
+or host-power-loss qualification. Input disk SHA256
+03d2184536b8652da0ff87cf032cd1d51be480eb56c35778c0457f48f8b88ed1;
+result disk 43144de7aa55a5afc934a068fea179960d18e75270b7aeb551fb293ee49fe013;
+file 1942de172742ea4cc88bacca1802a39924147e552ff0a36397597ad066c3e94f;
+qualified launcher 9d2268106e48e8cec5a9d9407f79dc059a469c484fee7c58a56e53367f3ef62e.
+After that run, removed the timer handler's strong self-reference to its own
+DispatchSource (same cancellation action via Application's property); rebuilt,
+no extra VM repetition. The normal image is prepared, not separately boot-tested.
+The prepared shutdown-read bundle was not booted; previous WORK fresh-VM read
+qualification is separate from this new shutdown proof.
+
+Current normal image: artifacts/desktop-safe-quit.img, with WORK/network/clipboard
+and live desktop, no probes. Run:
+
+    build/macaros-vm artifacts/desktop-safe-quit.img artifacts/desktop-safe-quit-state --gpu --usb-input --host-services --network
+
+Reuse that same image to keep WORK. Do not recreate it over a populated disk.
+Guest/host flush errors or unavailable VMSync can leave the quit request waiting;
+this is intentional, never silently force-stop persistent storage. The service
+handles the configured WORK device only. Next: standalone macOS app/first-launch
+storage, remaining visual/GPU IRQ/reproducible-build/TCP and bounded sustained-use
+acceptance. No SMP or physical M1/Pi work.
+
+Normal bundle SHA256: 8beb80ffe18add4b3fb6872f3c7edb58baf2ff682dfaa2b4157ba20845437d63
+Final launcher SHA256: 693f7f342a47e4a5548eda7817cad502bf42dea04bfce398282c464b9cf25af0

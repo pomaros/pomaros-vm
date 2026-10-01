@@ -39,9 +39,16 @@ int main(void)
         else okay=Write(f,expected,sizeof(expected))==sizeof(expected);
     }
     if(reading && okay) okay=Read(f,actual,1)==0;
+#ifndef VM_WORK_SHUTDOWN
     if(!reading && okay) okay=Flush(f)!=0;
+#endif
     if(!Close(f)) okay=0;
     if(!okay) goto fail;
+#ifdef VM_WORK_SHUTDOWN
+    if(reading)goto fail;
+    mark("[VM] desktop WORK shutdown-write ready\n");
+    return 0;
+#endif
     /* Drain the FAT cache, then request a real device persistence boundary. */
     stage="device-open";
     struct MsgPort *port=CreateMsgPort();

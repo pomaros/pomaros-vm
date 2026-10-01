@@ -4,7 +4,7 @@ import AppKit
 import Virtualization
 
 @available(macOS 13.0, *)
-final class Application: NSObject, NSApplicationDelegate, VZVirtualMachineDelegate, VZVirtioSocketListenerDelegate {
+final class Application: NSObject, NSApplicationDelegate, NSWindowDelegate, VZVirtualMachineDelegate, VZVirtioSocketListenerDelegate {
   var hostServices: HostServices?
   var socketListener: VZVirtioSocketListener?
   var socketProbeAccepted=0
@@ -15,6 +15,10 @@ final class Application: NSObject, NSApplicationDelegate, VZVirtualMachineDelega
   let headless = CommandLine.arguments.contains("--headless")
   var terminationSignal: DispatchSourceSignal?
   var inputProbeTimer: DispatchSourceTimer?
+  var shutdownPoll: DispatchSourceTimer?
+  var terminationPending=false
+  var allowTermination=false
+  var stopping=false
   let disk: URL
   let state: URL
   init(disk: URL, state: URL) {
@@ -157,6 +161,7 @@ final class Application: NSObject, NSApplicationDelegate, VZVirtualMachineDelega
           styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered,
           defer: false)
         window.title = "Macaros VM"
+        window.delegate = self
         window.contentView = view
         window.center()
         window.makeKeyAndOrderFront(nil)
@@ -170,7 +175,7 @@ final class Application: NSObject, NSApplicationDelegate, VZVirtualMachineDelega
       terminationSignal = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
       terminationSignal?.setEventHandler { [weak self] in
         guard let self else { return }
-        self.machine.stop { _ in NSApp.terminate(nil) }
+        if !self.terminationPending { NSApp.terminate(nil) }
       }
       terminationSignal?.resume()
       machine.start { result in
@@ -229,7 +234,58 @@ final class Application: NSObject, NSApplicationDelegate, VZVirtualMachineDelega
     fputs("Macaros VM: \(error)\n", stderr)
     exit(1)
   }
-  func guestDidStop(_ virtualMachine: VZVirtualMachine) { NSApp.terminate(nil) }
+  func finishTermination() {
+    guard !allowTermination else { return }
+    shutdownPoll?.cancel();shutdownPoll=nil;allowTermination=true
+    NSApp.terminate(nil)
+  }
+  func stopMachine() {
+    guard !stopping else { return };stopping=true
+    machine.stop { error in
+      if let error {
+        self.stopping=false;self.shutdownPoll?.cancel();self.shutdownPoll=nil
+        fputs("VM stop failed; guest remains quiesced: \(error)\n",stderr)
+        self.terminationPending=false
+      } else { self.finishTermination() }
+    }
+  }
+  func applicationShouldTerminate(_ sender:NSApplication)->NSApplication.TerminateReply {
+    if allowTermination { return .terminateNow }
+    if terminationPending { return .terminateCancel }
+    terminationPending=true
+    if let services=hostServices, !CommandLine.arguments.contains("--force-stop") {
+      services.requestShutdown()
+      print("[HOST] guest shutdown requested");fflush(stdout)
+      let timer=DispatchSource.makeTimerSource(queue:.main)
+      shutdownPoll=timer
+      let start=ProcessInfo.processInfo.systemUptime
+      var reported=false
+      timer.schedule(deadline:.now(),repeating:0.1)
+      timer.setEventHandler { [weak self] in
+        guard let self else { return }
+        if let result=services.shutdownStatus() {
+          self.shutdownPoll?.cancel();self.shutdownPoll=nil
+          if result==0 {
+            print("[HOST] guest volume quiesced PASS");fflush(stdout);self.stopMachine()
+          } else {
+            fputs("Guest volume flush failed; VM kept running\n",stderr)
+            self.terminationPending=false
+          }
+        } else if !reported && ProcessInfo.processInfo.systemUptime-start>=15 {
+          reported=true
+          fputs("Waiting for guest volume flush; VM kept running\n",stderr)
+        }
+      }
+      timer.resume()
+    } else { stopMachine() }
+    // Keep the normal event loop serving VZ connections during the handshake.
+    // finishTermination reissues terminate only after the machine has stopped.
+    return .terminateCancel
+  }
+  func windowShouldClose(_ sender:NSWindow)->Bool {
+    NSApp.terminate(nil);return false
+  }
+  func guestDidStop(_ virtualMachine: VZVirtualMachine) { finishTermination() }
   func virtualMachine(_ virtualMachine: VZVirtualMachine, didStopWithError error: Error) {
     fail(error)
   }
@@ -240,8 +296,8 @@ if options.contains("--input-probe") && options.contains("--headless") && (!opti
   fputs("--input-probe requires a VZ window and USB input\n",stderr);exit(2)
 }
 if CommandLine.arguments.count < 3 || options.count != Set(options).count
-  || options.contains(where: { $0 != "--headless" && $0 != "--gpu" && $0 != "--gpu-window" && $0 != "--usb-input" && $0 != "--input-probe" && $0 != "--network" && $0 != "--vsock-probe" && $0 != "--host-services" && $0 != "--clipboard-test" }) {
-  fputs("usage: macaros-vm DISK_IMAGE STATE_DIRECTORY [--headless] [--gpu] [--gpu-window] [--usb-input] [--input-probe] [--network] [--vsock-probe] [--host-services] [--clipboard-test]\n", stderr)
+  || options.contains(where: { $0 != "--headless" && $0 != "--gpu" && $0 != "--gpu-window" && $0 != "--usb-input" && $0 != "--input-probe" && $0 != "--network" && $0 != "--vsock-probe" && $0 != "--host-services" && $0 != "--clipboard-test" && $0 != "--force-stop" }) {
+  fputs("usage: macaros-vm DISK_IMAGE STATE_DIRECTORY [--headless] [--gpu] [--gpu-window] [--usb-input] [--input-probe] [--network] [--vsock-probe] [--host-services] [--clipboard-test] [--force-stop]\n", stderr)
   exit(2)
 }
 if #available(macOS 13.0, *) {

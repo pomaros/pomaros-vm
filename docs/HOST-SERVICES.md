@@ -53,3 +53,41 @@ name. The restart phase verifies the first file survived and writes a second
 file. The runner checks both the host Shared directory and the guest disk image.
 Only file-backed test disks are touched. This does not qualify host power loss
 or GUI-driven file selection.
+
+## Host-requested shutdown
+
+MVHS v1 adds two operations on the existing serialized guest service connection:
+
+| Op | Request | Response |
+|---|---|---|
+| 13 | empty | LE u64 shutdown token; zero means no request |
+| 14 | token:u64 + result:u32, little endian | empty; result 0 means volume inhibited/flushed, 1 means failure |
+
+The host generates a nonzero token when quit is requested. It accepts only the
+current token, rejects unsolicited/stale or contradictory acknowledgements, and
+accepts identical repeated acknowledgements. Failed requests may be retried with
+a new token. A missing reply never authorizes stopping the machine.
+
+`VMSync VOLUME=VMWORK0:` polls before clipboard work, using the existing shared
+service gate. Inhibit flushes the FAT cache and submits CMD_UPDATE. On success
+the guest leaves that device inhibited, skips further clipboard synchronization,
+and can resend its acknowledgement after transport loss. This prevents later
+filesystem writes crossing the acknowledged boundary. No attempt is made to
+save application buffers or quiesce additional devices. The VZ/FAT path is
+qualified; another filesystem/backend needs its own flush contract verification.
+
+Normal host quit, window close and SIGTERM share Application's asynchronous
+shutdown path when host services are enabled. AppKit's immediate termination is
+cancelled while VZ continues serving guest connections; after acknowledgement,
+VZ stops and the app requests termination again. A flush failure keeps the VM
+running; after 15 seconds without acknowledgement it reports that it is still
+waiting. `--force-stop` bypasses this protocol deliberately, including in the
+existing bounded boot runner. The dedicated shutdown runner never uses it.
+
+Qualification: host socket-pair tests cover idle/invalid/stale tokens, failed
+request retry and idempotent/conflicting acknowledgements. The VZ shutdown test
+writes/closes 64 KiB without explicit probe Flush/Inhibit, sends SIGTERM after
+desktop startup, requires ordered host-request/guest-quiesce/host-ack markers and
+normal process exit, then checks exact bytes with mtype. This is a closed-file
+persistence test, not proof that the FAT timer had not already flushed the data,
+not a host-power-loss test, and not an independently clicked GUI-close test.

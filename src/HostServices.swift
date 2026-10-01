@@ -14,6 +14,20 @@ final class HostServices: NSObject, VZVirtioSocketListenerDelegate {
   private var active=0
   private let clipboard: ClipboardStore?
   private let listener=VZVirtioSocketListener()
+  private let shutdownLock=NSLock()
+  private var shutdownToken:UInt64=0
+  private var shutdownResult:UInt32?
+  // A request survives a lost connection/ack. Never stop on a timeout alone.
+  func requestShutdown() {
+    shutdownLock.lock();defer { shutdownLock.unlock() }
+    if shutdownToken==0 || shutdownResult==1 {
+      shutdownToken=UInt64.random(in:1...UInt64.max);shutdownResult=nil
+    }
+  }
+  func shutdownStatus()->UInt32? {
+    shutdownLock.lock();defer { shutdownLock.unlock() }
+    return shutdownResult
+  }
   init(directory: URL, clipboard: ClipboardStore? = nil) throws {
     self.directory=directory
     self.clipboard=clipboard
@@ -208,6 +222,22 @@ final class HostServices: NSObject, VZVirtioSocketListenerDelegate {
             } catch { status=5 }
           }
         } else { status=5 }
+      case 13: // shutdown poll -> host request token (zero means keep running)
+        if !body.isEmpty { status=1 }
+        else {
+          shutdownLock.lock();let token=shutdownToken;shutdownLock.unlock()
+          response=[UInt8](repeating:0,count:8);put(&response,0,token,8)
+        }
+      case 14: // token + result:u32: 0=volume quiesced, 1=flush failed
+        if body.count != 12 { status=1 }
+        else {
+          let token=number(body,0,8),result=number(body,8,4)
+          shutdownLock.lock()
+          if token==0 || token != shutdownToken || result>1 { status=1 }
+          else if let previous=shutdownResult, previous != UInt32(result) { status=2 }
+          else { shutdownResult=UInt32(result) }
+          shutdownLock.unlock()
+        }
       default:status=5
       }
       put(&header,12,UInt64(response.count),4);put(&header,16,status,4)

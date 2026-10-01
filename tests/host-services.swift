@@ -61,6 +61,24 @@ import Darwin
     let reply=request(fd,6,10,wanted);precondition(reply.0==0 && reply.1==data)
     precondition(request(fd,7,11,[]).0==0)
     precondition(request(fd,999,12,[]).0==5)
+    let idle=request(fd,13,13,[])
+    precondition(idle.0==0 && idle.1==[UInt8](repeating:0,count:8))
+    precondition(request(fd,14,14,[UInt8](repeating:0,count:12)).0==1)
+    precondition(server.shutdownStatus()==nil)
+    server.requestShutdown()
+    let pending=request(fd,13,15,[])
+    precondition(pending.0==0 && pending.1.count==8 && pending.1 != idle.1)
+    server.requestShutdown()
+    precondition(request(fd,13,16,[]).1==pending.1)
+    let failed=pending.1+[1,0,0,0]
+    precondition(request(fd,14,17,failed).0==0 && server.shutdownStatus()==1)
+    server.requestShutdown()
+    let retry=request(fd,13,18,[])
+    precondition(retry.1 != pending.1 && server.shutdownStatus()==nil)
+    precondition(request(fd,14,19,failed).0==1 && server.shutdownStatus()==nil)
+    precondition(request(fd,14,20,retry.1+[0,0,0,0]).0==0 && server.shutdownStatus()==0)
+    precondition(request(fd,14,21,retry.1+[0,0,0,0]).0==0)
+    precondition(request(fd,14,22,retry.1+[1,0,0,0]).0==2 && server.shutdownStatus()==0)
     Darwin.close(fd);precondition(done.wait(timeout:.now()+5) == .success)
     let names=try FileManager.default.contentsOfDirectory(atPath:root.path)
     precondition(!names.contains(where:{$0.hasPrefix(".upload-")}))
@@ -73,6 +91,6 @@ import Darwin
       writeAll(badFD,h);var byte:UInt8=0;precondition(Darwin.read(badFD,&byte,1)==0)
       Darwin.close(badFD);precondition(finished.wait(timeout:.now()+5) == .success)
     }
-    print("host-services result=PASS put,get,no-replace,containment,symlink,abort-cleanup,framing")
+    print("host-services result=PASS put,get,no-replace,containment,symlink,abort-cleanup,framing,shutdown-token-retry-idempotence")
   }
 }

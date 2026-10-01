@@ -586,5 +586,10 @@ and fresh-VM exact read with independent host byte checks. Add --work-probe to
 a bounded package for this test; run-vz --require-desktop-work write requires
 the creation phase, and --require-desktop-work restart requires existing-file
 readback. Reuse the resulting system.img, never regenerate its WORK volume.
-The host Quit path still needs graceful-shutdown integration. Forced exit is
-not a durable-save acknowledgement.
+With --host-services, normal host quit/SIGTERM waits for the configured VMSync
+volume to be inhibited and flushed before stopping VZ. --work-volume packages
+VMSync VOLUME=VMWORK0: automatically. Failed/missing acknowledgement keeps the
+VM running; --force-stop explicitly bypasses this handshake. run-vz uses that
+bypass for boot-contract qualification; run-shutdown-vz.py tests the real
+handshake. This flushes filesystem buffers, not unsaved application data, and
+only covers the configured WORK device.
