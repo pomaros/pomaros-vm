@@ -15,6 +15,7 @@ final class Application: NSObject, NSApplicationDelegate, NSWindowDelegate, VZVi
   var machine: VZVirtualMachine!
   var window: NSWindow!
   var machineView: VZVirtualMachineView?
+  var releaseInputMonitor: Any?
   let serialInput = Pipe()
   let headless = launchOptions.contains("--headless")
   var terminationSignal: DispatchSourceSignal?
@@ -27,6 +28,20 @@ final class Application: NSObject, NSApplicationDelegate, NSWindowDelegate, VZVi
   var disk:URL { storage.disk }
   var state:URL { storage.state }
   init(storage:VMStorage) { self.storage=storage }
+  @objc func releaseInput(_ sender: Any?) {
+    guard let window, window.isKeyWindow else { return }
+    machineView?.capturesSystemKeys = false
+    window.makeFirstResponder(nil)
+    window.title = "Macaros VM — click to return to AROS"
+    NSApp.deactivate()
+  }
+
+  func windowDidBecomeKey(_ notification: Notification) {
+    machineView?.capturesSystemKeys = true
+    window.makeFirstResponder(machineView)
+    window.title = "Macaros VM — release input: Ctrl+Option+Esc"
+  }
+
   func listener(_ listener: VZVirtioSocketListener,
                 shouldAcceptNewConnection connection: VZVirtioSocketConnection,
                 from socketDevice: VZVirtioSocketDevice) -> Bool {
@@ -162,7 +177,18 @@ final class Application: NSObject, NSApplicationDelegate, NSWindowDelegate, VZVi
           contentRect: NSRect(x: 0, y: 0, width: 1024, height: 768),
           styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered,
           defer: false)
-        window.title = "Macaros VM"
+        window.title = "Macaros VM — release input: Ctrl+Option+Esc"
+        // Local monitor runs before the VZ view handles the reserved chord.
+        // No global event tap or Accessibility permission is required.
+        releaseInputMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+          let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+          if self?.window?.isKeyWindow == true, event.keyCode == 53,
+             modifiers.intersection([.control, .option, .command, .shift]) == [.control, .option] {
+            self?.releaseInput(nil)
+            return nil
+          }
+          return event
+        }
         window.delegate = self
         window.contentView = view
         window.center()
@@ -326,6 +352,10 @@ if #available(macOS 13.0, *) {
     app.delegate=delegate
     let menu=NSMenu();let item=NSMenuItem();menu.addItem(item)
     let applicationMenu=NSMenu();item.submenu=applicationMenu
+    let releaseItem = applicationMenu.addItem(withTitle:"Release Mouse and Keyboard",action:#selector(Application.releaseInput(_:)),keyEquivalent:"\u{1b}")
+    releaseItem.keyEquivalentModifierMask = [.control, .option]
+    releaseItem.target = delegate
+    applicationMenu.addItem(.separator())
     applicationMenu.addItem(withTitle:"Quit Macaros VM",action:#selector(NSApplication.terminate(_:)),keyEquivalent:"q")
     app.mainMenu=menu
     app.run()

@@ -3713,3 +3713,15 @@ the intact `desktop stable` substring and passed. No additional boot tests.
 Signed app destination: `artifacts/app-ready-cpuinfo/Macaros VM.app`.
 Existing profiles retain their disk; use update-system-image.py to preserve WORK
 while installing the new system image, or use an isolated fresh profile.
+
+## Release VM input shortcut
+
+Added Control+Option+Escape, intercepted by an application-local key monitor
+before the VZ view. It disables system-key capture, clears first responder and
+deactivates the application, allowing VZ to release input through normal focus
+loss. Selecting the VM window restores capture/first responder. Application menu
+and window title expose the shortcut. No global input tap or permissions.
+Launcher build with warnings-as-errors and signing PASS; physical shortcut use
+not yet verified. User VM was running, so it was not stopped for testing.
+The application bundle at app-ready-cpuinfo is updated for the next launch;
+current process continues with its existing executable. User disk untouched.

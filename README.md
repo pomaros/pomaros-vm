@@ -14,6 +14,9 @@ includes its guest system; first launch creates a personal profile in
 `~/Library/Application Support/Macaros VM/Default/`. Network access uses the
 Mac's connection through VZ NAT, so AROS needs no Wi-Fi configuration.
 
+Press **Control+Option+Esc** to release mouse/keyboard input to macOS. Click the
+VM window to return to AROS. The shortcut is also in the application menu.
+
 Save persistent files on `WORK:`. `SYS:` and `RAM:` are RAM-backed in this
 image. Quit the application normally to let the guest flush WORK before the
 VM stops. Text and supported images in AROS clipboard unit 0 synchronize with
