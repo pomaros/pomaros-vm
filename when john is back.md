@@ -3610,3 +3610,23 @@ then waits for the active Editor document before sending keys. Test sources,
 launcher and preparation scripts are under artifacts/editor-* and
 artifacts/check-editor-clipboard-v3.py. This is an isolated test payload, not
 an addition of Editor to the distributed app. No further repeat is needed.
+
+## HVF GPU MSI-X access correction
+
+Core `7224362348` constrains MSI-X table reads/writes to plain 32-bit AArch64
+LDR/STR instructions without address writeback. Volatile C alone compiled the
+mask-loop read as `ldr w10,[x8],#0x10`. The failing trace recorded ISV=0 at
+0x1004101c, matching the second MSI-X entry mask. The exact guest PC was not
+recovered; do not claim an instruction-level trap capture. Disassembly of the
+correction shows separate LDR and ADD. Existing barriers and routing policy
+are unchanged. Host sanitizer routing/rollback/512-reopen tests pass.
+`artifacts/hvf-desktop-msix-fixed/verdict.json` passes in 11.35 seconds:
+QEMU HVF, GICv3 plus `msi=gicv2m`, GPU IRQ completion, desktop startup and
+independent 1024x768 pixel gate. Bundle SHA256:
+`170daebea88fa4133671283b24857f62315b2313615d1a4779e36acce789a3ad`.
+This qualifies the current interrupt-driven GPU on that HVF configuration,
+not ITS, VZ pixels or physical hardware. The complete independent rebuild
+previously recorded remains evidence for core01e0e1a4b1; this later one-file
+MMIO correction has targeted build/runtime evidence and is not yet in the
+complete-build application artifact. Do not restart the complete build merely
+to repeat that earlier proof; carry this explicit delta when updating the app.
