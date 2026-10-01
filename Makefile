@@ -18,6 +18,7 @@ test: all build/vz-platform-test build/gic-contract-test build/pci-ecam-access-t
 	python3 tests/x18.py
 	python3 tests/virt-fdt.py
 	python3 tests/early-fdt.py
+	python3 tests/fdt-bindings.py
 	build/vz-platform-test
 	build/gic-contract-test
 	build/pci-ecam-access-test

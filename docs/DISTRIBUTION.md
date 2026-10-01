@@ -65,6 +65,30 @@ host binaries, and checks every installed runtime file by reading it back from
 the generated WORK filesystem. Boot modules and VM mount/network settings come
 from the regular package-core path. AROS licence files accompany the runtime.
 
+To upgrade an existing distribution profile, quit its VM and run the offline
+upgrade with the old and new applications (both are required for their package
+inventories):
+
+```sh
+python3 tools/upgrade-distribution.py \
+  --old-app '/path/to/old/Macaros VM.app' \
+  --new-app '/path/to/new/Macaros VM.app' \
+  --disk "$HOME/Library/Application Support/Macaros VM/Distribution/system.img" \
+  --output "$HOME/Library/Application Support/Macaros VM/Distribution/upgraded.img"
+```
+
+The output is a new 320 MiB disk with the new app's boot volume and
+`WORK:System`, plus the previous profile's personal files and directories.
+Changed `System/Prefs/Env-Archive` values remain active. Other changed system
+files that collide with the new package are saved under `WORK:Upgrade-Saved/System`
+for manual review (or a numbered `Upgrade-Saved-N` directory if that name is
+already used); the new package version takes effect. The tool reports those
+paths in `saved_conflicts`, verifies copied bytes and never overwrites the old
+disk or an existing output. It refuses a running profile through the VM's state
+lock. After verifying the new disk, move the old `system.img` aside and rename
+`upgraded.img` to `system.img` while the VM is stopped. Keep the old app and disk
+until the new profile boots to your satisfaction.
+
 Shutdown inhibits the whole WORK volume, including SYS. If the acknowledgement
 is lost or Virtualization.framework refuses to stop, the desktop may remain
 visible but SYS is unavailable. Do not resume work in that state: terminate the

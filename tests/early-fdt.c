@@ -54,8 +54,14 @@ int main(int argc,char **argv)
         char path[AROS_FDT_MAX_PATH];assert(AROSEarlyFDTPath(&t,stdout_node,path,sizeof(path)));
         printf("STDOUT\t%s\n",path);
     }
-    /* Exact allocations make ASan catch a read past each truncated input. */
-    for(size_t cut=0;cut<t.bytes;++cut) {
+    /* Exact allocations make ASan catch a read past truncated input. Small
+     * fixtures are exhaustive; a firmware-sized DTB gets boundary and spread
+     * samples so this survey remains bounded instead of quadratic. */
+    size_t truncations=t.bytes<=8192?t.bytes:256;
+    for(size_t probe=0;probe<truncations;++probe) {
+        size_t cut=t.bytes<=8192?probe:
+            probe<64?probe:probe<128?t.bytes-64+(probe-64):
+            (probe-127)*t.bytes/129;
         unsigned char *small=malloc(cut?cut:1);assert(small);memcpy(small,data,cut);
         struct AROSEarlyFDT bad;assert(!AROSEarlyFDTOpen(&bad,small,cut));assert(!bad.blob);free(small);
     }
@@ -85,5 +91,5 @@ int main(int argc,char **argv)
         }
         data[at]=saved;
     }
-    free(data);fprintf(stderr,"early-fdt PASS truncations=%ld mutations=%u\n",n,mutations);
+    free(data);fprintf(stderr,"early-fdt PASS truncations=%zu mutations=%u\n",truncations,mutations);
 }

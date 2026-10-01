@@ -3981,3 +3981,29 @@ closes the stage-six manual visual gate that automated guest pixel readback
 could not establish. The app remains a bounded VM qualification: physical Pi
 and Apple-native hardware, SMP (bsek's work), exhaustive interruption and
 multi-hour reliability are separate future work. Stage-six task74 is complete.
+
+2026-10-02, follow-up priorities 2 and 4: `tools/upgrade-distribution.py`
+provides an offline, no-replace migration from an old distribution app and
+profile disk to a new app seed. The new boot partition and WORK:System come
+from one package; user files outside System, user-added System files, and
+modified Env-Archive preferences migrate. Other modified package-owned files
+that collide with the new System are copied to WORK:Upgrade-Saved/System for
+review. The old disk remains untouched. A real Stage6Final → Stage6French
+host migration preserved an injected personal file, changed HOME preference
+and modified ReadMe (saved as a conflict); boot bytes equal the new seed and
+the French keymap is present. The script validates package seed hashes and
+round-trip bytes, and uses the same profile lock as the launcher. The profile
+must be stopped; an existing GUI VM was active during this work, so no
+parallel VZ boot was attempted. The user must explicitly replace the stopped
+profile disk after reviewing the new image (docs/DISTRIBUTION.md).
+
+Portable FDT follow-up: `bindings/fdt-core.json` and
+`tools/validate-fdt-bindings.py` are a small build-time binding subset for
+enabled GIC, ARM timer and PL011 nodes. It rejects missing, mistyped and
+unknown properties in nodes AROS claims to bind. The positive VM FDT and a
+canonicalized Raspberry Pi 4 QEMU FDT both pass (three matched nodes each);
+two injected typo/type controls fail. This validator has no machine addresses
+or root-model switch. It is groundwork for roadmap DT1, not full DT1 and
+not Pi/Apple physical qualification. Follow-up: add full YAML/dt-schema
+bindings and the actual m1n1 and Pi firmware trees, then bind runtime drivers
+from those descriptions. SMP remains reserved for bsek.

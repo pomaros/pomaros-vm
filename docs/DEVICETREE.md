@@ -55,3 +55,13 @@ The ready application is `artifacts/distribution-devicetree/Macaros VM.app`.
 It uses a fresh `Distribution-DeviceTree` profile so existing Default and
 Distribution disks are preserved. The updated resource and command must travel
 together; copying the command alone to the previous VM reports an old resource.
+
+Build-time binding checks are in `bindings/fdt-core.json` and
+`tools/validate-fdt-bindings.py`. They validate enabled nodes matched by the
+current ARM GIC, timer and PL011 compatible strings, including required
+properties, encoded value types and unknown properties. Other nodes remain
+visible and unbound. Run `python3 tests/fdt-bindings.py` for a positive fixture
+and misspelled-property/type controls, or pass one or more compiled trees as
+`--tree TREE.dtb` to the validator. This is a narrow, dependency-free start on
+roadmap `[DT1]`, not its full schema corpus or physical Pi/Apple qualification;
+those require their real boot trees and platform binding tests.
