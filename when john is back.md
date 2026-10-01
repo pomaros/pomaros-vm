@@ -2881,3 +2881,12 @@ artifacts/base-commands-missing-catalogs.log, base-commands-complete.log and
 dos-requester-build.log. Base command Makefiles also contain wall-clock ADATE
 macros (for example Mount/SetClock); a complete cross-date reproducibility claim
 must account for these rather than reuse the frozen subset comparison.
+
+Prepared a normal, unbounded desktop image without qualification probes at
+artifacts/desktop-network-ready.img (package: desktop-network-ready-bundle,
+bundle SHA f25c78f47475cdbf3f69f9dd0df994f7863a6bd6045c5f7e2973511067eba6fb).
+Packaging passes; that probe-free variant has not had a separate VM run.
+Launch from this repo with:
+`build/macaros-vm artifacts/desktop-network-ready.img artifacts/desktop-user-state --gpu --usb-input --host-services --network`.
+This normal launch uses the general Mac clipboard, as requested by host-services;
+all automated qualifications above used isolated named pasteboards.
