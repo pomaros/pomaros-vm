@@ -23,6 +23,12 @@ commands. The integrated desktop includes the existing AROS editor: launch
 Copy/Paste path has been exercised through the VZ view and Mac clipboard.
 See [clipboard formats and limits](docs/CLIPBOARD.md).
 
+Run `CPUInfo` in the AROS Shell to inspect the execution environment and CPU
+information supplied by the system. Firmware identity distinguishes recognized
+virtual machines from hosted execution; unknown platforms remain unidentified.
+CPU counts describe the guest, not the physical Mac. Hosted macOS information
+is separately labeled when available through hostlib.resource.
+
 The profile's `Shared` folder is the Mac side of file exchange. In the AROS
 Shell, for example:
 

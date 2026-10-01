@@ -3682,3 +3682,34 @@ counts describe the next complete reconstruction, not a new comparison result.
 Existing 22-target/28-product proof remains scoped to its original payload.
 Editor is added to expanded SYS only for the desktop with host services; it
 is not auto-started. This exposes the tested editing workflow in the normal app.
+
+## Portable CPUInfo reuse
+
+Recovered the existing Macaros portable CPUInfo implementation from
+`../aros-upstream/workbench/c/CPUInfo` at clean revision
+`9de3df4f3658c8cccd872e56899bcff803abb310`; AROS source notices preserved.
+The integration does not edit the hosted Macaros checkout. Non-x86 builds use
+processor.resource rather than the old x86 CPUID probe. Hosted Darwin retains
+the existing read-only hostlib/sysctl path, separately labeled as host facts.
+Added bounded model/compatible reporting through openfirmware.resource, without
+Apple-specific kernel headers or privileged register reads. Recognized
+`aros,virtualization` and `linux,dummy-virt` firmware identify a virtual machine;
+hostlib identifies hosted execution; absence of either is not proof of bare metal.
+Unavailable processor.resource data is explicitly reported rather than invented.
+The integrated desktop includes C/CPUInfo. Future complete reconstruction lists
+its explicit target/product; earlier full-build evidence is not relabeled.
+
+Core a7703f5833 builds CPUInfo successfully with the targeted quick build.
+Fixed an existing tools/zopfli mmake copy/paste collision that incorrectly named
+its executable and target CPUInfo; the host zopfli target is unchanged.
+VZ test `artifacts/vz-cpuinfo-v2/verdict.json`: PASS in 6.37 seconds, CPUInfo
+executed in guest, output independently read from WORK after acknowledged clean
+shutdown. Firmware identifies `aros,virtualization`, execution VM, build AArch64.
+processor.resource is absent in this bundle: CPU model/count are unavailable,
+not substituted with host topology. Physical host information is not exposed
+through the VM bridge by this change. Native Apple/Pi/hosted runtime untested.
+First test retained FAIL (startup marker interleaved in console); second accepts
+the intact `desktop stable` substring and passed. No additional boot tests.
+Signed app destination: `artifacts/app-ready-cpuinfo/Macaros VM.app`.
+Existing profiles retain their disk; use update-system-image.py to preserve WORK
+while installing the new system image, or use an isolated fresh profile.

@@ -34,7 +34,7 @@ targets=['kernel-hidd-virtiogfx','apple-wanderer-payloads','kernel-hidd-vmpci',
          'kernel-usb-classes-hubss','kernel-usb-classes-hid','workbench-c',
          'workbench-devs-networks-virtionet','workbench-network-stacks-arostcp',
          'network-dhcp-client','workbench-devs-vmbridge','workbench-devs-clipboard',
-         'workbench-tools-vmexchange','workbench-tools-vmsync','workbench-tools-editor',
+         'workbench-tools-vmexchange','workbench-tools-vmsync','workbench-tools-editor','workbench-c-cpuinfo',
          'workbench-libs-rexxsyslib','workbench-libs-commodities','kernel-keymap']
 manifest={'result':'RUNNING','source_revision':revision,'source_date_epoch':epoch,
           'targets':targets,'source':str(source),'builds':{},
@@ -81,7 +81,7 @@ def inventory(label):
               'Classes/USB/hub.class','Classes/USB/hubss.class','Classes/USB/hid.class',
               'Devs/Networks/virtionet.device','System/Network/AROSTCP/C/AROSTCP',
               'System/Network/AROSTCP/C/dhclient','Devs/vmbridge.device','Devs/clipboard.device',
-              'C/VMExchange','C/VMSync','Tools/Editor','C/Assign','C/MakeDir','C/Mount','C/LoadResource',
+              'C/VMExchange','C/VMSync','Tools/Editor','C/CPUInfo','C/Assign','C/MakeDir','C/Mount','C/LoadResource',
               'Libs/poseidon.library','Devs/Drivers/bus.hidd','Devs/Drivers/storage.hidd','L/fat-handler',
               'Libs/rexxsyslib.library','Libs/commodities.library','Libs/keymap.library',
               'System/Wanderer/Wanderer','boot/apple/Devs/kernel.resource','Libs/dos.library']
