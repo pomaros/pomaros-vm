@@ -72,3 +72,7 @@ page tables and the executable allocation arena. The arena receives up to
 layout and the 16 MiB RAM filesystem. A full desktop must have room to load
 codecs and applications alongside USB, networking and host services. Physical
 boot retains its existing arena limit.
+
+`make test-page-arena` checks the real allocator’s range boundaries under host
+address/undefined-behaviour sanitizers for both native and VM arena limits.
+Set `AROS_CORE_SOURCE` if the core worktree is not the sibling `aros-core-vm`.

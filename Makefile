@@ -232,3 +232,7 @@ distrib distribution: build/macaros-vm distribution-build
 .PHONY: test-package-app
 test-package-app:
 	python3 tests/package-app.py
+
+.PHONY: test-page-arena
+test-page-arena:
+	python3 tests/page-arena.py
