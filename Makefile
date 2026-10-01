@@ -228,3 +228,7 @@ distribution-build:
 distrib distribution: build/macaros-vm distribution-build
 	python3 tools/distribution.py package --build "$(VM_DISTRIB_BUILD)" --efi "$(VM_DISTRIB_EFI)" --output "$(VM_DISTRIB_OUTPUT)"
 	python3 tools/package-app.py --esp "$(VM_DISTRIB_OUTPUT)/esp" --output "$(VM_DISTRIB_OUTPUT)/Macaros VM.app" --profile-name Distribution
+
+.PHONY: test-package-app
+test-package-app:
+	python3 tests/package-app.py

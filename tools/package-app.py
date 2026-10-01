@@ -7,6 +7,7 @@ import hashlib
 import json
 from pathlib import Path
 import plistlib
+import re
 import shutil
 import subprocess
 
@@ -24,7 +25,8 @@ def validate_desktop(manifest, startup):
         raise ValueError('requires a live GPU desktop with WORK, USB, host services and networking')
     if any(manifest.get(probe) for probe in QUALIFICATION_PROBES):
         raise ValueError('qualification probes must not be included in the application')
-    if 'SYS:C/VMSync VOLUME=VMWORK0:' not in startup:
+    if not any(re.fullmatch(r'\s*Run\s+>NIL:\s+SYS:C/VMSync\s+VOLUME=VMWORK0:\s*(?:;.*)?', line, re.IGNORECASE)
+               for line in startup.splitlines()):
         raise ValueError('guest shutdown participation is required')
 
 
