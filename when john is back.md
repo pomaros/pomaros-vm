@@ -3402,3 +3402,18 @@ helper/source and per-target sequence. Supervisor 20748/exec 46525 was live at
 repro-current-20261001/completed-component-observation.json. Full verdict remains
 pending. Do not silently attribute optimized scheduling or newer core fixes to
 that original run. No guest boot or SMP changes this turn.
+
+## Cross-backend IRQ admission audit — 2026-10-01
+
+Read the actual current vmpci_irq.c and boot/arosboot/vz_platform.c rather than
+launching another incompatible guest. VMPciIRQInit publishes callbacks only for
+arm,gic-v2m-frame. The ACPI bridge parse_interrupts requires distributor version3
+and a redistributor region; its generated tree describes arm,gic-v3. Thus a
+GICv2 QEMU command-line change alone cannot provide desktop IRQ acceptance.
+The native FDT GICv2 timer evidence exercises another path. QEMU ITS support
+remains open; do not attribute older polled HVF pixels to the current IRQ GPU.
+No test, source-code change, SMP work or target hardware action for this audit.
+
+Existing independent build supervisor20748/exec46525 rechecked live at43m17:
+both builds completed9/19 roots including workbench-c. No process restarted.
+The frozen source and final-verdict limitations recorded above still apply.
