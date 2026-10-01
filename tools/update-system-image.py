@@ -73,7 +73,7 @@ def reject_distribution(stream):
     work={name for name,_ in entries(BOOT)}
     boot=dict(entries(0))
     marker=(b'AROS       ' in boot and
-            b'DISTRIB JSON' in dict(entries(0,boot[b'AROS       '])))
+            b'DISTRIB TAG' in dict(entries(0,boot[b'AROS       '])))
     if marker or b'SYSTEM     ' in work:
         raise ValueError('boot-only update refuses distribution disks; kernel and WORK:System must be updated together')
 

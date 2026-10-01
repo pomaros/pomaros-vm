@@ -241,7 +241,7 @@ SYS:C/Echo >>VMWORK0:distribution-startup.log "Desktop setup complete"
     run(['python3', ROOT / 'tools/boot_generation.py', 'create', '--bundle', esp / 'AROS/GEN0.BND',
          '--sequence', '1', '--slot', '0', '--state', 'accepted', '--output', esp / 'AROS/BOOT0.ID'])
     # Disk-local marker lets boot-only tooling reject partial distribution updates.
-    (esp / 'AROS/DISTRIB.JSON').write_text('{"distribution": true, "system": "WORK:System"}\n')
+    (esp / 'AROS/DISTRIB.TAG').write_text('{"distribution": true, "system": "WORK:System"}\n')
     for required in [*REQUIRED, 'Devs/DOSDrivers/PIPE']:
         if not (system / required).is_file():
             raise ValueError('missing staged runtime requirement: ' + required)
