@@ -21,7 +21,7 @@ EXCLUDED = {'Zed', 'ZedAros', 'Ferail', 'Feraille', 'Moonstone', 'Developer',
             'AppleCPU', 'AppleCopy', 'AppleDisk', 'AppleFiles', 'ApplePCIeDiag',
             'AppleWrite', 'PkgRecv', 'Install-grub', 'Install-grub2'}
 REQUIRED = ['C/CPUInfo', 'C/Copy', 'C/List', 'C/Execute', 'C/AddDataTypes',
-            'C/IPrefs', 'C/VMExchange', 'C/VMSync', 'System/Wanderer/Wanderer',
+            'L/pipe-handler', 'L/afs-handler', 'L/sfs-handler', 'C/IPrefs', 'C/VMExchange', 'C/VMSync', 'System/Wanderer/Wanderer',
             'Tools/Editor', 'Tools/Calculator', 'Utilities/Clock',
             'Utilities/MultiView', 'Utilities/More', 'Prefs/ScreenMode',
             'Prefs/Locale', 'Prefs/Input', 'S/Shell-Startup', 'Devs/Keymaps/pc104_usa', 'Libs/datatypes.library',

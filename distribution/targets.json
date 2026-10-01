@@ -2,7 +2,7 @@
   "workbench-libs-png",
   "workbench-libs-jpeg",
   "workbench-libs-freetype-complete",
-  "kernel-fs-pipe",
+  "workbench-fs-pipe",
   "workbench-classes-zune",
   "workbench-datatypes-png",
   "workbench-datatypes-jpeg",
@@ -51,5 +51,8 @@
   "workbench-devs-datatypes",
   "workbench-storage",
   "workbench-s",
-  "workbench-devs-keymaps"
+  "workbench-devs-keymaps",
+  "kernel-fs-afs",
+  "kernel-fs-sfs",
+  "kernel-fs-cdfs"
 ]
