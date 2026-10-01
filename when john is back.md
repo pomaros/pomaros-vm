@@ -3767,3 +3767,32 @@ build adds PNG/JPEG/Freetype/Zune and datatype descriptors to the runtime list.
 Swift launcher build PASS; Python syntax and exclusions/wrong-architecture/Mach-O
 refusal checks PASS. Full runtime packaging/boot proof still pending at this
 checkpoint; do not claim completion from an available build directory alone.
+
+
+### Distribution startup integration findings
+
+The runtime was built from the VM SDK (ordinary guest x18), using the hosted
+Macaros release script only as the runtime boundary reference. No hosted
+executables, Zed or Ferail are copied. Packaging inventories and reads back all
+runtime files, and uses a separate Distribution profile.
+
+The first bounded VZ boots found real integration defects rather than proving
+acceptance. Runtime startup now starts VMSync and USB from RAM first, guards
+optional setup, restores DRIVERS/LIBS/PRINTERS/REXX and records startup stages.
+Replacing LIBS and DRIVERS exposed a generic DOS double-free: cliinit gave the
+same filesystem lock to two owning assignments. Core 70139e7380 duplicates the
+lock and handles failed transfers; its quick DOS build passed. The next VZ run
+no longer reported the pool error and reached preferences.
+
+An independent 18-second HVF diagnostic captured the requester showing missing
+kms.library V3. The diagnostic omitted USB and VMSync because QEMU/HVF xHCI hit
+an ISV assertion; it is diagnostic evidence, not acceptance of the complete app.
+The distribution now explicitly builds and requires kms.library for LoadKeymap
+and IPrefs. Logs, registers and screenshot are under
+artifacts/hvf-distribution-diagnostic-no-usb/.
+
+Review 294 also led to a positive runtime Devs allowlist and refusal of boot-only
+updates on distribution disks. Normal boot-only update, marker-only rejection,
+and older WORK:System rejection passed (artifacts/distribution-update-guard.json).
+Lost shutdown acknowledgement / failed VZ stop can leave SYS inhibited: this is
+documented, and that state must not be used as a live desktop.
