@@ -12,6 +12,9 @@ final class HostServices: NSObject, VZVirtioSocketListenerDelegate {
   let directory: URL
   let rootFD: Int32
   private var active=0
+  // Main-queue ownership matches VZ listener callbacks and connection cleanup.
+  private var activeFDs=Set<Int32>()
+  private var testCutCount=0
   private let clipboard: ClipboardStore?
   private let listener=VZVirtioSocketListener()
   private let shutdownLock=NSLock()
@@ -38,6 +41,14 @@ final class HostServices: NSObject, VZVirtioSocketListenerDelegate {
   }
   deinit { Darwin.close(rootFD) }
   func attach(to device: VZVirtioSocketDevice) { device.setSocketListener(listener,forPort:4051) }
+  // Qualification only: interrupt established streams without stopping the VM.
+  // serve() owns the descriptors; shutdown wakes its blocked read/write safely.
+  func cutConnectionsForTest()->Int {
+    let count=activeFDs.count
+    for fd in activeFDs { _ = Darwin.shutdown(fd,SHUT_RDWR) }
+    testCutCount+=1
+    return count
+  }
   func listener(_ listener: VZVirtioSocketListener,
                 shouldAcceptNewConnection connection: VZVirtioSocketConnection,
                 from socketDevice: VZVirtioSocketDevice) -> Bool {
@@ -47,9 +58,13 @@ final class HostServices: NSObject, VZVirtioSocketListenerDelegate {
     var noSignal:Int32=1
     guard setsockopt(fd,SOL_SOCKET,SO_NOSIGPIPE,&noSignal,socklen_t(MemoryLayout<Int32>.size))==0 else { return false }
     active+=1
+    activeFDs.insert(fd)
+    let afterTestCut=testCutCount>0
     DispatchQueue.global().async { [self] in
-      serve(fd)
-      DispatchQueue.main.async { [self] in connection.close();active-=1 }
+      serve(fd, afterTestCut:afterTestCut)
+      DispatchQueue.main.async { [self] in
+        activeFDs.remove(fd);connection.close();active-=1
+      }
     }
     return true
   }
@@ -88,7 +103,7 @@ final class HostServices: NSObject, VZVirtioSocketListenerDelegate {
   }
   // One serial request stream, one upload and one download. No file contents
   // are logged. Errors are explicit protocol status, never partial success.
-  func serve(_ fd:Int32) {
+  func serve(_ fd:Int32, afterTestCut:Bool=false) {
     var upload:Int32 = -1, download:Int32 = -1
     var temporary="",destination="",uploaded:UInt64=0,downloaded:UInt64=0,downloadSize:UInt64=0
     var clipSnapshot:[UInt8]?,clipUpload:[UInt8]?
@@ -242,6 +257,11 @@ final class HostServices: NSObject, VZVirtioSocketListenerDelegate {
       }
       put(&header,12,UInt64(response.count),4);put(&header,16,status,4)
       guard exact(fd,&header,write:true),exact(fd,&response,write:true) else { return }
+      if afterTestCut && status==0 && (op==1 || op==8) {
+        print(op==1 ? "[HOST] file service reconnected after cut PASS" :
+                       "[HOST] clipboard service reconnected after cut PASS")
+        fflush(stdout)
+      }
     }
   }
 }

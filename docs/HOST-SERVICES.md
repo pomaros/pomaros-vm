@@ -91,3 +91,14 @@ desktop startup, requires ordered host-request/guest-quiesce/host-ack markers an
 normal process exit, then checks exact bytes with mtype. This is a closed-file
 persistence test, not proof that the FAT timer had not already flushed the data,
 not a host-power-loss test, and not an independently clicked GUI-close test.
+
+The later stage-six isolated VZ run exercises a forced cut of an active
+connection, then a guest reopen, exact file PUT/GET and a clipboard snapshot
+from a new session. The explicit `--transport-cut-test` option watches for
+`transport-cut.request` inside the selected VM state and shuts down active
+sockets without stopping the VM; it is inert in normal launches. The paired
+`--window-close-test` option invokes the normal window delegate with a
+`window-close.request` marker and proves guest-acknowledged shutdown. Evidence
+is in `artifacts/vz-stage6-image-cut-close-2/`; the fixture disk is isolated.
+This covers stream interruption and recovery, not a host process crash or
+macOS power loss.

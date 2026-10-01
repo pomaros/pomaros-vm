@@ -3886,3 +3886,40 @@ booted/stopped cleanly and returned all expected statuses, but scorer assumed
 lowercase hex whereas DOS emits uppercase; corrected in final attempt4.
 No product code was changed to bypass those failures. No physical/Pi acceptance
 or SMP work claimed. Next: ordinary user use; later live-tree/backend expansion.
+
+## Stage 6 final bounded checks — 2026-10-01
+
+John asked to finish outstanding gates without multi-hour tests and will
+visually inspect the VZ window himself. macOS CGPreflightScreenCaptureAccess
+returned false for this agent. Current app still has no host-view pixel proof.
+
+Host-only regression rerun: `make test-host-services test-clipboard-services
+test-vm-storage` PASS. Current packaged app codesign verification PASS; DeviceTree
+and CPUInfo read back from the FAT image match SDK SHA256.
+
+VM host adds explicit test-only options `--transport-cut-test` and
+`--window-close-test`. The first atomically shuts down the active vsock stream
+owned by HostServices; the second invokes NSWindow.performClose and thus the
+actual window delegate, without Accessibility or screen-capture permission.
+The host tracks accepted FDs on the main queue; it never closes a descriptor
+owned by the worker, and test-only reconnect markers require successful
+protocol responses on a new connection. Normal launches do not watch markers.
+
+`artifacts/vz-stage6-cut-close-1/verdict.json`: PASS14.13s. An AROS-held
+connection fails after the host cut; it then reopens, completes CLI PUT/GET
+and the clipboard daemon successfully reconnects. The actual NSWindow close
+path requests shutdown; one VMSync quiesce, one host acknowledgement, exit0,
+and independent guest/host fixture bytes pass.
+
+`artifacts/vz-stage6-image-cut-close-2/verdict.json`: PASS17.06s. Same cut,
+recovery and close, plus MultiView opens the distribution JPEG
+`04-Mithrandir_wallpaperupdated.jpg` (800×600). AROS screen reports a titled
+822×638 window; ReadPixelArray returns16,384pixels, of which16,288 differ
+from the first sample inside the window. The test-only guest probes and a
+copy of SYS: are placed on an isolated disk; the released seed is unchanged.
+This proves guest GUI image decode/drawing, not host VZ view pixels.
+
+Reproducibility: two new isolated builds from frozen core2d167429e3 started
+under `artifacts/repro-final-stage6-20261001`; results to append when complete.
+The build includes kernel-openfirmware and workbench-c-devicetree, compares
+all generated product/SDK files and stage2. No native/Pi/SMP work.

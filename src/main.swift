@@ -20,6 +20,7 @@ final class Application: NSObject, NSApplicationDelegate, NSWindowDelegate, VZVi
   let headless = launchOptions.contains("--headless")
   var terminationSignal: DispatchSourceSignal?
   var inputProbeTimer: DispatchSourceTimer?
+  var qualificationTimer: DispatchSourceTimer?
   var shutdownPoll: DispatchSourceTimer?
   var terminationPending=false
   var allowTermination=false
@@ -224,6 +225,30 @@ final class Application: NSObject, NSApplicationDelegate, NSWindowDelegate, VZVi
             }
             timer.resume()
           }
+          if launchOptions.contains("--window-close-test") || launchOptions.contains("--transport-cut-test") {
+            let timer=DispatchSource.makeTimerSource(queue:.main)
+            self.qualificationTimer=timer
+            timer.schedule(deadline:.now(),repeating:0.1)
+            timer.setEventHandler { [weak self] in
+              guard let self else { return }
+              let cut=self.state.appendingPathComponent("transport-cut.request")
+              if launchOptions.contains("--transport-cut-test"),
+                 FileManager.default.fileExists(atPath:cut.path) {
+                try? FileManager.default.removeItem(at:cut)
+                let count=self.hostServices?.cutConnectionsForTest() ?? 0
+                print("[HOST] test transport cut active=\(count)");fflush(stdout)
+              }
+              let close=self.state.appendingPathComponent("window-close.request")
+              if launchOptions.contains("--window-close-test"),
+                 FileManager.default.fileExists(atPath:close.path) {
+                try? FileManager.default.removeItem(at:close)
+                timer.cancel();self.qualificationTimer=nil
+                print("[HOST] test window close dispatched");fflush(stdout)
+                self.window?.performClose(nil)
+              }
+            }
+            timer.resume()
+          }
         case .failure(let error): self.fail(error)
         }
       }
@@ -324,8 +349,8 @@ if options.contains("--input-probe") && options.contains("--headless") && (!opti
   fputs("--input-probe requires a VZ window and USB input\n",stderr);exit(2)
 }
 if (!bundledLaunch && CommandLine.arguments.count < 3) || suppliedOptions.count != Set(suppliedOptions).count
-  || options.contains(where: { $0 != "--headless" && $0 != "--gpu" && $0 != "--gpu-window" && $0 != "--usb-input" && $0 != "--input-probe" && $0 != "--network" && $0 != "--vsock-probe" && $0 != "--host-services" && $0 != "--clipboard-test" && $0 != "--force-stop" }) {
-  fputs("usage: macaros-vm DISK_IMAGE STATE_DIRECTORY [--headless] [--gpu] [--gpu-window] [--usb-input] [--input-probe] [--network] [--vsock-probe] [--host-services] [--clipboard-test] [--force-stop]\n", stderr)
+  || options.contains(where: { $0 != "--headless" && $0 != "--gpu" && $0 != "--gpu-window" && $0 != "--usb-input" && $0 != "--input-probe" && $0 != "--network" && $0 != "--vsock-probe" && $0 != "--host-services" && $0 != "--clipboard-test" && $0 != "--force-stop" && $0 != "--window-close-test" && $0 != "--transport-cut-test" }) {
+  fputs("usage: macaros-vm DISK_IMAGE STATE_DIRECTORY [--headless] [--gpu] [--gpu-window] [--usb-input] [--input-probe] [--network] [--vsock-probe] [--host-services] [--clipboard-test] [--force-stop] [--window-close-test] [--transport-cut-test]\n", stderr)
   exit(2)
 }
 if #available(macOS 13.0, *) {
