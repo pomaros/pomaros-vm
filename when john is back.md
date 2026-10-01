@@ -3662,3 +3662,15 @@ shutdown. Its CAPTURED status is not acceptance: inspect desktop.png and verify
 actual desktop content before updating the visual gate or completing the goal.
 Other coverage limits remain those stated in STAGE6.md; this handoff does not
 turn unqualified hardware, ITS, or exhaustive fault cases into passing evidence.
+
+## Quick review after John's successful manual launch
+
+John reports the app works well. This is user feedback, separate from automated
+VZ pixel evidence (capture preflight still false in this session). Reviewed the
+scalar MSI-X helpers and the application packager. The latter did not explicitly
+require the GPU feature in its manifest admission; validate_desktop now checks
+that alongside the other required services. Admission is separated from CLI
+execution, so importing the tool does not parse arguments or create an app.
+Focused checks accept the real qualified manifest and reject each absent
+feature, each probe flag and absent shutdown participation. No VM rerun for
+this packaging-only change.
