@@ -3455,3 +3455,13 @@ SHA c0b29456136cafad5be0928f2bf4fe58d8fc63fb331bf4bd32eed7e8c60b70ec.
 No HTTP, public TCP, throughput, graceful stop or persistence claim from this
 forced-stop network gate. Corrected heartbeat runner has not been boot-tested.
 The existing complete-build comparison remains separate and running.
+
+## Application usage entry point — 2026-10-01
+
+README now leads with the packaged application: first launch profile, host NAT,
+persistent WORK versus RAM-backed SYS, normal quit, clipboard-device scope,
+VMExchange PUT/GET and the no-replace system update procedure. This removes
+the stale impression that only the headless developer probe is usable. It
+does not claim GUI Copy/Paste acceptance or imply replacing an app upgrades
+an existing profile. Documentation-only change; paths/commands checked against
+BUILD, HOST-SERVICES and CLIPBOARD. No additional guest tests.
