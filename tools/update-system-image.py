@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import stat
+import subprocess
 import tempfile
 
 BOOT=64*1024*1024
@@ -44,6 +45,17 @@ def volume(stream,offset,sectors):
         not root or not fat or not 4085<=count<65525 or count+2>fat*512//2):
         raise ValueError('unsupported FAT16 volume layout')
 
+def reject_distribution(stream):
+    # Read through the already locked descriptor, not a replaceable pathname.
+    disk = '/dev/fd/' + str(stream.fileno())
+    for offset, directory, marker in [(0, 'AROS', 'DISTRIB.JSON'), (BOOT, '', 'System')]:
+        listing = subprocess.check_output(
+            ['mdir', '-b', '-i', disk + '@@' + str(offset), '::/' + directory],
+            pass_fds=(stream.fileno(),), stderr=subprocess.PIPE, text=True)
+        if any(line.rstrip('/').rsplit('/', 1)[-1].casefold() == marker.casefold()
+               for line in listing.splitlines()):
+            raise ValueError('boot-only update refuses distribution disks; kernel and WORK:System must be updated together')
+
 def copy_region(source,destination,offset,length):
     source.seek(offset);digest=hashlib.sha256()
     while length:
@@ -60,7 +72,9 @@ a.output.parent.mkdir(parents=True,exist_ok=True)
 temporary=None
 try:
     with open_input(a.seed) as seed,open_input(a.disk) as disk:
-        for stream in (seed,disk):volume(stream,0,BOOT//512);volume(stream,BOOT,WORK//512)
+        for stream in (seed,disk):
+            volume(stream,0,BOOT//512);volume(stream,BOOT,WORK//512)
+            reject_distribution(stream)
         before=[os.fstat(s.fileno()) for s in (seed,disk)]
         fd,temporary=tempfile.mkstemp(prefix='.vm-update-',dir=a.output.parent)
         with os.fdopen(fd,'wb') as output:
@@ -79,7 +93,7 @@ try:
     print(json.dumps({'result':'PASS','output':str(a.output.resolve()),'bytes':TOTAL,
                       'boot_sha256':boot_hash,'work_sha256':work_hash,
                       'source_disk_unchanged':True,'work_preserved':True}))
-except (OSError,ValueError,RuntimeError) as error:
+except (OSError,ValueError,RuntimeError,subprocess.CalledProcessError) as error:
     p.exit(2,f'update-system-image: {error}\n')
 finally:
     if temporary is not None:os.unlink(temporary)

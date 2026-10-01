@@ -55,3 +55,10 @@ provenance. Packaging rejects symlinks, wrong-architecture ELF files and Mach-O
 host binaries, and checks every installed runtime file by reading it back from
 the generated WORK filesystem. Boot modules and VM mount/network settings come
 from the regular package-core path. AROS licence files accompany the runtime.
+
+Shutdown inhibits the whole WORK volume, including SYS. If the acknowledgement
+is lost or Virtualization.framework refuses to stop, the desktop may remain
+visible but SYS is unavailable. Do not resume work in that state: terminate the
+VM process and relaunch it. A lost acknowledgement does not prove a successful
+flush. The boot-only updater rejects distribution disks: their kernel and
+WORK:System must be upgraded together.

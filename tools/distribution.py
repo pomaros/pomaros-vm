@@ -20,8 +20,8 @@ ROOT = Path(__file__).resolve().parents[1]
 ROOTS = 'C Classes Devs Extras Fonts L Libs Locale Prefs S Storage System Tools Utilities WBStartup'.split()
 EXCLUDED = {'Zed', 'ZedAros', 'Ferail', 'Feraille', 'Moonstone', 'Developer',
             'AppleCPU', 'AppleCopy', 'AppleDisk', 'AppleFiles', 'ApplePCIeDiag',
-            'AppleWrite', 'PkgRecv', 'Install-grub', 'Install-grub2'}
-REQUIRED = ['C/CPUInfo', 'C/Copy', 'C/List', 'C/Execute', 'C/AddDataTypes',
+            'AppleWrite', 'PkgRecv', 'GPIO', 'Install-grub', 'Install-grub2'}
+REQUIRED = ['C/CPUInfo', 'C/LoadKeymap', 'C/ConClip', 'System/FixFonts', 'System/Network/AROSTCP/C/AROSTCP', 'C/Copy', 'C/List', 'C/Execute', 'C/AddDataTypes',
             'L/pipe-handler', 'L/afs-handler', 'L/sfs-handler', 'C/IPrefs', 'C/VMExchange', 'C/VMSync', 'System/Wanderer/Wanderer',
             'Tools/Editor', 'Tools/Calculator', 'Utilities/Clock',
             'Utilities/MultiView', 'Utilities/More', 'Prefs/ScreenMode',
@@ -62,7 +62,26 @@ def build_runtime(a):
         raise RuntimeError('distribution build failed: ' + str(log))
     print('distribution build PASS: ' + str(log))
 
+# Only portable and VM device payloads are shipped on the runtime volume.
+DEVICE_TREES = {'DataTypes', 'Keymaps', 'Printers'}
+DEVICE_FILES = {'ahi.device', 'clipboard.device', 'console.device',
+    'gameport.device', 'input.device', 'keyboard.device', 'timer.device',
+    'FileSystem.resource', 'task.resource', 'shell.resource',
+    'shellcommands.resource', 'lddemon.resource', 'pci.ids',
+    'virtio.device', 'vmbridge.device', 'WORK.mount',
+    'Drivers/bus.hidd', 'Drivers/storage.hidd', 'Drivers/vmpci.hidd',
+    'Drivers/virtiogfx.hidd', 'Drivers/pci.hidd', 'Drivers/pciecam.hidd',
+    'Drivers/gfx.hidd', 'Drivers/hiddclass.hidd', 'Drivers/inputclass.hidd',
+    'Drivers/keyboard.hidd', 'Drivers/mouse.hidd',
+    'USBHardware/pcixhci.device', 'Networks/virtionet.device',
+    'DOSDrivers/PIPE', 'DOSDrivers/AUDIO', 'AHI/void.audio'}
+
 def permitted(path):
+    if path.parts[0] == 'Devs' and len(path.parts) > 1:
+        rel = Path(*path.parts[1:]).as_posix()
+        if path.parts[1] not in DEVICE_TREES and not any(
+                item == rel or item.startswith(rel + '/') for item in DEVICE_FILES):
+            return False
     return (not any(part.startswith('.') for part in path.parts) and
             not any(part.removesuffix('.info') in EXCLUDED for part in path.parts) and
             not path.name.startswith(('mmakefile', 'Makefile')) and
@@ -117,6 +136,7 @@ def package(a):
     run(['mcopy', '-o', '-s', '-i', base / 'SYS.img', '::*', system], env=env, stdout=subprocess.DEVNULL)
     for name in ROOTS:
         (system / name).mkdir(exist_ok=True)
+    (system / 'Devs/Printers').mkdir(parents=True, exist_ok=True)
     (system / 'Devs/DOSDrivers').mkdir(parents=True, exist_ok=True)
     shutil.copy2(source / 'workbench/devs/DOSDrivers/PIPE', system / 'Devs/DOSDrivers/PIPE')
     (system / 'Prefs/Env-Archive').mkdir(parents=True, exist_ok=True)
@@ -137,17 +157,25 @@ def package(a):
         shutil.copy2(source / name, system / name)
     # This runs only after the existing storage readiness barrier. Explicit
     # assigns replace bootstrap RAM paths; modules already resident stay loaded.
-    setup = '''SYS:C/Assign SYS: VMWORK0:System
+    setup = '''FailAt 21
+SYS:C/Echo >VMWORK0:distribution-startup.log "Switching SYS to disk"
+SYS:C/Assign SYS: VMWORK0:System
 SYS:C/Assign C: SYS:C
 SYS:C/Assign S: SYS:S
 SYS:C/Assign L: SYS:L
 SYS:C/Assign LIBS: SYS:Libs
 SYS:C/Assign LIBS: SYS:Classes ADD
 SYS:C/Assign DEVS: SYS:Devs
+SYS:C/Assign DRIVERS: SYS:Devs/Drivers
+SYS:C/Assign LIBS: DRIVERS: ADD
+SYS:C/Assign PRINTERS: DEVS:Printers
+SYS:C/Assign REXX: S:
 SYS:C/Assign KEYMAPS: DEVS:Keymaps
 SYS:C/Assign FONTS: SYS:Fonts
 SYS:C/Assign LOCALE: SYS:Locale
-SYS:C/MakeDir RAM:Clipboards
+If NOT EXISTS RAM:Clipboards
+    SYS:C/MakeDir RAM:Clipboards
+EndIf
 SYS:C/Assign CLIPS: RAM:Clipboards
 SYS:C/Mount DEVS:DOSDrivers/PIPE
 SYS:C/Assign ENVARC: SYS:Prefs/Env-Archive
@@ -155,24 +183,38 @@ SYS:C/Assign WANDERER: SYS:System/Wanderer
 SYS:C/Assign HELP: LOCALE:Help DEFER
 SYS:C/Assign THEMES: SYS:Prefs/Presets/Themes
 SYS:C/Assign THEME: THEMES:AROSDefault
-SYS:C/Assign IMAGES: THEME:Images
-SYS:C/MakeDir RAM:ENV
+SYS:C/Assign IMAGES: SYS:System/Images DEFER
+If EXISTS THEME:Images
+    SYS:C/Assign IMAGES: THEME:Images PREPEND
+EndIf
+If NOT EXISTS RAM:ENV
+    SYS:C/MakeDir RAM:ENV
+EndIf
 SYS:C/Assign ENV: RAM:ENV
 SYS:C/Copy ENVARC: ENV: ALL QUIET
 SYS:C/LoadKeymap RESTORE
 SYS:C/SetEnv HOME WORK:
 SYS:C/Path C: SYS:System S: SYS:Prefs SYS:Tools SYS:Utilities QUIET
 CD SYS:
+SYS:C/Echo >>VMWORK0:distribution-startup.log "Datatypes and preferences"
 SYS:C/AddDataTypes REFRESH QUIET
-SYS:System/FixFonts
+If NOT EXISTS FONTS:fixed.font
+    SYS:System/FixFonts
+EndIf
 SYS:C/IPrefs
 Run >NIL: SYS:C/ConClip
+SYS:C/Echo >>VMWORK0:distribution-startup.log "Desktop setup complete"
 '''
     startup = (base / 'Startup-Sequence').read_text()
     marker = 'SYS:C/Assign VMWorkReady: REMOVE\n'
     if startup.count(marker) != 1:
         raise ValueError('missing unique WORK readiness barrier')
-    startup = startup.replace(marker, marker + setup)
+    # Launch shutdown and input from the RAM bootstrap before optional setup.
+    services = 'Run >NIL: SYS:C/VMSync VOLUME=VMWORK0:\nSYS:VMUSB\n'
+    if startup.count(services) != 1:
+        raise ValueError('missing unique VM service startup')
+    startup = startup.replace(services, '')
+    startup = startup.replace(marker, marker + services + setup)
     (esp / 'Startup-Sequence').write_text(startup)
     (system / 'S/Startup-Sequence').write_text(startup)
     # Keep boot and desktop startup identical. Changing only an outer ESP copy
@@ -198,6 +240,11 @@ Run >NIL: SYS:C/ConClip
     (esp / 'AROS/BOOT0.ID').unlink()
     run(['python3', ROOT / 'tools/boot_generation.py', 'create', '--bundle', esp / 'AROS/GEN0.BND',
          '--sequence', '1', '--slot', '0', '--state', 'accepted', '--output', esp / 'AROS/BOOT0.ID'])
+    # Disk-local marker lets boot-only tooling reject partial distribution updates.
+    (esp / 'AROS/DISTRIB.JSON').write_text('{"distribution": true, "system": "WORK:System"}\n')
+    for required in [*REQUIRED, 'Devs/DOSDrivers/PIPE']:
+        if not (system / required).is_file():
+            raise ValueError('missing staged runtime requirement: ' + required)
     inventory = {}
     for path in sorted(system.rglob('*')):
         os.utime(path, (EPOCH, EPOCH))
