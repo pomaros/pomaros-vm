@@ -10,6 +10,7 @@ from pathlib import Path
 import runpy
 import shutil
 import subprocess
+import time
 from types import SimpleNamespace
 from fat_metadata import EPOCH, normalize_fat16
 
@@ -42,15 +43,19 @@ def config(build):
 
 def build_runtime(a):
     _, source = config(a.build)
-    modules = subprocess.check_output(['git', '-C', str(source), 'config', '--file', '.gitmodules', '--get-regexp', 'path'], text=True)
-    paths = [line.split(' ', 1)[1] for line in modules.splitlines()]
-    paths = [p for p in paths if p.lower().endswith(('/catalogs', '/translations'))]
+    modules = subprocess.check_output(['git', '-C', str(source), 'config', '--file', '.gitmodules', '--get-regexp', r'^submodule\..*\.(path|url)$'], text=True)
+    modules = dict(line.split(' ', 1) for line in modules.splitlines())
+    # Some catalogs live in "cat" or "translations", not "catalogs".
+    paths = [modules[key[:-3] + 'path'] for key, url in modules.items()
+             if key.endswith('.url') and url.startswith('https://github.com/aros-translation-team/')]
     run(['git', '-C', source, 'submodule', 'update', '--init', '--jobs', '4', '--', *paths])
     targets = json.loads((ROOT / 'distribution/targets.json').read_text())
     batch = a.build / 'vm-distribution.mk'
     batch.write_text('.PHONY: vm-distribution\nvm-distribution:\n\t@+$(CALL) $(MMAKE) $(MMAKE_OPTIONS) ' +
                      ' '.join('AROS.' + target for target in targets) + '\n')
     log = a.build / 'vm-distribution.log'
+    if log.exists():
+        log.rename(log.with_name('vm-distribution-' + str(time.time_ns()) + '.log'))
     with log.open('w') as stream:
         result = subprocess.run(['make', '-C', str(a.build), '-j' + str(a.jobs), '-f', 'Makefile', '-f', str(batch), 'vm-distribution'], stdout=stream, stderr=subprocess.STDOUT)
     if result.returncode or 'Nothing known about' in log.read_text(errors='replace'):
