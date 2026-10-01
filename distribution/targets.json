@@ -49,5 +49,7 @@
   "workbench-images",
   "workbench-prefs-presets-icons",
   "workbench-devs-datatypes",
-  "workbench-storage"
+  "workbench-storage",
+  "workbench-s",
+  "workbench-devs-keymaps"
 ]

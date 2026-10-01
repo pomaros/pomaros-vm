@@ -24,7 +24,7 @@ REQUIRED = ['C/CPUInfo', 'C/Copy', 'C/List', 'C/Execute', 'C/AddDataTypes',
             'C/IPrefs', 'C/VMExchange', 'C/VMSync', 'System/Wanderer/Wanderer',
             'Tools/Editor', 'Tools/Calculator', 'Utilities/Clock',
             'Utilities/MultiView', 'Utilities/More', 'Prefs/ScreenMode',
-            'Prefs/Locale', 'Prefs/Input', 'Libs/datatypes.library',
+            'Prefs/Locale', 'Prefs/Input', 'S/Shell-Startup', 'Devs/Keymaps/pc104_usa', 'Libs/datatypes.library',
             'Classes/DataTypes/picture.datatype', 'Classes/DataTypes/ilbm.datatype',
             'Classes/DataTypes/png.datatype', 'Classes/DataTypes/jpeg.datatype',
             'Prefs/Presets/Themes/AROSDefault/system/config']
@@ -125,6 +125,7 @@ SYS:C/Assign L: SYS:L
 SYS:C/Assign LIBS: SYS:Libs
 SYS:C/Assign LIBS: SYS:Classes ADD
 SYS:C/Assign DEVS: SYS:Devs
+SYS:C/Assign KEYMAPS: DEVS:Keymaps
 SYS:C/Assign FONTS: SYS:Fonts
 SYS:C/Assign LOCALE: SYS:Locale
 SYS:C/Assign ENVARC: SYS:Prefs/Env-Archive
@@ -136,6 +137,7 @@ SYS:C/Assign IMAGES: THEME:Images
 SYS:C/MakeDir RAM:ENV
 SYS:C/Assign ENV: RAM:ENV
 SYS:C/Copy ENVARC: ENV: ALL QUIET
+SYS:C/LoadKeymap RESTORE
 SYS:C/SetEnv HOME WORK:
 SYS:C/Path C: SYS:System S: SYS:Prefs SYS:Tools SYS:Utilities QUIET
 CD SYS:
