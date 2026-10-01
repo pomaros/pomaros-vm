@@ -3725,3 +3725,26 @@ Launcher build with warnings-as-errors and signing PASS; physical shortcut use
 not yet verified. User VM was running, so it was not stopped for testing.
 The application bundle at app-ready-cpuinfo is updated for the next launch;
 current process continues with its existing executable. User disk untouched.
+
+## Clipboard transport interruption qualification
+
+Extended tests/clipboard-services.swift using nonblocking socket-pair host ends
+with SO_NOSIGPIPE, matching the listener contract. Cuts inside request headers
+and bodies, abandons partial/complete unpublished clipboard uploads, reconnects
+and checks no inherited transfer state. Also discards the publish response after
+independently observing publication: reconnect downloads exact committed bytes,
+stale retry is refused, and a fresh transfer succeeds on the same server.
+Private named pasteboard only; user VM and clipboard untouched.
+
+make test-clipboard-services PASS (artifacts/clipboard-recovery-test-v2.log).
+First run FAIL retained in clipboard-recovery-test.log; LLDB located the fixture
+assertion at line94 (half-close required completion within5s, shorter than the
+service15s bound). Final fixture observes publication then closes fully, which
+is the intended lost-ack case. No production timeout or code changed. Debug
+trace retained in clipboard-recovery-debug.log. Guest sync baselines are updated
+only after complete successful operations on source inspection; forced real
+VZ/guest daemon failure recovery remains unqualified, not claimed by host tests.
+Next useful acceptance: force disconnect during a real VMSync transfer, verify
+automatic recovery without changing conflict policy or losing a newer guest copy.
+Other remaining scope: GUI image copy/paste, broader interrupted-write recovery,
+physical/Pi portability proofs; SMP remains bsek's work.

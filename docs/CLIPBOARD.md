@@ -67,7 +67,11 @@ recoverable by this mechanism.
 planes/masks/padding/ByteRun1, PNG conversion, named-pasteboard publication and
 stale/malformed-write refusal. `make test-clipboard-services` exercises actual
 socket framing with a multi-frame Unicode clipboard, image publication,
-revision conflicts, size rejection and abandoned uploads. Both use fresh named
+revision conflicts, size rejection and abandoned uploads. It also cuts streams
+inside headers/bodies and before publication, reconnects to the same server,
+checks transfer-state isolation, and loses a publication acknowledgement. A new
+connection recovers the committed value, refuses the stale retry, then completes
+a fresh upload. These are host socket-pair tests, not forced VZ/guest recovery. Both use fresh named
 pasteboards and leave the user's general clipboard untouched.
 
 The guest gate uses `tools/package-core.py --pci-hidd --clipboard-sync`, then
@@ -124,7 +128,7 @@ passes text Paste/Edit/Save/Select All/Copy through host VZ-view events, with
 independent WORK-file and private Mac pasteboard byte checks and clean shutdown.
 It waits for desktop startup before launching Editor and for its active document
 before input. Editor requires its pinned `workbench/tools/Edit/catalogs` Git
-submodule; it is not part of the normal application payload. The exact test
+submodule; Editor is now included in the normal application payload. The exact test
 artifacts and earlier failed preparations are recorded in
 [`when john is back.md`](../when%20john%20is%20back.md). Physical shortcuts,
 GUI image operations, forced transport failures and prolonged reliability

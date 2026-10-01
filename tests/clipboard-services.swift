@@ -33,6 +33,85 @@ import Darwin
     precondition(Array(response[0..<12]) == Array(header[0..<12]) && length <= 65536)
     return (number(response, 16, 4), exact(fd, length))
   }
+  // Exercise the same nonblocking/no-SIGPIPE contract as the VZ listener.
+  static func connection(_ server: HostServices) -> (Int32, DispatchSemaphore) {
+    var sockets: [Int32] = [-1, -1]
+    precondition(socketpair(AF_UNIX, SOCK_STREAM, 0, &sockets) == 0)
+    let client = sockets[0], host = sockets[1]
+    var timeout = timeval(tv_sec: 5, tv_usec: 0), one: Int32 = 1
+    precondition(setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size)) == 0)
+    precondition(fcntl(host, F_SETFL, fcntl(host, F_GETFL) | O_NONBLOCK) == 0)
+    precondition(setsockopt(host, SOL_SOCKET, SO_NOSIGPIPE, &one, socklen_t(MemoryLayout<Int32>.size)) == 0)
+    let done = DispatchSemaphore(value: 0)
+    DispatchQueue.global().async { server.serve(host); Darwin.close(host); done.signal() }
+    return (client, done)
+  }
+  static func disconnect(_ client: Int32, _ done: DispatchSemaphore) {
+    Darwin.close(client)
+    precondition(done.wait(timeout: .now() + 5) == .success)
+  }
+  static func recovery(_ server: HostServices, _ board: NSPasteboard) {
+    let original = "newer Mac copy"
+    let payload = try! ClipboardCodec.encode(.text("recovered after lost acknowledgement"))
+    let baseline = DispatchQueue.main.sync { board.changeCount }
+    for point in 0..<4 {
+      let (fd, done) = connection(server)
+      var id: UInt64 = 0
+      let snapshot = request(fd, &id, 8, little(UInt64.max, 8))
+      precondition(snapshot.0 == 0)
+      let revision = number(snapshot.1, 0, 8)
+      precondition(request(fd, &id, 10, little(revision, 8) + little(UInt64(payload.count), 4)).0 == 0)
+      let header = Array("MVHS".utf8) + little(1, 2) + little(11, 2) + little(id + 1, 4) + little(UInt64(payload.count), 4) + little(0, 4)
+      switch point {
+      case 0: send(fd, Array(header.prefix(9))) // EOF inside frame header
+      case 1: send(fd, header); send(fd, Array(payload.prefix(7))) // EOF inside body
+      case 2: precondition(request(fd, &id, 11, Array(payload.prefix(20))).0 == 0)
+      default: precondition(request(fd, &id, 11, payload).0 == 0) // complete but not published
+      }
+      disconnect(fd, done)
+      DispatchQueue.main.sync {
+        precondition(board.changeCount == baseline && board.string(forType: .string) == original)
+      }
+      // A new stream cannot publish or continue the discarded transfer.
+      let (next, finished) = connection(server)
+      id = 0
+      precondition(request(next, &id, 12, []).0 == 2)
+      precondition(request(next, &id, 11, payload).0 == 2)
+      precondition(request(next, &id, 1, []).0 == 0)
+      disconnect(next, finished)
+    }
+    // Publication may succeed even when its reply is lost. Reconnect must
+    // expose that committed value, and reject a retry carrying the old revision.
+    let (fd, done) = connection(server)
+    var id: UInt64 = 0
+    let snapshot = request(fd, &id, 8, little(UInt64.max, 8))
+    let revision = number(snapshot.1, 0, 8)
+    precondition(request(fd, &id, 10, little(revision, 8) + little(UInt64(payload.count), 4)).0 == 0)
+    precondition(request(fd, &id, 11, payload).0 == 0)
+    precondition(shutdown(fd, SHUT_RD) == 0)
+    send(fd, Array("MVHS".utf8) + little(1, 2) + little(12, 2) + little(id + 1, 4) + little(0, 4) + little(0, 4))
+    let publicationDeadline = Date(timeIntervalSinceNow: 3)
+    while !DispatchQueue.main.sync(execute: { board.string(forType: .string) == "recovered after lost acknowledgement" }) {
+      precondition(Date() < publicationDeadline)
+      Thread.sleep(forTimeInterval: 0.01)
+    }
+    disconnect(fd, done)
+    let (next, finished) = connection(server)
+    id = 0
+    let recovered = request(next, &id, 8, little(revision, 8))
+    precondition(recovered.0 == 0 && number(recovered.1, 8, 4) == UInt64(payload.count))
+    precondition(request(next, &id, 9, little(65536, 4)).1 == payload)
+    precondition(request(next, &id, 10, little(revision, 8) + little(UInt64(payload.count), 4)).0 == 0)
+    precondition(request(next, &id, 11, payload).0 == 0)
+    precondition(request(next, &id, 12, []).0 == 6)
+    let current = number(recovered.1, 0, 8)
+    // A subsequent valid transfer still succeeds on this same server instance.
+    let restored = try! ClipboardCodec.encode(.text(original))
+    precondition(request(next, &id, 10, little(current, 8) + little(UInt64(restored.count), 4)).0 == 0)
+    precondition(request(next, &id, 11, restored).0 == 0)
+    precondition(request(next, &id, 12, []).0 == 0)
+    disconnect(next, finished)
+  }
   static func main() throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("vm-clip-wire-" + UUID().uuidString)
     let board = NSPasteboard(name: .init("org.aros.vm.wire." + UUID().uuidString))
@@ -82,6 +161,7 @@ import Darwin
       precondition(request(client, &id, 11, Array(image.prefix(20))).0 == 0)
       Darwin.close(client)
       precondition(closed.wait(timeout: .now() + 5) == .success)
+      recovery(server, board)
       complete.signal()
     }
     let deadline = Date(timeIntervalSinceNow: 15)
@@ -90,6 +170,6 @@ import Darwin
       _ = RunLoop.main.run(mode: .default, before: Date(timeIntervalSinceNow: 0.01))
     }
     precondition(board.string(forType: .string) == "newer Mac copy")
-    print("clipboard-services result=PASS multi-frame-unicode,snapshot,PNG-publication,stale-write,limit,abort-cleanup")
+    print("clipboard-services result=PASS multi-frame-unicode,snapshot,PNG-publication,stale-write,limit,abort-cleanup,truncated-frames,reconnect,lost-publication-ack")
   }
 }

@@ -59,3 +59,12 @@ and refuses active VZ disks. That earlier component-overlay application has been
 packaged complete-build application with a separate startup/clean-stop proof.
 The updated-profile preservation proof remains a distinct earlier test; see
 the handoff for exact identities.
+
+### Host transport interruption boundary
+
+The clipboard service now has focused socket-pair recovery coverage: truncated
+headers/bodies, partial and complete unpublished uploads, new-connection state
+isolation, lost publication reply, stale retry refusal and subsequent successful
+publication on the same server. Private named pasteboards protect user content.
+This qualifies the host protocol state machine, not the guest daemon's recovery
+after a forced virtio-vsock failure. That end-to-end test remains open.
