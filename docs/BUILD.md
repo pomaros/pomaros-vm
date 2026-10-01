@@ -657,7 +657,7 @@ The EFI makefile already fixes the PE timestamp to zero. Two fresh copies of
 boot/arosboot and include, built with `make AROS_CORE_SOURCE=/Users/jkn/Source/aros-core-vm`,
 produce identical EFI bytes matching the qualified desktop loader. App packaging
 also produces identical signed file bytes and modes from frozen inputs. None
-of these claims closes the remaining updated full guest/SDK rebuild comparison.
+of these claims substitutes for the full guest/SDK comparison; its exact source scope is recorded in stage-six acceptance.
 
 ### Complete current guest comparison and build epoch
 
@@ -733,6 +733,6 @@ applies inside the build, avoiding concurrent graph generators. The generated
 batch makefile invokes the configured `CALL` wrapper, which supplies mandatory
 host/target variables. A bare direct MetaMake invocation lacks that environment.
 Unknown-target diagnostics fail the comparison even if MetaMake exits zero.
-Before hashing the complete SDK, the inventory also requires 24 named commands,
+Before hashing the complete SDK, the inventory also requires 28 named commands,
 services and drivers to contain AArch64 ELF headers; file count alone is not
 coverage of those targets.

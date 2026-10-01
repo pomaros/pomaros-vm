@@ -303,6 +303,8 @@ if startup_lines is not None:
     pci_files.append(('Startup-Sequence',startup))
 if programs:
     image_command += ['--wanderer', str(programs[0])]
+missing=[str(path) for _,path in pci_files if not path.is_file()]
+if missing:p.error('missing guest files: '+', '.join(missing))
 seed=output/'SYS-seed.img' if expanded_system else ramdisk
 subprocess.run(image_command + [str(seed)], check=True)
 subprocess.run(image_command + ['--verify', str(seed)], check=True)

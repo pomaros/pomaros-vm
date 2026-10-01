@@ -3491,3 +3491,38 @@ Original comparison manifests are retained unchanged. On completion run
 artifacts/audit-complete-build.py, which writes separate products-complete-a/b
 and complete-build-verdict.json, then retry packaging to a NEW output and
 perform one bounded desktop boot. No full rebuild restart or extra guest run.
+
+## Complete image dependency closure and fresh boot — 2026-10-01
+
+Poseidon supplemental builds completed0/0. The strengthened28product inventory
+then found bus.hidd and storage.hidd missing in both outputs. Added
+kernel-hidd-bus and kernel-hidd-storage:22targets total. Supplemental storage
+builds completed0/0 through the same CALL/MetaMake wrapper and frozen epoch;
+artifacts/complete-storage.py, storage-a/b.log and storage-completion.json.
+The second packaging failure is preserved at repro-full-poseidon-package.log.
+package-core now reports all missing guest files before image creation.
+
+artifacts/audit-complete-build.py PASS:18,285entries in each independent build,
+zero differences,28required AArch64 ELFproducts. Both supplemental logs checked
+for unknown-target/fatal/make errors. Original19target manifests remain intact;
+complete-build-verdict.json and products-complete-a/b.json describe the final
+22target set under Build/macaros-vm/repro-current-20261001. This is one frozen
+d3301fb648 source built from initially empty directories plus the omitted
+prerequisites, not a comparison of the later current core tip.
+
+Fresh assembly artifacts/repro-full-complete-bundle PASS68modules, no module
+overlays from the incremental build. SYS SHA
+a5086bd5189f26bca804788cc6295526d2286f196d7148652be346625f15ff56.
+Bundle SHA b3b02f1d8bc59755cb212e65f5da03a80d6f2c5a0fc505d007be0852ddaa1233.
+Disk320MiB SHA3c6a0e473cae3fa5e1c01bfeb0d782a860f8df8ceea3da4286892e5c757b8c68.
+Current VM probe sources were built against the fresh SDK; EFI and launcher
+are the already independently compared host products. Package provenance and
+logs retained.
+
+One boot only: artifacts/vz-repro-full-complete/verdict.json PASS23.17s,
+20second desktop session, two USB HID bindings, DHCP/DNS and actual desktop
+clipboard daemon markers. This is the old polled GPU; no GPU IRQ claim, VZ
+pixel capture, injected input, WORK persistence or graceful-stop proof from
+this forced-stop boot. Existing later GPU/MSI corrected app and bounded IO
+qualification remain separate. Original20748, Poseidon3926 and storage51770
+supervisors are complete; do not keep polling or restart those jobs.
