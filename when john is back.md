@@ -2890,3 +2890,33 @@ Launch from this repo with:
 `build/macaros-vm artifacts/desktop-network-ready.img artifacts/desktop-user-state --gpu --usb-input --host-services --network`.
 This normal launch uses the general Mac clipboard, as requested by host-services;
 all automated qualifications above used isolated named pasteboards.
+
+## Desktop WORK auto-mount — 2026-10-01
+
+Commit fdb7ccb adds optional desktop --work-volume. Reuses stock
+LoadResource/Mount/fat-handler and virtio.device; bus/storage HIDDs are
+noexpunge. Mount retains its native-width mask default. WORK is a new FAT16
+256 MiB volume appended after the 64 MiB boot filesystem, unit 0. Explicit
+VM layout, not GPT/native/Pi partition discovery. No existing image is resized.
+Packaging provenance makes make-disk select the layout automatically.
+
+artifacts/work-layout-verdict.json PASS: geometry/label, mtools write/read,
+boot region unchanged, existing output refused with identical hash.
+artifacts/vz-desktop-work PASS: 12.98 s, ten-second desktop, USB HID and mount
+startup enabled. Input SHA256
+9524b92a4f2f5fbd22f0d68f474a9b28810f7b334c47d8f9473879895645582a.
+artifacts/vz-desktop-work-write PASS: 11.78 s, ten-second desktop without USB;
+custom startup runs MakeDir WORK:PROOF. Independent host mdir after exit finds
+::/PROOF/. work-verdict.json records the resulting image hash and scoped claim.
+Input SHA256 99a022a67a3d1af9f86075d007accddf4017268888698069fd88d2e5eaefa1bf.
+Core d6ee88aca9; launcher
+b2e99ffd87dc3b645ef7ad9a72c82d5ae12a5b1dd7cbefd8283acd81d9fc23b3.
+The first host assertion incorrectly listed the empty PROOF directory's contents;
+corrected to check the root entry, preserving both original VM verdicts.
+Provenance auto-selection was added after these runs; they used explicit disk
+--work-volume. Guest bytes are unchanged by that host-side admission change.
+
+Next: guest re-read on a fresh VM from the resulting disk, explicit clean
+shutdown/flush integration, combined network/clipboard/WORK packaging and
+normal user image refresh. No power-loss guarantee claimed. Two short VM
+runs only; the older two-boot filesystem harness is separate evidence.

@@ -562,3 +562,22 @@ command main entry and expected command result. On failure the runner preserves
 QMP registers, current instructions and stack words before ending the VM.
 
 File services have their own [protocol and qualification](HOST-SERVICES.md).
+
+### Persistent desktop WORK volume
+
+Add `--work-volume` to the Wanderer/virtio-GPU `package-core.py` command.
+`make-disk.py` reads this requirement from `provenance.json` and creates a new
+320 MiB image: 64 MiB FAT boot filesystem followed by 256 MiB FAT16 labelled
+WORK. `make-disk.py --work-volume` also explicitly requests this layout.
+Existing outputs are refused; this does not upgrade or resize existing images.
+
+Startup uses stock LoadResource for the non-expunging bus/storage HIDDs, then
+Mount with DEVS:WORK.mount. Geometry: virtio.device unit 0, 512-byte sectors,
+one sector per cylinder, low cylinder 131072, high cylinder 655359. Mask retains
+Mount's native-width default. This is explicit VM geometry, not GPT discovery.
+SYS is RAM-backed; use WORK for persistent files. Reuse the same disk on later
+launcher invocations. Test runners copy disks: reuse their resulting system.img.
+
+Two short VZ runs pass desktop startup and guest directory creation with host
+readback. Guest restart read and integrated clean shutdown/flush remain to
+qualify for this desktop path. Forced exit is not a durable-save acknowledgement.
