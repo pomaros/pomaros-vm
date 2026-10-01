@@ -3630,3 +3630,19 @@ previously recorded remains evidence for core01e0e1a4b1; this later one-file
 MMIO correction has targeted build/runtime evidence and is not yet in the
 complete-build application artifact. Do not restart the complete build merely
 to repeat that earlier proof; carry this explicit delta when updating the app.
+
+## Application refresh with scalar MSI-X accesses
+
+`artifacts/app-ready-msix/Macaros VM.app` is the latest qualified application.
+Its base is the complete independently rebuilt package; only vmpci.hidd is
+replaced with core7224362348, and the preparation script asserts every other
+bundle payload hash unchanged. Provenance records this one-component delta.
+`artifacts/vz-app-msix/verdict.json` passes in 8.88 seconds: desktop startup,
+two HID bindings, GPU IRQ completion, state/disk exclusivity, seed unchanged
+and guest-acknowledged clean quit. This is the sole VZ regression run for the
+MMIO correction. Seed SHA256:
+`d67d205565b25a5b9e6397a5acf7f0f656c6c2a8feb5c45885387a74b40d1f88`.
+No user's default profile was modified. Existing profiles require the documented
+no-replace system-image updater to receive the changed guest driver.
+Board review289 covers the correction and both HVF/VZ proofs. VZ pixels remain
+unverified pending macOS screen-capture permission; HVF pixels pass.
