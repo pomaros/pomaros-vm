@@ -22,6 +22,8 @@ p.add_argument('--clipboard-sync', action='store_true')
 p.add_argument('--file-commands', action='store_true')
 p.add_argument('--command-startup', action='store_true')
 p.add_argument('--vsock-device', action='store_true')
+p.add_argument('--network-dns', action='store_true')
+p.add_argument('--network-probe', action='store_true')
 p.add_argument('--network-stack', action='store_true')
 p.add_argument('--network-echo-request', type=Path)
 p.add_argument('--startup-sequence', type=Path)
@@ -51,6 +53,10 @@ if a.network_echo_request:
     if len(a.network_echo_request.read_bytes()) != 38:
         p.error('network echo request must be 38 bytes')
     a.network_stack=True
+if a.network_probe:
+    if a.profile!='wanderer' or not a.desktop_session: p.error('--network-probe requires a desktop session')
+    a.network_dns=True
+if a.network_dns: a.network_stack=True
 if a.network_stack:
     a.virtionet_device=True
 if a.clipboard_probe and not (a.host_services and a.profile=='wanderer' and a.desktop_session):
@@ -76,8 +82,8 @@ if a.xhci_driver and not a.pci_hidd:
     p.error('--xhci-driver requires --pci-hidd')
 if a.virtio_device and not a.pci_hidd:
     p.error('--virtio-device requires --pci-hidd')
-if a.virtionet_device and not a.pci_hidd:
-    p.error('--virtionet-device requires --pci-hidd')
+if a.virtionet_device and not (a.pci_hidd or (a.profile=='wanderer' and a.virtio_gpu)):
+    p.error('--virtionet-device requires --pci-hidd or resident virtio-GPU desktop')
 build = a.build.resolve()
 sdk = build / 'bin/apple-aarch64'
 output = a.output.resolve()
@@ -160,9 +166,14 @@ if a.network_stack:
         'interfaces':'vn0 DEV=DEVS:Networks/virtionet.device UNIT=0 IP=DHCP NOTRACKING UP\n',
         'netdb':'WITH interfaces PREFIX=I\n',
     }
+    if a.profile=='wanderer':
+        configs['general.config'] += 'LOGFILENAME=RAM:AROSTCP.log\n'
     for name,content in configs.items():
         config_file=output/('net-'+name);config_file.write_text(content)
         pci_files.append(('System/Network/AROSTCP/db/'+name,config_file))
+if a.network_dns:
+    request=output/'DNS.REQ';request.write_text('dhcp-dns-example-com-v1\n')
+    pci_files.append(('DNS.REQ',request))
 if a.network_echo_request:
     pci_files.append(('NETECHO.REQ',a.network_echo_request))
 if a.xhci_driver:
@@ -182,7 +193,7 @@ if a.usb_desktop:
 desktop_services = a.host_services and a.profile=='wanderer'
 expanded_system = a.network_stack or desktop_services
 def deferred_file(rel):
-    return (a.network_stack and rel.startswith('System/Network/')) or (desktop_services and rel in {
+    return (a.network_stack and (rel.startswith('System/Network/') or rel in {'VMNET','Libs/rexxsyslib.library','Libs/commodities.library','Libs/keymap.library','Devs/Networks/virtionet.device'})) or (desktop_services and rel in {
         'C/VMExchange','C/VMSync','Devs/clipboard.device','Devs/vmbridge.device','VMCLIP'})
 ramdisk = output / 'SYS.img'
 image_command = ['python3', str(root / 'tools/make-fat12-image.py'), '--abi-probe', str(probe)]
@@ -217,6 +228,15 @@ if a.clipboard_probe:
     startup_lines=startup_lines.replace('Run >NIL: SYS:C/VMSync\n',
         'Run >NIL: SYS:C/VMSync\nRun >NIL: SYS:VMCLIP\n',1)
     pci_files.append(('VMCLIP',clipboard_command))
+if a.network_stack and a.profile=='wanderer':
+    startup_lines='Run >RAM:AROSTCP-startup.log SYS:System/Network/AROSTCP/C/AROSTCP\n'+(startup_lines or 'G4Ready\nEndCLI\n')
+if a.network_probe:
+    network_command=output/'VMNET'
+    subprocess.run([str(root/'tools/build-abi-probe'),'--sdk',str(sdk),
+        '--crosstools',str(a.toolchain.resolve()),'--profile','desktop-network',str(network_command)],check=True)
+    startup_lines=startup_lines.replace('Run >RAM:AROSTCP-startup.log SYS:System/Network/AROSTCP/C/AROSTCP\n',
+        'Run >RAM:AROSTCP-startup.log SYS:System/Network/AROSTCP/C/AROSTCP\nRun >NIL: SYS:VMNET\n',1)
+    pci_files.append(('VMNET',network_command))
 if startup_lines is not None:
     startup=output/'Startup-Sequence'
     startup.write_text(startup_lines)
@@ -251,7 +271,7 @@ shutil.copyfile(efi, output / 'EFI/BOOT/BOOTAA64.EFI')
 inputs = ([output/'AROS/SESSION.CFG'] if a.desktop_session is not None else []) + ([pci_probe] if a.pci_hidd else []) + [path for _, path in pci_files] + [stage2, efi, probe, ramdisk] + [path for _, path in components] + programs
 manifest = {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in inputs}
 (output / 'provenance.json').write_text(json.dumps({
-    'profile': a.profile, 'clipboard_probe': a.clipboard_probe, 'clipboard_sync': a.clipboard_sync, 'file_commands': a.file_commands, 'command_startup': a.command_startup, 'vsock_device': a.vsock_device, 'host_services': a.host_services, 'network_stack': a.network_stack, 'virtionet_device': a.virtionet_device, 'input_probe': a.input_probe, 'desktop_session': a.desktop_session, 'usb_desktop': a.usb_desktop, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,
+    'profile': a.profile, 'clipboard_probe': a.clipboard_probe, 'clipboard_sync': a.clipboard_sync, 'file_commands': a.file_commands, 'command_startup': a.command_startup, 'vsock_device': a.vsock_device, 'host_services': a.host_services, 'network_dns': a.network_dns, 'network_probe': a.network_probe, 'network_stack': a.network_stack, 'virtionet_device': a.virtionet_device, 'input_probe': a.input_probe, 'desktop_session': a.desktop_session, 'usb_desktop': a.usb_desktop, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,
     'source_revision': revision, 'configure_command': configure_command,
     'inputs': manifest, 'bundle_sha256': hashlib.sha256(data).hexdigest(),
 }, indent=2) + '\n')

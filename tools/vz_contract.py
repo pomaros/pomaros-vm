@@ -26,6 +26,8 @@ def expected_markers(a):
     if a.require_network_packets: markers += ['[VM] virtio network DHCP exchange PASS']
     if a.require_network_irq: markers += ['[VM] virtio network interrupt delivery PASS']
     if a.require_sana_device: markers += ['[VM] SANA query configure abort reopen PASS']
+    if getattr(a,'require_desktop_network',False): markers += ['[VM] AROSTCP socket library PASS','[VM] AROSTCP DHCP address PASS','[VM] desktop network autostart PASS']
+    if getattr(a,'require_network_dns',False): markers += ['[VM] AROSTCP DHCP DNS lookup PASS']
     if a.require_network_stack: markers += ['[VM] AROSTCP socket library PASS','[VM] AROSTCP DHCP address PASS']
     if a.require_network_echo: markers += ['[VM] AROSTCP host UDP exchange PASS']
     if a.require_input: markers += ['[VM] input observer ready','[VM] window keyboard and pointer PASS']

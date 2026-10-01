@@ -25,6 +25,8 @@ p.add_argument('--require-network-config',action='store_true')
 p.add_argument('--require-network-packets',action='store_true')
 p.add_argument('--require-network-irq',action='store_true')
 p.add_argument('--require-sana-device',action='store_true')
+p.add_argument('--require-desktop-network',action='store_true')
+p.add_argument('--require-network-dns',action='store_true')
 p.add_argument('--require-network-stack',action='store_true')
 p.add_argument('--require-network-echo',action='store_true')
 p.add_argument('--no-input-events',action='store_true',help='negative control: withhold host input events')
@@ -55,6 +57,10 @@ if a.require_file_commands:
 if a.require_host_services and (not a.require_pci_hidd or a.require_vsock or a.require_vsock_device): p.error('--require-host-services requires PCI and excludes the echo probes')
 if a.require_vsock_device: a.require_vsock=True
 if a.require_vsock and not a.require_pci_hidd: p.error('--require-vsock requires --require-pci-hidd')
+if a.require_desktop_network:
+    if not (a.desktop_startup and a.require_desktop_session): p.error('--require-desktop-network requires a desktop session')
+    a.require_network_dns=True
+if a.require_network_dns and not a.require_desktop_network: a.require_network_stack=True
 if a.require_network_echo: a.require_network_stack=True
 if a.require_network_stack:
     a.require_sana_device=True
@@ -96,7 +102,7 @@ pixels_verified=False
 capture_count=0
 passed=False;reason='timeout';start=time.monotonic()
 with log.open('w') as out:
-    proc=subprocess.Popen([str(root/'build/macaros-vm'),str(disk),str(a.output/'state'),'--headless']+(['--gpu-window'] if a.require_gpu_scanout or a.require_input else ['--gpu'] if a.require_gpu or a.desktop_startup else [])+(['--usb-input'] if a.usb_input else [])+(['--input-probe'] if a.require_input else [])+(['--network'] if a.require_network_config else [])+(['--vsock-probe'] if a.require_vsock else [])+(['--host-services'] if a.require_host_services or a.require_desktop_clipboard else [])+(['--clipboard-test'] if a.require_clipboard_sync or a.require_desktop_clipboard else []),stdout=out,stderr=subprocess.STDOUT)
+    proc=subprocess.Popen([str(root/'build/macaros-vm'),str(disk),str(a.output/'state'),'--headless']+(['--gpu-window'] if a.require_gpu_scanout or a.require_input else ['--gpu'] if a.require_gpu or a.desktop_startup else [])+(['--usb-input'] if a.usb_input else [])+(['--input-probe'] if a.require_input else [])+(['--network'] if a.require_network_config or a.require_desktop_network else [])+(['--vsock-probe'] if a.require_vsock else [])+(['--host-services'] if a.require_host_services or a.require_desktop_clipboard else [])+(['--clipboard-test'] if a.require_clipboard_sync or a.require_desktop_clipboard else []),stdout=out,stderr=subprocess.STDOUT)
     try:
         while time.monotonic()-start<a.timeout:
             text=log.read_text(errors='replace')
@@ -183,6 +189,8 @@ verdict={'result':'PASS' if passed else 'FAIL','reason':reason,
          'clipboard_sync_engine_verified':passed and a.require_clipboard_sync,
          'host_file_exchange_verified':passed and a.require_host_services,
          'file_commands_verified':passed and a.require_file_commands,
+         'desktop_network_autostart_verified':passed and a.require_desktop_network,
+         'network_dns_verified':passed and a.require_network_dns,
          'network_host_udp_verified':passed and a.require_network_echo,
          'network_stack_address_verified':passed and a.require_network_stack,
          'network_config_verified':passed and a.require_network_config,'network_packets_verified':passed and a.require_network_packets,'network_irq_verified':passed and a.require_network_irq,'input_events_withheld':a.no_input_events,'desktop_session_seconds':a.require_desktop_session,'desktop_session_verified':passed and a.require_desktop_session is not None,

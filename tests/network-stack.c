@@ -8,6 +8,7 @@
 #include <sys/ioctl.h>
 #include <net/if.h>
 #include <netinet/in.h>
+#include <netdb.h>
 #include <aros/debug.h>
 #include <string.h>
 
@@ -44,10 +45,32 @@ done:
     mark(okay?"[VM] AROSTCP host UDP exchange PASS\n":"[VM] AROSTCP host UDP exchange FAIL\n");
     return okay;
 }
+/* Fresh stack, minimal NetDB and no seeded hosts entry: exercise the public
+ * resolver using the nameservers delivered by DHCP, not a fixed IP fallback. */
+static int test_dns(void)
+{
+    BPTR request=Lock((CONST_STRPTR)"SYS:DNS.REQ",ACCESS_READ);
+    if(!request)return 1;
+    UnLock(request);
+    for(unsigned attempt=0;attempt<3;++attempt) {
+        struct hostent *host=gethostbyname("example.com");
+        if(host && host->h_addrtype==AF_INET && host->h_length==4 &&
+           host->h_addr_list && host->h_addr_list[0]) {
+            const UBYTE *ip=(APTR)host->h_addr_list[0];
+            if(ip[0] && ip[0]!=127 && ip[0]<224) {
+                bug("[VM] DNS example.com IPv4=%u.%u.%u.%u\n",ip[0],ip[1],ip[2],ip[3]);
+                mark("[VM] AROSTCP DHCP DNS lookup PASS\n");return 1;
+            }
+        }
+        Delay(50);
+    }
+    mark("FAIL: AROSTCP DHCP DNS lookup\n");return 0;
+}
 /* A real stack and DHCP client must configure vn0. No synthetic address,
  * hardcoded NAT subnet, or raw transport result satisfies this check. */
 int test_network_stack(void)
 {
+    #ifndef VM_NETWORK_DESKTOP
     BPTR lock=Lock((CONST_STRPTR)"SYS:System/Network/AROSTCP/C/AROSTCP",ACCESS_READ);
     if(!lock)return -1;
     UnLock(lock);
@@ -65,6 +88,7 @@ int test_network_stack(void)
         if(home)UnLock(home);
         return 0;
     }
+    #endif
     for(unsigned tick=0;tick<500 && !SocketBase;++tick) {
         SocketBase=OpenLibrary((CONST_STRPTR)"bsdsocket.library",0);
         if(!SocketBase)Delay(1);
@@ -89,6 +113,20 @@ int test_network_stack(void)
 done:
     mark(okay?"[VM] AROSTCP DHCP address PASS\n":"[VM] AROSTCP DHCP address FAIL\n");
     if(okay)okay=test_socket_exchange();
+    if(okay)okay=test_dns();
     CloseLibrary(SocketBase);SocketBase=NULL;
     return okay;
 }
+
+#ifdef VM_NETWORK_DESKTOP
+int __nowbsupport=1;
+struct WBStartup *WBenchMsg;
+int __nostdiowin=1;
+int main(void)
+{
+    /* Observe the stack started by Startup-Sequence; do not start it here. */
+    int okay=test_network_stack();
+    mark(okay==1?"[VM] desktop network autostart PASS\n":"FAIL: desktop network autostart\n");
+    return okay==1?0:20;
+}
+#endif

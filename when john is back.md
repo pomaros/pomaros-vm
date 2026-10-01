@@ -2791,3 +2791,46 @@ remaining stage-six checklist (including visual acceptance, GPU IRQs and current
 build reproducibility). Goal remains active, no SMP work.
 Desktop marker-admission controls also pass 40 positive/negative cases in
 artifacts/desktop-clipboard-marker-controls.json; original VM verdict unchanged.
+
+## Desktop network/DNS integration — qualification not achieved
+
+Added desktop --network-stack startup through Run, plus an independent VMNET
+observer (--network-probe). VMNET does not start AROSTCP: it waits for the normal
+startup process/library, checks vn0 DHCP address and resolves example.com through
+bsdsocket gethostbyname. dhclient already calls AddDynNameServ/EndDynNameServ;
+no DNS IP or host entry is hardcoded. Added separate strict runner flags for
+headless DNS and desktop autostart/DNS. Reused expanded SYS packaging for the
+network driver, dependencies, commands and probe alongside clipboard/USB.
+The first probe compile exposed an incorrect CONST_STRPTR cast against the
+socket API's const char* signature; removed it, no warning suppression.
+
+Three short desktop attempts, all FAIL, retained unchanged:
+- artifacts/vz-desktop-network-dns, 2.87s, disk
+  8bc4362fe35fde1b045f85ad256ea71877580a1fb39d0d4a24b11911458f17a4.
+  AROSTCP published its API; Wanderer failed foreground detail0x905 (then0x529).
+- artifacts/vz-desktop-network-dns-logs, 12.47s, disk
+  4291a4d8fee5e9a209eef58e03c36c0fdc69ae115926fd6669f90616de8f43b3.
+  Desktop/clipboard progressed, but AROSTCP stopped after readconfig and no
+  socket library appeared. Our added CONSOLENAME setting was invalid: the
+  CONSOLE_SYSLOG branch is not compiled, and logname_changed rejects it.
+- artifacts/vz-desktop-network-dns-filelog, 3.10s, disk
+  15e94a6b9a42b0ee4a046609cbcc94c30a19552bb470053530ba895220d79e2d.
+  Removed CONSOLENAME; retained LOGFILENAME=RAM:AROSTCP.log and captured command
+  output in RAM:AROSTCP-startup.log. API startup resumed, but the original
+  foreground failure remains. Thus console-log attribution was not established.
+
+All three use core f83a2ba5b1 and launcher
+b2e99ffd87dc3b645ef7ad9a72c82d5ae12a5b1dd7cbefd8283acd81d9fc23b3.
+No DNS verdict or TCP/Internet claim follows from these runs. The desktop gate
+still requires Wanderer at the front and no requester; it was not weakened.
+
+Added failure-only coldstart diagnostics: snapshot up to16 window addresses,
+flags and bounded titles under the Intuition lock, then emit after unlocking.
+Kernel module build PASS; existing printbacktrace format warnings unchanged.
+These diagnostics have not yet run. Next action is one diagnostic reproduction
+to identify the foreground window before any further configuration guess.
+No more VM runs in this step, no M1/SMP. Goal/task71 remain active.
+Diagnostic core commit: 545f66dabf. Prepared but unrun candidate:
+artifacts/desktop-network-dns-diagnostic.img, with packaging/provenance under
+artifacts/desktop-network-dns-diagnostic-bundle. Reproduce using the desktop
+network and clipboard runner flags from docs/NETWORK.md and docs/CLIPBOARD.md.
