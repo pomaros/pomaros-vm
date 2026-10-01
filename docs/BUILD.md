@@ -619,3 +619,18 @@ Bundled mode also accepts flags such as `--headless --gpu --usb-input
 explicit `DISK_IMAGE STATE_DIRECTORY [flags]` command-line form remains available.
 The app has a Quit menu; window close and Quit use the guest shutdown handshake.
 First-launch storage behavior is exercised by `make test-vm-storage`.
+
+### Deterministic outer disk metadata
+
+`make-disk.py` creates FAT16 boot and optional WORK volumes with fixed serials,
+canonical 2026-08-29 timestamps, and explicitly sorted directory/file insertion.
+The shared normalizer is also used by SYS expansion. Host creation order, source
+mtime and timezone do not change these new disk bytes. Serials identify the
+seed layout, not unique VM instances; runtime MAC/NVRAM remain per-state data.
+Only newly created image files are normalized, never a user's populated disk.
+
+`python3 tests/disk-reproducibility.py` compares both supported layouts from
+oppositely ordered trees, different mtimes/timezones, and verifies every file
+including a UTF-8 name. It also checks refusal to overwrite an existing output.
+This packaging comparison does not establish independent guest compilation or
+launcher/EFI reproducibility.

@@ -3,13 +3,12 @@
 # Copyright (c) 2026 John Knipper
 """Expand a seed SYS image into a deterministic 16 MiB FAT16 volume."""
 import argparse
-import datetime
 import hashlib
 import os
 from pathlib import Path, PurePosixPath
-import struct
 import subprocess
 import tempfile
+from fat_metadata import EPOCH, normalize_fat16
 
 p=argparse.ArgumentParser(description=__doc__)
 p.add_argument('--seed',type=Path,required=True)
@@ -17,7 +16,7 @@ p.add_argument('--output',type=Path,required=True)
 p.add_argument('--file',action='append',default=[])
 a=p.parse_args()
 if a.output.exists():p.error('output must not exist')
-epoch=int(datetime.datetime(2026,8,29,tzinfo=datetime.timezone.utc).timestamp())
+epoch=EPOCH
 # macOS mtools under the C locale extracts the seed's VFAT AROS.boot as
 # AROS.boot_, breaking the DOS boot signature. Keep UTF-8 names end to end.
 env=dict(os.environ,TZ='UTC',LC_ALL='en_US.UTF-8')
@@ -43,38 +42,7 @@ with tempfile.TemporaryDirectory() as tmp:
     # The boot device requires an integral cylinder count for its DosEnvec.
     run(['mformat','-i',str(a.output),'-T','32768','-h','1','-s','32','-c','2','-v','AROSB2BOOT','-N','0xb2082026','::'])
     run(['mcopy','-m','-s','-i',str(a.output),*[str(x) for x in sorted(stage.iterdir())],'::'])
-    # mtools can set directory creation/access times independently of mtime.
-    # Normalize only those metadata fields, following bounded FAT16 chains.
-    data=bytearray(a.output.read_bytes())
-    sector,spc,reserved,fats,entries,total,media,spf=struct.unpack_from('<HBHBHHBH',data,11)
-    root_start=(reserved+fats*spf)*sector
-    root_bytes=((entries*32+sector-1)//sector)*sector
-    data_start=root_start+root_bytes;cluster_bytes=spc*sector
-    clusters=(len(data)-data_start)//cluster_bytes
-    if sector!=512 or not 4085<=clusters<65525:raise ValueError('expected FAT16 geometry')
-    fat=reserved*sector;seen=set();pending=[(root_start,root_bytes)]
-    date=((2026-1980)<<9)|(8<<5)|29
-    def directory(cluster):
-        while cluster<0xfff8:
-            if cluster<2 or cluster>=clusters+2 or cluster in seen:raise ValueError('invalid directory chain')
-            seen.add(cluster);pending.append((data_start+(cluster-2)*cluster_bytes,cluster_bytes))
-            cluster=struct.unpack_from('<H',data,fat+2*cluster)[0]
-    while pending:
-        start,length=pending.pop()
-        for at in range(start,start+length,32):
-            if data[at]==0:break
-            if data[at]==0xe5 or data[at+11]==0x0f:continue
-            if data[at+11]&0x08:
-                # A volume label has no VFAT long-name chain. Some mtools
-                # versions emit one; fsck_msdos correctly rejects it.
-                previous=at-32
-                while previous>=start and data[previous+11]==0x0f:
-                    data[previous]=0xe5;previous-=32
-            data[at+13]=0
-            struct.pack_into('<HHH',data,at+14,0,date,date)
-            struct.pack_into('<HH',data,at+22,0,date)
-            if data[at+11]&0x10 and data[at]!=ord('.'):
-                directory(struct.unpack_from('<H',data,at+26)[0])
+    data=normalize_fat16(a.output.read_bytes())
     a.output.write_bytes(data)
     for path in stage.rglob('*'):
         if path.is_file():

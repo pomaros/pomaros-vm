@@ -3107,3 +3107,23 @@ updated complete reproducible build, TCP and bounded sustained desktop use.
 The standalone app milestone does not complete the full goal. No SMP or M1
 operations performed. Protocol/first-copy paths remain reusable host tooling;
 AROS portable hardware requirements and physical Pi proofs remain distinct.
+
+## Deterministic outer boot/WORK disks — 2026-10-01
+
+Removed mformat's random serials and host metadata/order from make-disk.
+Boot serial 0x4d564231; WORK serial 0x4d565731; canonical FAT date 2026-08-29,
+matching existing SYS packaging. Explicitly creates sorted directories then
+sorted files instead of recursive mcopy's host enumeration order. A shared
+bounded FAT16 metadata normalizer replaces the prior inline SYS normalizer;
+its result on the already-qualified normal SYS is byte-identical (artifact
+fat-metadata-existing-sys.json, SHA256
+7f728deb2fe1d4eab101c5c9bfe39c051b81f0085534dfef56582712e69af90b).
+No existing/user disk is normalized; creation-only refusal remains intact.
+
+artifacts/disk-reproducibility-verdict.json PASS for boot-only 64 MiB and
+boot+WORK 320 MiB. Each pair starts from equivalent trees built in opposite
+order, source dates 2000 vs 2030 and different inherited timezones. All payloads,
+including a UTF-8 filename, roundtrip exactly through mtype; image bytes match.
+Existing output refusal preserves the image hash. These are host packaging
+proofs, not new guest boots or independent compilation. The app comparison
+will use the same frozen guest/launcher inputs, not claim a complete rebuild.
