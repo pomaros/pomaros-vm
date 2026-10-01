@@ -3646,3 +3646,19 @@ No user's default profile was modified. Existing profiles require the documented
 no-replace system-image updater to receive the changed guest driver.
 Board review289 covers the correction and both HVF/VZ proofs. VZ pixels remain
 unverified pending macOS screen-capture permission; HVF pixels pass.
+
+## Visual acceptance blocked on macOS permission
+
+The screen-capture preflight has remained false across three consecutive goal
+continuations after the implementation/qualification work above. No VM starts
+when this permission is absent. The remaining VZ visual proof cannot be inferred
+from HVF pixels or VZ device/startup markers. No further passing workload repeats
+are needed while waiting for this external permission.
+After enabling screen recording for the application running this session in
+macOS System Settings / Privacy & Security, resume with
+`python3 artifacts/capture-vz-desktop.py` from this repository. It uses an
+isolated latest-app profile and one window-only capture, then requests clean
+shutdown. Its CAPTURED status is not acceptance: inspect desktop.png and verify
+actual desktop content before updating the visual gate or completing the goal.
+Other coverage limits remain those stated in STAGE6.md; this handoff does not
+turn unqualified hardware, ITS, or exhaustive fault cases into passing evidence.
