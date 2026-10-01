@@ -3589,3 +3589,24 @@ and guest-acknowledged clean shutdown. Evidence:
 Seed SHA256: `34d01a2da28e098b0405ac9341defe2fc13e39bd33bb679e49dce08692ca613e`.
 This headless check does not prove VZ pixels or physical input. The user's
 default profile was not touched. No repeated boot is needed for this check.
+
+## Existing Editor: GUI text clipboard proof
+
+`artifacts/vz-editor-clipboard-v3/verdict.json` passes in 16.1 seconds.
+Unchanged AROS Tools/Editor pastes the private Mac clipboard, receives a typed
+`x`, saves WORK:EDIT.txt, selects all and copies back through normal menu
+shortcuts sent to the VZ view. Independent host reads prove saved bytes
+`Macaros clipboard qualificationx` and clipboard bytes with one trailing newline
+(the editor's text export). Guest-acknowledged shutdown passed. No general Mac
+clipboard or default profile was modified. This proves text editing through
+VZ-view events, not physical keys, GUI image copy, or VZ pixel capture.
+Editor required initializing its existing catalogue gitlink at
+`cae500cf15cfd43f1973a60ee254a8ab378fdead`; no editor source patch was needed.
+The first fixture accidentally changed root Startup-Sequence instead of
+S/Startup-Sequence; the second opened Editor before the desktop startup gate
+and omitted network configuration. Both failed verdicts are preserved.
+The corrected fixture waits for desktop stable, signals through VMExchange,
+then waits for the active Editor document before sending keys. Test sources,
+launcher and preparation scripts are under artifacts/editor-* and
+artifacts/check-editor-clipboard-v3.py. This is an isolated test payload, not
+an addition of Editor to the distributed app. No further repeat is needed.
