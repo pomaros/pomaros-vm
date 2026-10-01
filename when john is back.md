@@ -4036,3 +4036,16 @@ Distribution-Stage6Final profile was cleanly stopped, patched with the same
 `~/Library/Application Support/Macaros VM/Distribution-Stage6Final/.system-before-gorilla.img`.
 Host screen capture was denied, so a human visual check of the icons remains
 useful; this is not evidence of a visual regression.
+
+2026-10-02, native device-tree groundwork: the private Apple core's
+`codex-native-fdt` branch reuses this VM's bounded FDT reader, its
+`openfirmware.resource` adapter and the portable `C:DeviceTree` command.
+The native core already retains the final FDT and passes it in the boot tags.
+An opt-in `apple-fdt-tools` build target prepares the resource and command;
+they are not in the native distribution or verified on the M1 yet. The host
+ASan/UBSan adapter test walked the captured J313 final FDT (331 nodes), and
+the early reader agreed with `fdtget` on its 248 register entries. The
+command's 14 synthetic scenarios pass using the native-port source. Next:
+cross-build the target in an isolated Apple build directory, package the
+resource and command, and run `DeviceTree / PROPERTIES` on the M1 before
+considering driver-binding changes.

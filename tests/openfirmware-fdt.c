@@ -41,17 +41,25 @@ static unsigned compare_tree(of_node_t *node, const void *blob, int offset)
 }
 int main(int argc,char **argv)
 {
-    assert(argc==2);FILE *f=fopen(argv[1],"rb");assert(f);
-    unsigned char blob[65536];size_t bytes=fread(blob,1,sizeof(blob),f);fclose(f);
-    assert(bytes>40 && bytes<sizeof(blob));
+    assert(argc==2 || (argc==3 && !strcmp(argv[2],"--skip-oom")));
+    FILE *f=fopen(argv[1],"rb");assert(f);
+    assert(fseek(f,0,SEEK_END)==0);
+    long length=ftell(f);assert(length>40 && length<=2*1024*1024);
+    assert(fseek(f,0,SEEK_SET)==0);
+    unsigned char *blob=malloc((size_t)length);assert(blob);
+    assert(fread(blob,1,(size_t)length,f)==(size_t)length);fclose(f);
     of_node_t *root=OFBuildFDT(blob);assert(root);
     unsigned total=allocations,nodes=compare_tree(root,blob,0);
     free_tree(root);assert(!live);
-    for(unsigned fail=1;fail<=total;++fail) {
-        allocations=0;fail_at=fail;
-        assert(!OFBuildFDT(blob));assert(!live);
+    if(argc==2) {
+        for(unsigned fail=1;fail<=total;++fail) {
+            allocations=0;fail_at=fail;
+            assert(!OFBuildFDT(blob));assert(!live);
+        }
     }
     fail_at=0;allocations=0;blob[0]^=1;
     assert(!OFBuildFDT(blob) && !allocations);
-    printf("openfirmware-fdt result=PASS nodes=%u allocation-failures=%u leaks=0\n",nodes,total);
+    printf("openfirmware-fdt result=PASS nodes=%u allocation-failures=%u leaks=0\n",
+           nodes,argc==2 ? total : 0);
+    free(blob);
 }
