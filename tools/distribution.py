@@ -21,7 +21,7 @@ ROOTS = 'C Classes Devs Extras Fonts L Libs Locale Prefs S Storage System Tools 
 EXCLUDED = {'Zed', 'ZedAros', 'Ferail', 'Feraille', 'Moonstone', 'Developer',
             'AppleCPU', 'AppleCopy', 'AppleDisk', 'AppleFiles', 'ApplePCIeDiag',
             'AppleWrite', 'PkgRecv', 'GPIO', 'Install-grub', 'Install-grub2'}
-REQUIRED = ['C/CPUInfo', 'C/LoadKeymap', 'C/ConClip', 'System/FixFonts', 'System/Network/AROSTCP/C/AROSTCP', 'C/Copy', 'C/List', 'C/Execute', 'C/AddDataTypes',
+REQUIRED = ['Libs/kms.library', 'C/CPUInfo', 'C/LoadKeymap', 'C/ConClip', 'System/FixFonts', 'System/Network/AROSTCP/C/AROSTCP', 'C/Copy', 'C/List', 'C/Execute', 'C/AddDataTypes',
             'L/pipe-handler', 'L/afs-handler', 'L/sfs-handler', 'C/IPrefs', 'C/VMExchange', 'C/VMSync', 'System/Wanderer/Wanderer',
             'Tools/Editor', 'Tools/Calculator', 'Utilities/Clock',
             'Utilities/MultiView', 'Utilities/More', 'Prefs/ScreenMode',
@@ -198,9 +198,11 @@ SYS:C/Path C: SYS:System S: SYS:Prefs SYS:Tools SYS:Utilities QUIET
 CD SYS:
 Echo >>VMWORK0:distribution-startup.log "Datatypes and preferences"
 SYS:C/AddDataTypes REFRESH QUIET
+Echo >>VMWORK0:distribution-startup.log "Datatypes ready"
 If NOT EXISTS FONTS:fixed.font
     SYS:System/FixFonts
 EndIf
+Echo >>VMWORK0:distribution-startup.log "Fonts ready"
 SYS:C/IPrefs
 Run >NIL: SYS:C/ConClip
 Echo >>VMWORK0:distribution-startup.log "Desktop setup complete"
