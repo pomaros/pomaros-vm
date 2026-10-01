@@ -23,7 +23,7 @@ if not (manifest.get('profile')=='wanderer' and manifest.get('work_volume') and
         manifest.get('host_services') and manifest.get('network_stack') and
         manifest.get('usb_desktop') and manifest.get('desktop_session')=='forever'):
     p.error('requires a normal live desktop with WORK, USB, host services and networking')
-if any(manifest.get(k) for k in ['work_probe','shutdown_probe','clipboard_probe','network_probe','input_probe']):
+if any(manifest.get(k) for k in ['work_probe','shutdown_probe','clipboard_probe','network_probe','input_probe','soak_probe']):
     p.error('qualification probes must not be included in the application')
 if 'SYS:C/VMSync VOLUME=VMWORK0:' not in (a.esp/'Startup-Sequence').read_text():
     p.error('guest shutdown participation is required')

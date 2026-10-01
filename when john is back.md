@@ -3561,3 +3561,12 @@ No MMIO trace or guest PC produced. Its orphan debugserver69157 was explicitly
 terminated after confirming the QEMU child was gone. No third boot. The
 current GPU remains qualified under VZ only; explicit QEMU configuration
 is supported by the runner but not runtime-qualified.
+
+## Application packaging: exclude the sustained-write fixture
+
+The application packaging admission list now rejects `soak_probe` as well as
+the other qualification probes. Its `forever` desktop configuration otherwise
+meets normal application admission and would automatically run 60 WORK writes
+and file exchanges. A focused admission check accepts a normal desktop manifest
+and rejects each enabled probe, including this fixture. No VM boot was needed.
+The current-core independent rebuild continues separately without source changes.
