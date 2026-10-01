@@ -3526,3 +3526,38 @@ pixel capture, injected input, WORK persistence or graceful-stop proof from
 this forced-stop boot. Existing later GPU/MSI corrected app and bounded IO
 qualification remain separate. Original20748, Poseidon3926 and storage51770
 supervisors are complete; do not keep polling or restart those jobs.
+
+## Current revision reconstruction and QEMU MSI admission — 2026-10-01
+
+Fetched core origin: isolated branch clean and current at01e0e1a4b1. Started
+the corrected22target independent comparison from empty outputs under
+Build/macaros-vm/repro-irq-current-20261001; source epoch1790820754, VMtools
+ce25685. Supervisor PID3697, exec93633. Both configurations passed; builds
+continue. Do not poll the previous completed comparison or restart this one.
+This run includes GPU IRQ/paced observer/MSI reservation fixes.
+
+Rechecked CGPreflightScreenCaptureAccess: false. No screen capture attempted
+and no new permission request; the existing question remains pending.
+
+Corrected the earlier assumption that QEMU requires ITS for GICv3 MSI. Local
+QEMU11.0.1 `-M virt,help` exposes msi=auto|gicv2m|its|off; upstream machine
+source confirms controller selection. Added explicit --msi-controller and
+--require-gpu-irq to run-qemu, retaining default behavior. This selects a
+platform already supported by the guest; no guest/SMP code changed.
+
+Fresh incremental-current guest package artifacts/desktop-hvf-gpu-irq-bundle
+(no USB/network probes) bundleSHAd5fbb11c7edf1622df852fb9b14cac58ee5f8f58546a8c3546e5257420cb86f5.
+First HVF run artifacts/hvf-desktop-gpu-irq-v2m FAIL9.40s: resident PCI bridge
+registered, VirtioGfx init begins, host QEMU aborts at assert(isv) in
+hvf_handle_exception. No guest GPU IRQ proof/pixels. Host crash report copied
+to qemu-crash.ips. QEMU HVF source explains that this assertion requires valid
+MMIO syndrome information; SIMD/SVE accesses are one documented possibility,
+not a diagnosis of this guest's instruction. No guest PC was captured.
+
+Second bounded diagnostic attempt under LLDB, breakpoint __assert_rtn and
+hvf_data_abort tracing, timed out40s while launch/run remained pending.
+artifacts/hvf-gpu-irq-debug/debugger-result.json records-1, not a gate PASS.
+No MMIO trace or guest PC produced. Its orphan debugserver69157 was explicitly
+terminated after confirming the QEMU child was gone. No third boot. The
+current GPU remains qualified under VZ only; explicit QEMU configuration
+is supported by the runner but not runtime-qualified.

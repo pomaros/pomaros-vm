@@ -736,3 +736,18 @@ Unknown-target diagnostics fail the comparison even if MetaMake exits zero.
 Before hashing the complete SDK, the inventory also requires 28 named commands,
 services and drivers to contain AArch64 ELF headers; file count alone is not
 coverage of those targets.
+
+### Explicit QEMU MSI controller
+
+`tools/run-qemu.py --msi-controller gicv2m` requests QEMU's GICv2m frame
+without changing `--gic-version 3`. Other explicit values are `its` and `off`;
+`auto` preserves the machine default. This requires a QEMU version exposing
+the `virt` machine's `msi` option (present in the local QEMU 11.0.1 help).
+The [QEMU machine implementation](https://github.com/qemu/qemu/blob/v11.0.1/hw/arm/virt.c)
+describes the controller selection. No QEMU implementation code is imported.
+
+`--require-gpu-irq --virtio-desktop --console virtio` requires the resident
+driver's IRQ completion marker in addition to desktop startup and verified
+QMP desktop pixels. Selecting an MSI controller alone proves no interrupt
+delivery. The current GICv3/GICv2m HVF trial aborts in QEMU before completion;
+see the handoff for the retained failure and diagnostic attempt.

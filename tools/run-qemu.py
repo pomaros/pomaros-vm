@@ -20,6 +20,8 @@ p.add_argument('--profile',choices=['core','wanderer'],default='wanderer')
 p.add_argument('--timeout',type=float,default=60)
 p.add_argument('--virtio-desktop',action='store_true')
 p.add_argument('--require-gpu-scanout',action='store_true')
+p.add_argument('--require-gpu-irq',action='store_true')
+p.add_argument('--msi-controller',choices=['auto','gicv2m','its','off'],default='auto')
 p.add_argument('--require-timer',action='store_true')
 p.add_argument('--require-command-startup',action='store_true')
 p.add_argument('--require-platform',action='store_true')
@@ -33,6 +35,7 @@ p.add_argument('--firmware',type=Path,default=Path('/opt/homebrew/share/qemu/edk
 a = p.parse_args()
 if a.virtio_desktop and (a.profile != 'wanderer' or a.console != 'virtio'):
     p.error('--virtio-desktop requires wanderer profile and virtio console')
+if a.require_gpu_irq and not a.virtio_desktop:p.error('--require-gpu-irq requires --virtio-desktop')
 if a.require_gpu_scanout and (not a.require_pci_hidd or a.console!='virtio'): p.error('--require-gpu-scanout requires PCI and virtio console')
 if a.require_msi_irq and not a.require_msi_frame: p.error('--require-msi-irq requires --require-msi-frame')
 if a.require_msi_frame and not a.require_pci_hidd: p.error('--require-msi-frame requires --require-pci-hidd')
@@ -47,7 +50,7 @@ serial = a.output/'serial.log'
 qmp = a.output/'qmp.sock'
 acpi='on' if a.console=='virtio' else 'off'
 firmware_serial = a.output/'firmware-serial.log' if a.console=='virtio' else serial
-command = ['qemu-system-aarch64','-accel',a.accel,'-M',f'virt,acpi={acpi},gic-version={a.gic_version}',
+command = ['qemu-system-aarch64','-accel',a.accel,'-M',f'virt,acpi={acpi},gic-version={a.gic_version}'+(f',msi={a.msi_controller}' if a.msi_controller!='auto' else ''),
            '-cpu','host' if a.accel=='hvf' else 'cortex-a72','-m','512',
            '-bios',str(a.firmware),'-drive',f'format=raw,file=fat:rw:{esp}',
            '-device','ramfb','-display','none','-no-reboot','-serial',f'file:{firmware_serial}',
@@ -104,6 +107,7 @@ with (a.output/'host.log').open('w') as log:
                 passed=passed and (not a.require_msi_frame or text.count('[VM] MSI frame mapped read PASS')==1)
                 passed=passed and (not a.require_msi_irq or text.count('[VM] virtio block MSI-X completion PASS')==1)
                 passed=passed and (not a.require_gpu_scanout or (pixels_verified and text.count('[VM] virtio GPU scanout cleanup PASS')==1 and text.count('[VM] virtio GPU display query PASS')==1))
+                passed=passed and (not a.require_gpu_irq or text.count('[VM] virtio graphics IRQ completion PASS')==1)
                 passed=passed and (not a.virtio_desktop or text.count('[VM] virtio graphics driver registered')==1)
                 passed=passed and (not a.require_command_startup or (text.count('[VM] command startup without service PASS')==1 and text.count('[VMExchange] main argc=')==1))
                 reason='startup-contract' if passed else 'proof-missing';break
@@ -168,7 +172,7 @@ verdict={'result':'PASS' if passed else 'FAIL','reason':reason,'backend':a.accel
          'command_startup_verified':a.require_command_startup and passed,
          'profile':a.profile,'virtio_desktop':a.virtio_desktop,'gpu_scanout_required':a.require_gpu_scanout,'pixels_verified':pixels_verified, 'console':a.console, 'desktop_checked':a.profile == 'wanderer' and passed,
          'seconds':round(time.monotonic()-started,2),'hardware_virtualization':a.accel=='hvf',
-         'gic_version':int(a.gic_version),'timer_required':a.require_timer,'platform_required':a.require_platform,'pci_hidd_required':a.require_pci_hidd,'msi_frame_required':a.require_msi_frame,'msi_irq_required':a.require_msi_irq,'irq_chain_required':a.require_irq_chain,
+         'gic_version':int(a.gic_version),'msi_controller':a.msi_controller,'gpu_irq_verified':passed and a.require_gpu_irq,'timer_required':a.require_timer,'platform_required':a.require_platform,'pci_hidd_required':a.require_pci_hidd,'msi_frame_required':a.require_msi_frame,'msi_irq_required':a.require_msi_irq,'irq_chain_required':a.require_irq_chain,
          'bundle_sha256':hashlib.sha256((esp/'AROS/GEN0.BND').read_bytes()).hexdigest()}
 (a.output/'verdict.json').write_text(json.dumps(verdict,indent=2)+'\n')
 print(json.dumps(verdict))
