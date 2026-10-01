@@ -67,7 +67,9 @@ if a.network_echo_request:
         p.error('network echo request must be 38 bytes')
     a.network_stack=True
 if a.network_tcp_request:
-    if len(a.network_tcp_request.read_bytes()) != 38: p.error('network TCP request must be 38 bytes')
+    tcp_request=a.network_tcp_request.read_bytes()
+    if len(tcp_request)!=40 or not 1<=int.from_bytes(tcp_request[38:40],'big')<=60:
+        p.error('network TCP request must be 40 bytes with 1..60 cycles')
     if a.profile=='wanderer': a.network_probe=True
     a.network_stack=True
 if a.network_probe:

@@ -3417,3 +3417,41 @@ No test, source-code change, SMP work or target hardware action for this audit.
 Existing independent build supervisor20748/exec46525 rechecked live at43m17:
 both builds completed9/19 roots including workbench-c. No process restarted.
 The frozen source and final-verdict limitations recorded above still apply.
+
+## Bounded TCP reconnect workload — 2026-10-01
+
+network-tcp-server.py --cycles1..60 and the guest network observer perform
+independent TCP connections with a one-second pause, distinct per-connection
+challenge/payload, 64KiB upload and transformed download, half-close and EOF.
+NETTCP.REQ is now40bytes (IPv4/port/seed32/countBE16); producer, guest and
+package admission changed together. Regenerate old38byte TCP requests. UDP
+requests are unchanged. run-vz --require-network-tcp-cycles enforces the exact
+ordered cycle sequence. Missing/duplicate/wrong-count controls pass in
+artifacts/tcp-cycle-marker-controls.json. Guest marker writes are task-atomic.
+
+Probe build PASS, artifacts/VMNET-tcp-cycles SHA256
+e52fb8529295aaf4d9d824f131cdc9253525016e67418d5192365c7859889431.
+Fixture overlays current kernel/GPU14461d32e8 and PCI01e0e1a4b1 on the previous
+network desktop; other bundle components unchanged. Exact inventories and
+recipe retained in artifacts/desktop-tcp-cycles-held-fixture and
+artifacts/qualify-tcp-cycles-held.py. This is not a fresh full-build image.
+
+Two boots, no third run:
+- artifacts/vz-desktop-tcp-cycles FAIL: original20second SESSION.CFG expired
+  after22completed cycles. Peer orchestration subsequently timed out; no
+  complete peer verdict. The fixture duration, not a transport diagnosis.
+- artifacts/vz-desktop-tcp-cycles-held used40seconds and completed all32cycles.
+  Original combined verdict FAIL/timeout60.40s because the host demanded20
+  ticks but guest emitted19. All requested markers,32ordered guest and peer
+  cycles, and distinct independent peer byte checks succeeded. Guest schedules
+  next_tick relative to actual dispatch, so IO scheduling delays accumulate;
+  the runner now permits one delayed interval while retaining elapsed time
+  and guest hold-complete evidence.
+
+artifacts/tcp-cycles-held-reassessment.json PASS is explicitly a captured-run
+re-evaluation, not a rerun or replacement of the original FAIL. Exact console
+SHA c0b29456136cafad5be0928f2bf4fe58d8fc63fb331bf4bd32eed7e8c60b70ec.
+2MiB each direction, desktop/GPU IRQ/HID/DHCPDNS/clipboard markers all present.
+No HTTP, public TCP, throughput, graceful stop or persistence claim from this
+forced-stop network gate. Corrected heartbeat runner has not been boot-tested.
+The existing complete-build comparison remains separate and running.

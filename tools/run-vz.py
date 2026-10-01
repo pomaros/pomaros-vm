@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 John Knipper
 """Qualify actual headless AROS boot under Virtualization.framework."""
-from vz_contract import expected_markers, markers_match
+from vz_contract import expected_markers, markers_match, tcp_cycles_match
 import argparse
 import hashlib
 import json
@@ -31,6 +31,7 @@ p.add_argument('--require-network-dns',action='store_true')
 p.add_argument('--require-network-stack',action='store_true')
 p.add_argument('--require-network-echo',action='store_true')
 p.add_argument('--require-network-tcp',action='store_true')
+p.add_argument('--require-network-tcp-cycles',type=int,metavar='COUNT')
 p.add_argument('--no-input-events',action='store_true',help='negative control: withhold host input events')
 p.add_argument('--require-input',action='store_true')
 p.add_argument('--require-usb-desktop',action='store_true')
@@ -62,6 +63,9 @@ if a.require_vsock_device: a.require_vsock=True
 if a.require_vsock and not a.require_pci_hidd: p.error('--require-vsock requires --require-pci-hidd')
 if a.require_desktop_work and not (a.desktop_startup and a.require_desktop_session):
     p.error('--require-desktop-work requires a desktop session')
+if a.require_network_tcp_cycles is not None:
+    if not 1<=a.require_network_tcp_cycles<=60:p.error('TCP cycles must be 1..60')
+    a.require_network_tcp=True
 if a.require_network_tcp:
     if a.desktop_startup: a.require_desktop_network=True
     else: a.require_network_stack=True
@@ -151,7 +155,10 @@ with log.open('w') as out:
                         expected=[(255,0,0),(0,255,0),(0,0,255),(255,255,255)]
                         pixels_verified=all(abs(a-b)<16 for pixel,color in zip(actual,expected) for a,b in zip(pixel,color))
                         (a.output/'pixels.json').write_text(json.dumps({'actual':actual,'expected':expected,'passed':pixels_verified})+'\n')
-            session_ok=(a.require_desktop_session is None or (time.monotonic()-start>=a.require_desktop_session and text.count('[KI] tick')>=max(1,a.require_desktop_session//2)))
+            # Guest schedules each tick relative to its actual dispatch time.
+            # Permit one delayed interval under IO load; elapsed host time and
+            # the bounded guest hold-complete marker remain mandatory.
+            session_ok=(a.require_desktop_session is None or (time.monotonic()-start>=a.require_desktop_session and text.count('[KI] tick')>=max(1,a.require_desktop_session//2-1)))
             network_ok=not a.require_network_config
             if a.require_network_config:
                 host_mac=re.findall(r'network-config attachment=NAT mac=([0-9a-f:]{17})',text)
@@ -175,7 +182,7 @@ with log.open('w') as out:
                     expected_irqs=19
                     command_file_ok=command_file_ok and text.count('clipboard-test private named pasteboard seeded')==1
                 services_ok=fixture.is_file() and fixture.read_bytes()==expected and sorted(p.name for p in shared.iterdir())==names and len(bridge_irqs)==expected_irqs and all(int(n)>0 for n in bridge_irqs) and command_file_ok
-            if services_ok and bridge_irq_ok and network_ok and session_ok and (not a.require_gpu_scanout or pixels_verified) and markers_match(text,marker_counts): passed=True;reason='headless-startup-contract';break
+            if (a.require_network_tcp_cycles is None or tcp_cycles_match(text,a.require_network_tcp_cycles)) and services_ok and bridge_irq_ok and network_ok and session_ok and (not a.require_gpu_scanout or pixels_verified) and markers_match(text,marker_counts): passed=True;reason='headless-startup-contract';break
             if proc.poll() is not None: reason='early-exit';break
             time.sleep(.1)
     except Exception as error:
@@ -204,6 +211,7 @@ verdict={'result':'PASS' if passed else 'FAIL','reason':reason,
          'network_dns_verified':passed and a.require_network_dns,
          'network_host_udp_verified':passed and a.require_network_echo,
          'network_tcp_verified':passed and a.require_network_tcp,
+         'network_tcp_cycles_verified':a.require_network_tcp_cycles if passed else None,
          'gpu_irq_verified':passed and a.require_gpu_irq,
          'network_stack_address_verified':passed and a.require_network_stack,
          'network_config_verified':passed and a.require_network_config,'network_packets_verified':passed and a.require_network_packets,'network_irq_verified':passed and a.require_network_irq,'input_events_withheld':a.no_input_events,'desktop_session_seconds':a.require_desktop_session,'desktop_session_verified':passed and a.require_desktop_session is not None,

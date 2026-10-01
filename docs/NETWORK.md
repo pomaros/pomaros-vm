@@ -71,14 +71,29 @@ hosts entry. HTTP and sustained Internet traffic remain unqualified.
 ## TCP stream gate
 
 Start `tools/network-tcp-server.py --bind 0.0.0.0 --advertise HOST_NAT_IPV4
---output NEW_PEER_DIR --timeout 90`. It accepts one connection on an ephemeral
-port, validates the per-run challenge and every uploaded byte, then returns a
-transformed response and closes. Both upload and download are 64 KiB; different
+--output NEW_PEER_DIR --timeout 90`. By default it accepts one connection on an
+ephemeral port. Add `--cycles 32` for a bounded reconnect workload (1..60
+connections, with a one-second guest pause between connections). Each connection
+uses a distinct challenge; the peer validates every uploaded byte, returns a
+transformed response and closes. The 40-byte request contains IPv4, port,
+32-byte seed and a two-byte big-endian cycle count. Regenerate older requests. Both upload and download are 64 KiB; different
 send/read boundaries exercise stream handling. The peer has an absolute deadline.
 
 Add `--network-tcp-request NEW_PEER_DIR/NETTCP.REQ` to packaging. For a desktop,
 this enables the existing network observer and requires a bounded desktop
 session. Add `--require-network-tcp` to the corresponding `tools/run-vz.py`
 invocation. Acceptance requires both the guest verdict and peer verdict; a
-host successful send alone does not prove guest receipt. This gate uses a local
+host successful send alone does not prove guest receipt. For repeated runs, also
+use `--require-network-tcp-cycles 32` to require exactly the requested ordered
+`[VM] TCP cycle=N PASS` records, and check the same number of completed peer
+cycles. Set the packaged desktop session longer than the workload (for example
+40 seconds for 32 connections) and allow additional runner time for boot. This gate uses a local
 NAT peer; it does not validate HTTP, public Internet TCP or throughput.
+
+The 32-connection VZ workload completed every transaction, with 2 MiB verified
+in each direction, alongside GPU IRQ, desktop, USB/HID, DHCP/DNS and clipboard
+markers. The original runner timed out because its heartbeat count required
+20 ticks and the completed 40-second hold emitted 19. Captured-log reassessment
+passes with one dispatch interval of tolerance; the original failure is retained
+and the corrected runner has not been rebooted for this change. This is a local
+NAT workload, not public Internet or HTTP qualification.

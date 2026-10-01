@@ -14,7 +14,7 @@
 #include <errno.h>
 
 struct Library *SocketBase;
-static void mark(const char *s) { while(*s)RawPutChar(*s++); }
+static void mark(const char *s) { Forbid();while(*s)RawPutChar(*s++);Permit(); }
 /* Explicit host endpoint and per-run challenge: four IPv4 bytes, two port
  * bytes in network order, 32 random bytes. No public service is contacted. */
 static int test_socket_exchange(void)
@@ -48,7 +48,7 @@ done:
 }
 /* Exercise stream segmentation and partial IO, not a single packet echo.
  * The runner and host peer impose absolute deadlines; each readiness wait is
- * also bounded. Endpoint/challenge format is shared with the UDP fixture. */
+ * also bounded. TCP requests add a connection count to endpoint/challenge. */
 static int tcp_ready(LONG fd,int writing)
 {
     fd_set set;FD_ZERO(&set);FD_SET(fd,&set);
@@ -70,13 +70,9 @@ static UBYTE tcp_pattern(const UBYTE *seed,unsigned offset)
 {
     return seed[offset%32]^(UBYTE)(offset*37u+(offset>>8));
 }
-static int test_tcp_exchange(void)
+static int tcp_transaction(const UBYTE *request)
 {
-    UBYTE request[39],buffer[1024];
-    BPTR file=Open((CONST_STRPTR)"SYS:NETTCP.REQ",MODE_OLDFILE);
-    if(!file)return 1;
-    LONG count=Read(file,request,sizeof(request));Close(file);
-    if(count!=38)return 0;
+    UBYTE buffer[1024];
     struct sockaddr_in peer={0};
     peer.sin_len=sizeof(peer);peer.sin_family=AF_INET;
     memcpy(&peer.sin_addr,request,4);memcpy(&peer.sin_port,request+4,2);
@@ -108,8 +104,27 @@ static int test_tcp_exchange(void)
 done:
     bug("[VM] TCP result=%ld errno=%ld\n",(long)okay,(long)Errno());
     CloseSocket(fd);
-    mark(okay?"[VM] AROSTCP TCP 64KiB duplex PASS\n":"FAIL: AROSTCP TCP stream\n");
     return okay;
+}
+static int test_tcp_exchange(void)
+{
+    /* IPv4, port, seed[32], big-endian connection count. Each connection
+     * has a distinct seed and is closed before the next one starts. */
+    UBYTE request[41];
+    BPTR file=Open((CONST_STRPTR)"SYS:NETTCP.REQ",MODE_OLDFILE);
+    if(!file)return 1;
+    LONG bytes=Read(file,request,sizeof(request));Close(file);
+    unsigned cycles=bytes==40?((unsigned)request[38]<<8)|request[39]:0;
+    if(!cycles || cycles>60) { mark("FAIL: invalid TCP request\n");return 0; }
+    UBYTE seed=request[6];
+    for(unsigned cycle=0;cycle<cycles;++cycle) {
+        request[6]=seed^(UBYTE)cycle;
+        if(!tcp_transaction(request)) { mark("FAIL: AROSTCP TCP stream\n");return 0; }
+        Forbid();bug("[VM] TCP cycle=%u PASS\n",cycle);Permit();
+        if(cycle+1<cycles)Delay(50);
+    }
+    mark("[VM] AROSTCP TCP 64KiB duplex PASS\n");
+    return 1;
 }
 /* Fresh stack, minimal NetDB and no seeded hosts entry: exercise the public
  * resolver using the nameservers delivered by DHCP, not a fixed IP fallback. */

@@ -63,3 +63,9 @@ def expected_markers(a):
 
 def markers_match(text, counts):
     return 'FAIL:' not in text and all(text.count(marker)==count for marker,count in counts.items())
+
+
+def tcp_cycles_match(text, count):
+    """Require every completed connection exactly once and in order."""
+    import re
+    return [int(n) for n in re.findall(r'\[VM\] TCP cycle=(\d+) PASS', text)] == list(range(count))
