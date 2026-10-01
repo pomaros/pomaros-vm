@@ -261,11 +261,15 @@ GICv3 topology may require an ITS implementation instead of a v2m frame.
 `make test-vmpci-irq` compiles the actual resident routing implementation with
 mock PCI/kernel endpoints under fatal sanitizers. It checks ownership, bounded
 capability/BAR validation, failure unwinding, table/control restoration and
-retirement. MSI-X AddInterrupt requires memory decode already enabled and
-unmasked unrelated table entries are refused. RemoveInterrupt requires a
-quiescent device. Retired SPIs are not recycled until reboot, preventing late
-posted messages from reaching a different owner; repeated attachment is bounded
-by the frame's SPI count. Hot-unplug/recycling requires a separate drain design.
+per-device source ownership across 512 reopen cycles. MSI-X AddInterrupt requires
+memory decode already enabled and unmasked unrelated table entries are refused.
+RemoveInterrupt requires a quiescent device. Each SPI stays reserved for one PCI
+device until reboot; the same device reuses it after reset, without retaining the
+old callback or table pointer. The frame bounds distinct device reservations,
+not session count. Late posted messages are never redirected to a different
+device; handlers must validate current queue state. Published device objects are
+kept alive by the resident bridge. Hot removal requires a separate lifetime/drain
+design.
 
 To exercise the installed driver rather than only shared queue code, package
 with `--pci-hidd --virtio-device`. This also installs bus.hidd, storage.hidd
@@ -681,3 +685,21 @@ default; targets within each build run sequentially to avoid generator races.
 Progress/logs and the final strict verdict remain in the output directory. It
 never reuses objects from an existing native/VM build. A RUNNING verdict or a
 successful configure is not a completed comparison.
+
+## Bounded integrated desktop workload
+
+Package a live WORK desktop with `--profile wanderer --virtio-gpu --usb-desktop
+--work-volume --desktop-session forever --soak-probe`, plus the required build,
+EFI and output paths. The soak flag includes the network and clipboard observers.
+Create a new disk with `tools/make-disk.py`, then run
+`tools/run-soak-vz.py --disk DISK --output NEW_RUN`.
+
+The guest performs 60 cycles of 64 KiB write/flush/rename, actual VMExchange
+PUT/GET, and independent guest readback, with a one-second pause per cycle.
+The host requires the cycle sequence, desktop/GPU IRQ/HID/network/clipboard
+markers and timer ticks, then requests normal guest-acknowledged shutdown.
+It checks all 60 uploaded files and both final WORK files independently after
+stop. Workload timeout is 180 seconds; shutdown gets 20 seconds. The runner
+copies the disk and uses isolated host services/private clipboard state.
+Memory snapshots are observations, not a leak-free assertion. This is a bounded
+integrated workload, not exhaustive crash recovery or prolonged reliability.

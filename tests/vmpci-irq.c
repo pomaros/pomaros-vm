@@ -113,9 +113,9 @@ int main(void)
     config[0x44]=6;assert(!add_irq(&base,device,&handler));config[0x44]=0;
     config[0x44]=8;assert(!add_irq(&base,device,&handler));config[0x44]=0;
     base.host.window_count=0;assert(!add_irq(&base,device,&handler));base.host.window_count=1;
-    config_fail=1;assert(!add_irq(&base,device,&handler) && !live && !handlers);config_fail=0;
-    handler_fail=1;assert(!add_irq(&base,device,&handler) && !live && !handlers);handler_fail=0;
-    enable_fail=1;assert(!add_irq(&base,device,&handler) && !live && !handlers);enable_fail=0;
+    config_fail=1;assert(!add_irq(&base,device,&handler) && live==1 && !handlers);config_fail=0;
+    handler_fail=1;assert(!add_irq(&base,device,&handler) && live==1 && !handlers);handler_fail=0;
+    enable_fail=1;assert(!add_irq(&base,device,&handler) && live==1 && !handlers);enable_fail=0;
     assert(config[4]==2 && config[5]==0 && config[0x42]==1 && config[0x43]==0);
     for(unsigned i=0;i<4;++i)assert(!table_words[i]);
     assert(add_irq(&base,device,&handler) && live==1 && handlers==1);
@@ -124,12 +124,30 @@ int main(void)
     assert(config[0x43]==0x80 && config[5]==4);
     assert(!add_irq(&base,device,&handler) && live==1 && handlers==1);
     remove_irq(&base,(void *)0x3333,&handler);assert(handlers==1);
-    remove_irq(&base,device,&handler);assert(!live && !handlers);
+    remove_irq(&base,device,&handler);assert(live==1 && !handlers);
     assert(!config[0x43] && !config[5]);for(unsigned i=0;i<4;++i)assert(!table_words[i]);
-    remove_irq(&base,device,&handler);assert(!live && !handlers);
-    assert(add_irq(&base,device,&handler));assert(last_source==first+1); /* retired source never reused */
+    remove_irq(&base,device,&handler);assert(live==1 && !handlers);
+    /* More sessions than the entire controller capacity must remain usable. */
+    for(unsigned session=0;session<512;++session) {
+        assert(add_irq(&base,device,&handler));assert(last_source==first);
+        remove_irq(&base,device,&handler);
+        assert(live==1 && !handlers && base.msi_next==1);
+    }
+    OOP_Object *other=(void *)0x3333;
+    assert(add_irq(&base,other,&handler));assert(last_source==first+1);
+    remove_irq(&base,other,&handler);assert(live==2 && !handlers);
+    base.msi_next=base.msi_count;
+    assert(add_irq(&base,device,&handler));assert(last_source==first);
     remove_irq(&base,device,&handler);
-    base.msi_next=base.msi_count;assert(!add_irq(&base,device,&handler));
-    assert(!live && !handlers);
-    puts("vmpci-irq result=PASS real-routing,masked-ownership,rollback,remove,retired-sources");
+    assert(!add_irq(&base,(void *)0x4444,&handler));
+    assert(live==2 && !handlers);
+    /* The resident bridge owns reservations until reboot. Dispose the mock
+     * bridge explicitly so the sanitizer also detects accidental extra owners. */
+    while(!IsListEmpty(&base.irq_routes)) {
+        struct IRQRoute *route=(void *)base.irq_routes.lh_Head;
+        assert(!route->handler && !route->cookie && !route->table);
+        REMOVE(&route->node);release(route);
+    }
+    assert(!live);
+    puts("vmpci-irq result=PASS real-routing,rollback,512-reopens,per-device-source-isolation");
 }

@@ -17,6 +17,7 @@ p.add_argument('--virtio-gpu', action='store_true')
 p.add_argument('--pci-hidd', action='store_true')
 p.add_argument('--virtio-device', action='store_true')
 p.add_argument('--shutdown-probe', action='store_true')
+p.add_argument('--soak-probe', action='store_true')
 p.add_argument('--work-probe', action='store_true')
 p.add_argument('--work-volume', action='store_true', help='mount the appended 256 MiB WORK volume made by make-disk --work-volume')
 p.add_argument('--virtionet-device', action='store_true')
@@ -43,6 +44,10 @@ p.add_argument('--profile', choices=['headless', 'wanderer'], default='headless'
 p.add_argument('--toolchain', type=Path, default=Path.home() / 'aros-crosstools')
 p.add_argument('--efi', type=Path, required=True, help='explicit built UEFI loader; no implicit stale build selection')
 a = p.parse_args()
+if a.soak_probe:
+    if not (a.work_volume and a.usb_desktop and a.desktop_session=='forever') or a.work_probe or a.shutdown_probe:
+        p.error('--soak-probe requires --work-volume --usb-desktop --desktop-session forever and excludes work/shutdown probes')
+    a.network_probe=True;a.clipboard_probe=True
 if a.shutdown_probe:
     if a.work_probe: p.error('--shutdown-probe and --work-probe are mutually exclusive')
     a.work_probe=True
@@ -226,7 +231,7 @@ if a.work_volume:
 desktop_services = a.host_services and a.profile=='wanderer'
 expanded_system = a.network_stack or a.profile=='wanderer'
 def deferred_file(rel):
-    return (a.work_volume and rel in {'VMWORK','C/Mount','C/LoadResource','L/fat-handler','Devs/WORK.mount','Devs/Drivers/bus.hidd','Devs/Drivers/storage.hidd','Devs/virtio.device'}) or (a.profile=='wanderer' and rel in {'C/Assign','C/MakeDir'}) or (a.network_stack and (rel.startswith('System/Network/') or rel in {'VMNET','Libs/rexxsyslib.library','Libs/commodities.library','Libs/keymap.library','Devs/Networks/virtionet.device'})) or (desktop_services and rel in {
+    return (a.soak_probe and rel=='VMSOAK') or (a.work_volume and rel in {'VMWORK','C/Mount','C/LoadResource','L/fat-handler','Devs/WORK.mount','Devs/Drivers/bus.hidd','Devs/Drivers/storage.hidd','Devs/virtio.device'}) or (a.profile=='wanderer' and rel in {'C/Assign','C/MakeDir'}) or (a.network_stack and (rel.startswith('System/Network/') or rel in {'VMNET','Libs/rexxsyslib.library','Libs/commodities.library','Libs/keymap.library','Devs/Networks/virtionet.device'})) or (desktop_services and rel in {
         'C/VMExchange','C/VMSync','Devs/clipboard.device','Devs/vmbridge.device','VMCLIP'})
 ramdisk = output / 'SYS.img'
 image_command = ['python3', str(root / 'tools/make-fat12-image.py'), '--abi-probe', str(probe)]
@@ -270,6 +275,12 @@ if a.network_probe:
     startup_lines=startup_lines.replace('Run >T:AROSTCP-startup.log SYS:System/Network/AROSTCP/C/AROSTCP\n',
         'Run >T:AROSTCP-startup.log SYS:System/Network/AROSTCP/C/AROSTCP\nRun >NIL: SYS:VMNET\n',1)
     pci_files.append(('VMNET',network_command))
+if a.soak_probe:
+    soak_command=output/'VMSOAK'
+    subprocess.run([str(root/'tools/build-abi-probe'),'--sdk',str(sdk),
+        '--crosstools',str(a.toolchain.resolve()),'--profile','desktop-soak',str(soak_command)],check=True)
+    pci_files.append(('VMSOAK',soak_command))
+    startup_lines=startup_lines.replace('SYS:VMUSB\n','Run >NIL: SYS:VMSOAK\nSYS:VMUSB\n',1)
 if a.work_volume:
     startup_lines=startup_lines.replace('SYS:C/VMSync\n','SYS:C/VMSync VOLUME=VMWORK0:\n')
     startup_lines='SYS:C/LoadResource DEVS:Drivers/bus.hidd DEVS:Drivers/storage.hidd\nSYS:C/Mount VMWORK0: FROM DEVS:WORK.mount\n'+(startup_lines or 'G4Ready\nEndCLI\n')
@@ -317,7 +328,7 @@ shutil.copyfile(efi, output / 'EFI/BOOT/BOOTAA64.EFI')
 inputs = ([output/'AROS/SESSION.CFG'] if a.desktop_session is not None else []) + ([pci_probe] if a.pci_hidd else []) + [path for _, path in pci_files] + [stage2, efi, probe, ramdisk] + [path for _, path in components] + programs
 manifest = {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in inputs}
 (output / 'provenance.json').write_text(json.dumps({
-    'profile': a.profile, 'work_volume': a.work_volume, 'work_probe': a.work_probe, 'shutdown_probe': a.shutdown_probe, 'clipboard_probe': a.clipboard_probe, 'clipboard_sync': a.clipboard_sync, 'file_commands': a.file_commands, 'command_startup': a.command_startup, 'vsock_device': a.vsock_device, 'host_services': a.host_services, 'network_tcp': bool(a.network_tcp_request), 'network_dns': a.network_dns, 'network_probe': a.network_probe, 'network_stack': a.network_stack, 'virtionet_device': a.virtionet_device, 'input_probe': a.input_probe, 'desktop_session': a.desktop_session, 'usb_desktop': a.usb_desktop, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,
+    'profile': a.profile, 'soak_probe': a.soak_probe, 'work_volume': a.work_volume, 'work_probe': a.work_probe, 'shutdown_probe': a.shutdown_probe, 'clipboard_probe': a.clipboard_probe, 'clipboard_sync': a.clipboard_sync, 'file_commands': a.file_commands, 'command_startup': a.command_startup, 'vsock_device': a.vsock_device, 'host_services': a.host_services, 'network_tcp': bool(a.network_tcp_request), 'network_dns': a.network_dns, 'network_probe': a.network_probe, 'network_stack': a.network_stack, 'virtionet_device': a.virtionet_device, 'input_probe': a.input_probe, 'desktop_session': a.desktop_session, 'usb_desktop': a.usb_desktop, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,
     'source_revision': revision, 'configure_command': configure_command,
     'inputs': manifest, 'bundle_sha256': hashlib.sha256(data).hexdigest(),
 }, indent=2) + '\n')

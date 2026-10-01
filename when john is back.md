@@ -3269,3 +3269,63 @@ Input disk SHA256 13c29984e9873a64d76bbd1fdd7d7684a3e15d15b638afabcfccf9727c85bb
 Full independent rebuild supervisor20748/exec46525 remains live, using frozen
 core d3301fb648. Its eventual verdict will not include this later GPU change.
 Keep that scope explicit; do not mutate or restart the frozen comparison.
+
+## Integrated usage exposed MSI session exhaustion — 2026-10-01
+
+Added tests/desktop-soak.c and standard --soak-probe packaging: 60 cycles,
+each writes/flushes/renames 64 KiB on normal WORK, executes actual VMExchange
+PUT and GET, verifies both local files, then pauses50 ticks. Background desktop,
+IRQ GPU, USB/HID, DHCP/DNS and real clipboard observers remain active. Runner
+requires all cycle markers and continued ticks, requests guest-acknowledged stop,
+then independently checks all60 host uploads and both final WORK files.
+
+First VZ run artifacts/vz-desktop-soak FAIL43.58s atcycle23 PUT. Console contains
+125 vmbridge close records, last with zero IRQ completions. Existing vmpci
+allocation retired a new source on every OpenDevice session, including clipboard
+polls. That finite pool was unsuitable for normal long-lived usage.
+Core01e0e1a4b1 retains one source reservation per PCI device instead. The resident
+bridge/root keeps device objects stable; published hot removal is unsupported.
+Only that same reset device may reuse its source. Removal masks/restores hardware,
+removes the handler and clears callback/table pointers. It never hands a source
+to a different device. Late notifications can only wake the same device's current
+owner; handlers still validate queue state. IRQ lifetime remains UP, no SMP work.
+
+make test-vmpci-irq PASS under ASan/UBSan (artifacts/soak-msi-routing-test.log):
+actual routing source, failure rollback,512 repeated reopens, distinct-device
+source isolation, reuse even when new-device capacity is exhausted, no retained
+callback/table after close. Mock bridge destruction releases reservations.
+Second VZ run artifacts/vz-desktop-soak-msi completed all60 guest cycles and260
+bridge closes, but overall FAIL110.49s: VMBridge output interrupted the literal
+cycle0 marker ([V + another log + M]). Runner correctly refused acceptance and
+forced cleanup; no clean-shutdown or persisted-file success claimed from it.
+
+Probe status lines now use Forbid/Permit against task interleaving. The controller
+also attempts graceful stop after a completed workload even if its evidence is
+invalid, retaining FAIL after collecting bytes. Final focused retry is
+artifacts/vz-desktop-soak-atomic (exec48986); verdict pending at this entry.
+Atomic probe SHA256668a78f3ef2f0362088d7f0df9885868c54388d74ff0e29b68e74c9bef63db3f.
+Artifacts/prepare-desktop-soak-{msi,atomic}.py retain exact fixture construction;
+base is desktop-safe-quit with only SYS/kernel.resource/virtiogfx.hidd/vmpci.hidd
+replaced and all other payload hashes checked. This is not the frozen full rebuild.
+
+VZ visual prerequisite: swift CoreGraphics CGPreflightScreenCaptureAccess returned
+false (artifacts/vz-capture-preflight.json). No repeated screen capture attempted;
+asked John asynchronously to enable macOS screen recording, continued other work.
+Code inspection also confirms vmpci currently publishes IRQ callbacks only for
+gic-v2m-frame. QEMU GICv3/ITS needs its own route implementation; old HVF polled
+GPU pixel proof must not be presented as qualification of the new IRQ driver.
+
+Final retry artifacts/vz-desktop-soak-atomic PASS107.61s: exact sequence0..59,
+270 bridge close records, desktop/GPU IRQ/HID/DHCP/DNS/clipboard gates, graceful
+host-request/guest-inhibit/host-ACK/exit0, all60 uploaded files verified independently,
+and both final WORK files read with mtype after stop and checked byte for byte.
+WORK SHA25681b4c32a2861b07c5fb0a6bdb1a32db7637d256c047b2c12a6ac2b18446536bf.
+Memory snapshots: free473593264/largest394521248 before the workload;
+free469874464/largest390435472 after it. Initial snapshot overlaps desktop/service
+startup; these are observations, not a leak diagnosis or leak-free assertion.
+Three bounded guest runs total in this investigation: actual MSI failure, log
+interleaving rejection, corrected complete proof. Both failures retained. No
+more soak repeats without another concrete reason. Source01e0e1a4b1 pushed.
+Full rebuild supervisor20748/exec46525 still running at20m34 on frozen d3301;
+GPU target completed in both, Wanderer dependencies compiling. Its eventual
+comparison excludes later GPU/observer and source-reservation changes.
