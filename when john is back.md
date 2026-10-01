@@ -3565,8 +3565,10 @@ is supported by the runner but not runtime-qualified.
 ## Application packaging: exclude the sustained-write fixture
 
 The application packaging admission list now rejects `soak_probe` as well as
-the other qualification probes. Its `forever` desktop configuration otherwise
-meets normal application admission and would automatically run 60 WORK writes
-and file exchanges. A focused admission check accepts a normal desktop manifest
+the other qualification probes. The package-core producer already enables
+network and clipboard probes for a soak image, so its generated manifests were
+indirectly rejected before this change. The explicit check makes that exclusion
+independent of those implied flags; it does not fix an observed shipped-app
+regression. A soak fixture automatically runs 60 WORK writes and file exchanges. A focused admission check accepts a normal desktop manifest
 and rejects each enabled probe, including this fixture. No VM boot was needed.
 The current-core independent rebuild continues separately without source changes.
