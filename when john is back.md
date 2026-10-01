@@ -3824,3 +3824,31 @@ inputs; an isolated adapted wrapper compiled but its fixture returned
 wrong-profile. No native MMU or physical acceptance is inferred from it.
 Retained logs: artifacts/distribution-mmu-regression*.log. The VZ boot uses the
 actual enlarged arena and page tables, but is not a native hardware test.
+
+## Standard distribution ready — 2026-10-01
+
+Final application: `artifacts/distribution-v7/Macaros VM.app`, using the separate
+Distribution profile. Default and its disk were untouched. Built from VM
+0faa431 and core f02f51ddc3, with 3505 runtime files (52,414,569 bytes), each
+read back and hashed during disk creation. No Zed/Ferail. Rebuild: `make distrib`
+with a fresh VM_DISTRIB_OUTPUT when the default output already exists.
+
+The bounded final VZ run passed in 10.05 seconds: first-launch seed copy, strict
+desktop readiness, two HID bindings, GPU IRQ completion, same-state and same-disk
+exclusion, and graceful guest/host volume quiesce. Seed unchanged. Evidence:
+`artifacts/vz-distribution-v7/` and `artifacts/distribution-qualify-v7.log`.
+Seed SHA256: 2a4c6f4e19406a3e2f9885979ba3ec4d3e23d173e23887c2bb5f04506f240b9c.
+This does not qualify every utility, native/Pi hardware, SMP, or host-view pixel
+capture. The earlier v6 pass was followed by this single final rebuilt run.
+
+Allocator review296 corrections are in f02f51ddc3: fixed-address ranges must
+fit the actual arena; stage2 and allocator share a single capacity policy; the
+native bitmap remains sized for 8 MiB, VM for 64 MiB. `make test-page-arena`
+passed ASan/UBSan for both configurations, including a last-page overrun
+rejection and intact sentinel. Log: artifacts/distribution-page-arena-tests.log.
+The tests model Exec exclusion on the host, not concurrent kernel scheduling.
+
+Remaining: normal user exercise of tools/preferences and a future coordinated
+distribution upgrade mechanism. Boot-only updater deliberately rejects these
+disks because WORK:System and the kernel must advance together. Shutdown
+failure recovery limitation is documented in docs/DISTRIBUTION.md.
