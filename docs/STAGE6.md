@@ -102,7 +102,7 @@ probe had a compile-time format warning, fixed before the combined run.
 To repeat the bounded VM test from a configured SDK and new output directory:
 
 ```sh
-python3 tests/stage6-vz.py --app "artifacts/stage6-release/Macaros VM.app" \
+python3 tests/stage6-vz.py --app "artifacts/stage6-final/Macaros VM.app" \
   --output artifacts/vz-stage6-repeat
 ```
 
@@ -112,8 +112,8 @@ For John's visual check, launch that app normally and run:
 SYS:Utilities/MultiView SYS:Prefs/Presets/Wallpapers/2007-comp-entries/04-Mithrandir_wallpaperupdated.jpg
 ```
 
-The final app uses the fresh `Distribution-Stage6` profile. Its normal first
-launch is qualified separately from the injected probes. The image should be
+The current app uses the fresh `Distribution-Stage6Final` profile. The earlier
+`Distribution-Stage6` app passed a separate normal first launch. The image should be
 visible in the macOS VM view; the guest pixel readback alone does not assert
 what the host presented.
 
@@ -128,5 +128,8 @@ For the launcher build, two fresh, isolated source copies now compile with
 and a build-local Swift module cache. Both signed launchers have SHA256
 `db00d7697aa48c756ef2b1288daa06110e959b36d1a70b3e1fdeb567a5717ff0`.
 Earlier cold builds with the default compilation options produced differing
-code bytes, so the Makefile now pins this tested recipe. The signed app still
-requires a fresh bounded VZ run after this launcher change.
+code bytes, so the Makefile now pins this tested recipe. The updated signed app
+at `artifacts/stage6-final/Macaros VM.app` passed the integrated VZ gate in
+19.55 seconds (`artifacts/vz-stage6-final-deterministic-1/verdict.json`). Its
+packaged executable has a different outer hash because the app itself is
+signed again; its provenance records the matching pre-package launcher hash.

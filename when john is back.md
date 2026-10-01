@@ -3930,6 +3930,23 @@ tests/stage6-image.c and tests/stage6-vz.py. The signed app
 passes the identical isolated probe run in21.27s:
 `artifacts/vz-stage6-final-1/verdict.json`. Host launcherSHA256
 66a78e0a26d9cb518d93e402f40f2b6c133133c63c7616ebb1a800f310ccf69b.
-Normal first-launch acceptance in progress at
-`artifacts/vz-stage6-release-normal/`. Manual host VZ image judgment
-requested from John with exact MultiView command in docs/STAGE6.md.
+Normal first-launch acceptance PASS11.56s at
+`artifacts/vz-stage6-release-normal/verdict.json` (desktop, two HID bindings,
+GPU IRQ, state/disk exclusivity, unchanged seed, guest-acknowledged shutdown).
+
+Independent cold launcher builds originally disagreed in actual code bytes.
+The fixed Makefile recipe uses SWIFT_DETERMINISTIC_HASHING=1, whole-module
+optimization, one compiler thread and a local Swift module cache. Two fresh
+isolated source copies and the main checkout then yielded exactly the same
+signed launcher SHA256 db00d7697aa48c756ef2b1288daa06110e959b36d1a70b3e1fdeb567a5717ff0.
+Do not infer that the compiler is deterministic under other flags.
+
+Current signed app: `artifacts/stage6-final/Macaros VM.app`, private profile
+Distribution-Stage6Final. The previous Stage6 app/profile remain intact.
+The current app passes the isolated integrated probe in19.55s at
+`artifacts/vz-stage6-final-deterministic-1/verdict.json`: held session fails
+after host cut, new file session and clipboard service recover, MultiView has
+nonflat guest pixels, and actual NSWindow.performClose leads to one guest
+quiesce/host ack and exit0. Packaged binary hash differs after outer signing;
+provenance records the pre-package launcher hash. Manual host VZ image judgment
+was requested from John with the exact MultiView command in docs/STAGE6.md.
