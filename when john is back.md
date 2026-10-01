@@ -2659,3 +2659,24 @@ f78744a37f6997ddc4a1957f17d27bb27b8c147f295c9d74598796ad8a5d6530;
 launcher b70bf5b682df747f80c07e12a74c150e97183757a472a5d9714cd6e3ad9527ab.
 CLI PUT/GET against guest files, automatic desktop startup and text/image
 clipboard remain unfinished. No M1, no SMP, no prolonged reruns.
+
+
+## Actual file commands qualified across a VZ restart
+
+Core 2df4413a2d checks Close success before publishing a downloaded file by
+Rename. The --file-commands package and --file-exchange filesystem runner reuse
+the isolated VMTEST0 FAT fixture. Two fresh VZ boots in
+artifacts/vz-file-commands pass: VMExchange PUT uploads DATA/KEPT.BIN, GET
+creates EXCHANGE.BIN (EXCHANG2.BIN after restart), a repeated GET returns20 and
+preserves the destination. All 64 KiB are compared in the guest, in the host
+Shared directory and independently with mtools on the resulting image.
+The first download survives the second boot. Five positive vsock IRQ counters
+per boot are required, plus the complete boot/filesystem/protocol contracts.
+
+Input disk SHA256
+955869ecdc0dc2c69bf4d38fa23d98e2b5c9d72bc8097cf16e6d37e1aefed70d;
+file SHA256 1942de172742ea4cc88bacca1802a39924147e552ff0a36397597ad066c3e94f.
+Write disk 96a14208d8c7ca4882bd7ed2c91a251c4477064c6bb211a35fac95720da6e03f;
+restart disk 1d5ac06c2f9f829144aa2a46e2df19e268c772dc7d7161faffcb8d6e4e4fc4a6.
+Only these two focused boots; no extended qualification or M1/SMP work.
+Next: automatic text/image clipboard and desktop integration.

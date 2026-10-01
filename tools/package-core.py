@@ -18,6 +18,7 @@ p.add_argument('--pci-hidd', action='store_true')
 p.add_argument('--virtio-device', action='store_true')
 p.add_argument('--virtionet-device', action='store_true')
 p.add_argument('--host-services', action='store_true')
+p.add_argument('--file-commands', action='store_true')
 p.add_argument('--command-startup', action='store_true')
 p.add_argument('--vsock-device', action='store_true')
 p.add_argument('--network-stack', action='store_true')
@@ -34,6 +35,8 @@ p.add_argument('--profile', choices=['headless', 'wanderer'], default='headless'
 p.add_argument('--toolchain', type=Path, default=Path.home() / 'aros-crosstools')
 p.add_argument('--efi', type=Path, required=True, help='explicit built UEFI loader; no implicit stale build selection')
 a = p.parse_args()
+if a.file_commands:
+    a.host_services=True;a.virtio_device=True
 if a.command_startup and (a.profile!='headless' or a.host_services or a.vsock_device):
     p.error('--command-startup requires headless without host services or vsock device')
 if a.host_services: a.vsock_device=True
@@ -125,6 +128,9 @@ if a.virtionet_device:
 if a.host_services:
     request=output/'HOSTSERVICES.REQ';request.write_text('file-services-v1\n')
     pci_files += [('HOSTSERVICES.REQ',request),('C/VMExchange',sdk/'AROS/C/VMExchange')]
+if a.file_commands:
+    request=output/'FILECOMMANDS.REQ';request.write_text('file-commands-v1\n')
+    pci_files.append(('FILECOMMANDS.REQ',request))
 if a.vsock_device:
     pci_files.append(('Devs/vmbridge.device',sdk/'AROS/Devs/vmbridge.device'))
 if a.network_stack:
@@ -213,7 +219,7 @@ shutil.copyfile(efi, output / 'EFI/BOOT/BOOTAA64.EFI')
 inputs = ([output/'AROS/SESSION.CFG'] if a.desktop_session is not None else []) + ([pci_probe] if a.pci_hidd else []) + [path for _, path in pci_files] + [stage2, efi, probe, ramdisk] + [path for _, path in components] + programs
 manifest = {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in inputs}
 (output / 'provenance.json').write_text(json.dumps({
-    'profile': a.profile, 'command_startup': a.command_startup, 'vsock_device': a.vsock_device, 'host_services': a.host_services, 'network_stack': a.network_stack, 'virtionet_device': a.virtionet_device, 'input_probe': a.input_probe, 'desktop_session': a.desktop_session, 'usb_desktop': a.usb_desktop, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,
+    'profile': a.profile, 'file_commands': a.file_commands, 'command_startup': a.command_startup, 'vsock_device': a.vsock_device, 'host_services': a.host_services, 'network_stack': a.network_stack, 'virtionet_device': a.virtionet_device, 'input_probe': a.input_probe, 'desktop_session': a.desktop_session, 'usb_desktop': a.usb_desktop, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,
     'source_revision': revision, 'configure_command': configure_command,
     'inputs': manifest, 'bundle_sha256': hashlib.sha256(data).hexdigest(),
 }, indent=2) + '\n')

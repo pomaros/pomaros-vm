@@ -22,8 +22,9 @@ failure (3), destination exists (4) and unsupported operation (5).
 
 Host socket-pair tests and the complete VZ service gate pass: upload/readback
 of 64 KiB, path/overwrite refusal, and the standalone command HELLO after closing
-and reopening the device. CLI PUT/GET against guest files remain unqualified;
-this gate exercises their shared protocol client directly. Clipboard is not
+and reopening the device. The separate file-command gate exercises CLI PUT/GET against an isolated FAT
+volume, checks refusal to overwrite a guest destination, and verifies bytes
+from the host after two fresh VMs. Clipboard is not
 implemented.
 Host power-loss durability and concurrent host modification during download
 are not qualified; a download is not a snapshot.
@@ -37,3 +38,14 @@ A partial transfer result cannot make this gate pass.
 
 Evidence and outstanding diagnosis are recorded in
 [`when john is back.md`](../when%20john%20is%20back.md).
+
+
+For the CLI gate, package with `--pci-hidd --file-commands` instead of
+`--host-services`, create the 64 MiB boot disk with `tools/make-disk.py`, then
+run `tools/run-filesystem-vz.py --disk DISK --output NEW_RUN --file-exchange`.
+This appends a separate FAT test volume. Each phase uploads the 64 KiB fixture,
+downloads it through the command and refuses a second download onto the same
+name. The restart phase verifies the first file survived and writes a second
+file. The runner checks both the host Shared directory and the guest disk image.
+Only file-backed test disks are touched. This does not qualify host power loss
+or desktop auto-start.

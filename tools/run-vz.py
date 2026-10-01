@@ -16,6 +16,7 @@ root=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser()
 p.add_argument('--require-desktop-session',type=int,metavar='SECONDS')
 p.add_argument('--require-host-services',action='store_true')
+p.add_argument('--require-file-commands',action='store_true')
 p.add_argument('--require-vsock-device',action='store_true')
 p.add_argument('--require-vsock',action='store_true')
 p.add_argument('--require-network-config',action='store_true')
@@ -43,6 +44,9 @@ p.add_argument('--disk',type=Path,required=True)
 p.add_argument('--output',type=Path,required=True)
 p.add_argument('--timeout',type=float,default=45)
 a=p.parse_args()
+if a.require_file_commands:
+    a.require_host_services=True
+    if not a.filesystem_phase: p.error('--require-file-commands requires --filesystem-phase')
 if a.require_host_services and (not a.require_pci_hidd or a.require_vsock or a.require_vsock_device): p.error('--require-host-services requires PCI and excludes the echo probes')
 if a.require_vsock_device: a.require_vsock=True
 if a.require_vsock and not a.require_pci_hidd: p.error('--require-vsock requires --require-pci-hidd')
@@ -139,7 +143,13 @@ with log.open('w') as out:
             if a.require_host_services and '[VM] host file put get containment PASS' in text:
                 shared=a.output/'state/Shared';fixture=shared/'vmbridge-qualification.bin'
                 expected=bytes((i*37+i//251)&255 for i in range(65536))
-                services_ok=fixture.is_file() and fixture.read_bytes()==expected and sorted(p.name for p in shared.iterdir())==['vmbridge-qualification.bin'] and len(bridge_irqs)==2 and all(int(n)>0 for n in bridge_irqs)
+                names=['vmbridge-qualification.bin'];expected_irqs=2
+                command_file_ok=True
+                if a.require_file_commands:
+                    names.insert(0,'command-upload.bin');expected_irqs=5
+                    command_file=shared/'command-upload.bin'
+                    command_file_ok=command_file.is_file() and command_file.read_bytes()==bytes(((i*37+11)^(i>>8))&255 for i in range(65536))
+                services_ok=fixture.is_file() and fixture.read_bytes()==expected and sorted(p.name for p in shared.iterdir())==names and len(bridge_irqs)==expected_irqs and all(int(n)>0 for n in bridge_irqs) and command_file_ok
             if services_ok and bridge_irq_ok and network_ok and session_ok and (not a.require_gpu_scanout or pixels_verified) and markers_match(text,marker_counts): passed=True;reason='headless-startup-contract';break
             if proc.poll() is not None: reason='early-exit';break
             time.sleep(.1)
@@ -160,6 +170,7 @@ verdict={'result':'PASS' if passed else 'FAIL','reason':reason,
          'vsock_device_verified':passed and a.require_vsock_device,
          'vsock_device_irq_verified':passed and (a.require_vsock_device or a.require_host_services),
          'host_file_exchange_verified':passed and a.require_host_services,
+         'file_commands_verified':passed and a.require_file_commands,
          'network_host_udp_verified':passed and a.require_network_echo,
          'network_stack_address_verified':passed and a.require_network_stack,
          'network_config_verified':passed and a.require_network_config,'network_packets_verified':passed and a.require_network_packets,'network_irq_verified':passed and a.require_network_irq,'input_events_withheld':a.no_input_events,'desktop_session_seconds':a.require_desktop_session,'desktop_session_verified':passed and a.require_desktop_session is not None,

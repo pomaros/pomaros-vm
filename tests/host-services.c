@@ -6,6 +6,47 @@
 #include "client.c"
 static void services_mark(const char *s) { while(*s)RawPutChar(*s++); }
 static UBYTE fixture(unsigned offset) { return (UBYTE)(offset*37+offset/251); }
+static int run_command(UBYTE *arguments,LONG expected)
+{
+    BPTR program=LoadSeg((CONST_STRPTR)"SYS:C/VMExchange");
+    if(!program)return 0;
+    LONG result=RunCommand(program,65536,arguments,strlen((char *)arguments));
+    UnLoadSeg(program);
+    return result==expected;
+}
+static int command_files(void)
+{
+    BPTR request=Lock((CONST_STRPTR)"SYS:FILECOMMANDS.REQ",ACCESS_READ);
+    if(!request)return 1;
+    UnLock(request);
+    /* The preceding filesystem qualification left this isolated volume
+       inhibited. Reattach it before exercising the actual DOS CLI paths. */
+    if(!Inhibit((CONST_STRPTR)"VMTEST0:",DOSFALSE))return 0;
+    const char *destination="VMTEST0:EXCHANGE.BIN";
+    BPTR prior=Lock((CONST_STRPTR)destination,ACCESS_READ);
+    if(prior) { UnLock(prior);destination="VMTEST0:EXCHANG2.BIN"; }
+    UBYTE put[]="PUT VMTEST0:DATA/KEPT.BIN command-upload.bin\n";
+    UBYTE get[128];
+    __builtin_snprintf((char *)get,sizeof(get),"GET command-upload.bin %s\n",destination);
+    int okay=run_command(put,0) && run_command(get,0) && run_command(get,20);
+    BPTR file=okay?Open((CONST_STRPTR)destination,MODE_OLDFILE):0;
+    if(!file)okay=0;
+    if(file) {
+        UBYTE data[4096];
+        for(unsigned offset=0;okay && offset<65536;offset+=sizeof(data)) {
+            if(Read(file,data,sizeof(data))!=sizeof(data)) { okay=0;break; }
+            for(unsigned i=0;i<sizeof(data);++i) {
+                unsigned at=offset+i;
+                if(data[i]!=(UBYTE)((at*37+11)^(at>>8))) { okay=0;break; }
+            }
+        }
+        if(okay && Read(file,data,1)!=0)okay=0;
+        if(!Close(file))okay=0;
+    }
+    if(!Inhibit((CONST_STRPTR)"VMTEST0:",DOSTRUE))okay=0;
+    if(okay)services_mark("[VM] VMExchange CLI put get no-replace PASS\n");
+    return okay;
+}
 int test_host_services(void)
 {
     struct VMExchangeClient c;int okay=0;UBYTE data[4096];ULONG got=0;
@@ -34,13 +75,10 @@ int test_host_services(void)
     okay=1;
 close:VMExchangeClose(&c);
     if(okay) {
-        services_mark("[VM] VMExchange LoadSeg begin\n");
-        BPTR program=LoadSeg((CONST_STRPTR)"SYS:C/VMExchange");
-        services_mark(program?"[VM] VMExchange LoadSeg ready\n":"[VM] VMExchange LoadSeg FAIL\n");
         UBYTE arguments[]="HELLO\n";
-        okay=program && RunCommand(program,65536,arguments,6)==0;
-        if(program)UnLoadSeg(program);
+        okay=run_command(arguments,0);
         if(okay)services_mark("[VM] VMExchange command hello PASS\n");
+        if(okay)okay=command_files();
     }
 done:services_mark(okay?"[VM] host file put get containment PASS\n":"[VM] host file put get containment FAIL\n");return okay;
 }

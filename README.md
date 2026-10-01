@@ -46,6 +46,7 @@ progress, [portable architecture](docs/PORTABILITY.md), and [provenance](docs/PR
 
 The optional [host file service](docs/HOST-SERVICES.md) exposes the VM state's
 `Shared` directory over virtio-vsock (`--host-services`). Its VZ qualification
-covers 64 KiB upload/readback and the standalone `VMExchange HELLO` command;
-CLI file operations and automatic clipboard integration are tracked in
+covers 64 KiB upload/readback and the standalone `VMExchange HELLO` command.
+CLI PUT/GET also pass on the isolated guest FAT volume across a VM restart.
+Desktop integration and automatic clipboard sharing are tracked in
 [stage 6](docs/STAGE6.md).

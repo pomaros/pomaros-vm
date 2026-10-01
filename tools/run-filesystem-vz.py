@@ -13,6 +13,7 @@ import subprocess
 root = Path(__file__).resolve().parents[1]
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--disk', type=Path, required=True)
+p.add_argument('--file-exchange', action='store_true')
 p.add_argument('--output', type=Path, required=True)
 a = p.parse_args()
 base, total = 64*1024*1024, 80*1024*1024
@@ -37,13 +38,13 @@ subprocess.run(['mcopy','-i',str(volume),str(seed),'::SEED.TXT'],check=True)
 with image.open('ab') as f: f.write(volume.read_bytes())
 expected = bytes(((i*37+11)^(i>>8))&255 for i in range(65536))
 verdict = {'result': 'FAIL', 'reason': 'not-run', 'backend': 'Virtualization.framework',
-           'input_sha256': hashlib.sha256(a.disk.read_bytes()).hexdigest(), 'phases': []}
+           'input_sha256': hashlib.sha256(a.disk.read_bytes()).hexdigest(), 'file_exchange':a.file_exchange, 'phases': []}
 try:
     for phase in ['write', 'restart']:
         out = a.output/phase
         run = subprocess.run(['python3', str(root/'tools/run-vz.py'), '--disk', str(image),
             '--output', str(out), '--require-pci-hidd', '--require-msi-frame',
-            '--require-msi-irq', '--require-virtio-device', '--filesystem-phase', phase, '--timeout', '20'],
+            '--require-msi-irq', '--require-virtio-device', '--filesystem-phase', phase, '--timeout', '20'] + (['--require-file-commands'] if a.file_exchange else []),
             capture_output=True, text=True)
         (a.output/f'{phase}-runner.log').write_text(run.stdout+run.stderr)
         if run.returncode: raise RuntimeError(f'{phase}-guest-gate')
@@ -61,6 +62,14 @@ try:
             raise RuntimeError(f'{phase}-host-seed-content')
         pending = subprocess.run(['mtype','-i',str(saved),'::DATA/PENDING.BIN'],capture_output=True)
         if not pending.returncode: raise RuntimeError(f'{phase}-rename-left-old-file')
+        if a.file_exchange:
+            for name in ['EXCHANGE.BIN']+(['EXCHANG2.BIN'] if phase=='restart' else []):
+                fetched=subprocess.run(['mtype','-i',str(saved),'::'+name],capture_output=True)
+                if fetched.returncode or fetched.stdout!=expected:
+                    raise RuntimeError(f'{phase}-downloaded-file-content-{name}')
+            listing=subprocess.run(['mdir','-b','-i',str(saved),'::'],capture_output=True,text=True,check=True)
+            if '.vmexchange-' in listing.stdout.lower():
+                raise RuntimeError(f'{phase}-temporary-download-leftover')
         verdict['phases'].append({'phase': phase, 'file_sha256': hashlib.sha256(read.stdout).hexdigest(),
                                   'disk_sha256': hashlib.sha256(image.read_bytes()).hexdigest()})
     verdict.update(result='PASS', reason='guest-files-host-files-fresh-vm-read')
