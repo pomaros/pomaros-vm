@@ -646,3 +646,30 @@ boot/arosboot and include, built with `make AROS_CORE_SOURCE=/Users/jkn/Source/a
 produce identical EFI bytes matching the qualified desktop loader. App packaging
 also produces identical signed file bytes and modes from frozen inputs. None
 of these claims closes the remaining updated full guest/SDK rebuild comparison.
+
+### Complete current guest comparison and build epoch
+
+New configurations default SOURCE_DATE_EPOCH to the core commit timestamp.
+`--source-date-epoch` (or SOURCE_DATE_EPOCH while configuring) selects an explicit
+epoch. The helper validates it, records vm-build-environment.json, and writes
+make.opts defaults so ordinary later make invocations use the same date. Explicit
+environment/make overrides remain possible; changing epoch requires a fresh build.
+Generic command/filesystem version-date recipes use the shared UTC date when an
+epoch is supplied; ordinary core builds without one retain local-date behavior.
+GNU make 3.81 needs an explicit validated epoch argument to the date helper:
+makefile exports alone do not reach its $(shell) expressions.
+
+```sh
+python3 tests/build-date.py
+python3 tools/rebuild-compare.py --output "$HOME/Build/macaros-vm/repro-current-20261001"
+```
+
+The comparison tool freezes a clean core clone (preserving repository identity
+and disabling pushes), snapshots the configure helper, and creates two new build
+directories. Each compiles the desktop, SDK, virtio/USB drivers, base commands,
+AROSTCP/DHCP, clipboard, VMExchange and VMSync. It compares every AROS product/SDK
+file and symlink plus stage2, not just packaged modules. Four jobs per build by
+default; targets within each build run sequentially to avoid generator races.
+Progress/logs and the final strict verdict remain in the output directory. It
+never reuses objects from an existing native/VM build. A RUNNING verdict or a
+successful configure is not a completed comparison.

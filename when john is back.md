@@ -3168,3 +3168,30 @@ in USER_CPPFLAGS/ADATE; other command recipes also do this. Fix the explicit
 build epoch before claiming cross-date reproducibility. No SMP or M1 work.
 The qualified app-ready package remains usable; its earlier launcher was not
 silently replaced. New deterministic packaging/compiler changes are in source.
+
+## Current guest build epoch and complete comparison driver — 2026-10-01
+
+Core d3301fb648 centralizes dotted/ISO version dates in config/make.cfg.in,
+using scripts/build-date.py. Generic rom/workbench recipes and the shared
+all-native command recipes now honor SOURCE_DATE_EPOCH in UTC. Architecture-
+specific recipes outside the VM path were left alone; this is not a claim to
+have removed every wall-clock reference in every AROS target. No SMP changes.
+Without an epoch, ordinary core builds retain current local dates.
+Invalid/empty/negative/out-of-range epochs fail rather than embedding an empty
+date. GNU make 3.81's $(shell) ignores makefile exports, so the macro validates
+numeric content and passes an explicit argument. Recipe processes inherit the
+export for compiler __DATE__/__TIME__ handling.
+
+VM configure now validates and records the source commit epoch by default,
+persists defaults in generated make.opts, and records vm-build-environment.json.
+Caller overrides remain explicit; fresh builds are required when epoch changes.
+tests/build-date.py PASS10: UTC across two timezones, leap day/epoch zero,
+propagation from a makefile value into helper and recipe process, invalid refusal.
+
+New tools/rebuild-compare.py freezes the core and configure helper, initializes
+pinned catalogs, then builds 19 complete desktop/integration targets in each of
+two new output directories. Preserves original origin URL for DOS build identity;
+snapshot push URL is disabled. Inventories include all AROS/SDK files, modes,
+symlink targets and stage2. No comparison success is claimed before its final
+verdict. The next run uses the new core epoch changes and includes the components
+missing from the old 18,069-file comparison.
