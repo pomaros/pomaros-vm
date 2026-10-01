@@ -26,7 +26,8 @@ if not toolchain.is_dir():
 # Catalogs are source submodules, not optional pre-generated build artifacts.
 # Fetch exactly the pinned revisions required by core and desktop workloads.
 subprocess.run(['git', '-C', str(source), 'submodule', 'update', '--init', '--',
-                'rom/dos/catalogs', 'workbench/libs/asl/catalogs',
+                'rom/dos/catalogs', 'workbench/c/LoadResource/catalogs',
+                'workbench/c/R/catalogs', 'workbench/libs/asl/catalogs',
                 'workbench/libs/muimaster/catalogs',
                 'workbench/system/Wanderer/Catalogs'], check=True)
 command = [str(source / 'configure'), '--target=apple-aarch64',

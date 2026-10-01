@@ -9,10 +9,10 @@ The headless qualification covers network configuration, raw DHCP traffic,
 interrupt delivery, SANA-II lifecycle, an actual AROSTCP DHCP lease and a UDP
 socket round trip to a host peer. The peer receives and returns a per-run
 32-byte random challenge. The connected guest socket verifies source and bytes;
-no public echo service is required. This is not DNS, TCP, Internet-access or
-sustained-traffic qualification. Desktop automatic startup and DNS probes are implemented but not qualified:
-the combined desktop currently fails its foreground acceptance before DNS runs.
-The working headless DHCP/UDP evidence does not qualify this desktop path.
+no public echo service is required. A separate combined desktop run passes automatic AROSTCP startup, DHCP and
+resolution of example.com through the DHCP-provided DNS server while Wanderer,
+USB/HID and clipboard synchronization run. This is not TCP, HTTP or
+sustained-traffic qualification.
 
 ## Host peer and guest gate
 
@@ -39,14 +39,14 @@ peer used the host Wi-Fi address. Do not infer a driver fault or a general NAT
 restriction from those failures. Exact runs and identities are recorded in
 [`when john is back.md`](../when%20john%20is%20back.md).
 
-## Desktop integration candidate
+## Desktop integration
 
 `tools/package-core.py --profile wanderer --virtio-gpu --usb-desktop
 --host-services --network-stack --desktop-session forever` includes the
 resident SANA driver and starts AROSTCP from Startup-Sequence. Network commands,
-dependencies and configuration use the expanded 16 MiB SYS image. Logs go to
-`RAM:AROSTCP.log`; command output goes to `RAM:AROSTCP-startup.log`.
-Launch this candidate with `--gpu --usb-input --host-services --network` so
+dependencies and configuration use the expanded 16 MiB SYS image. Startup first creates RAM:T and assigns T: with standard AROS MakeDir/Assign.
+Logs go to `T:AROSTCP.log`; command output goes to `T:AROSTCP-startup.log`.
+Launch this package with `--gpu --usb-input --host-services --network` so
 the requested virtual devices are present.
 `CONSOLENAME` is not enabled in this AROSTCP build and must not be configured.
 
@@ -59,8 +59,10 @@ the DHCP-provided nameservers. No fixed resolver or hosts entry is installed.
 The headless variant is `--network-dns --pci-hidd` with runner
 `--require-network-dns --require-pci-hidd`.
 
-The desktop candidate remains unqualified. Its foreground failure is preserved
-rather than bypassed; kernel diagnostics capture bounded window titles on that
-failure path. A later passing DNS marker is required before treating name
-resolution as established. A positive DNS result would still not qualify TCP,
-HTTP or sustained Internet traffic.
+The combined desktop gate passes a 20-second guest hold. The original startup
+failure was a DOS requester from the DHCP client for missing T:. Standard
+temporary-directory setup resolves it; the foreground/requester exclusion stays
+unchanged. Kernel failure diagnostics retain bounded window titles, and DOS
+ErrorReport records requester task/error/volume/device before waiting for input.
+DNS is qualified through the public resolver on a fresh stack without a seeded
+hosts entry. TCP, HTTP and sustained Internet traffic remain unqualified.

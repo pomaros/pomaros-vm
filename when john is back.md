@@ -2834,3 +2834,50 @@ Diagnostic core commit: 545f66dabf. Prepared but unrun candidate:
 artifacts/desktop-network-dns-diagnostic.img, with packaging/provenance under
 artifacts/desktop-network-dns-diagnostic-bundle. Reproduce using the desktop
 network and clipboard runner flags from docs/NETWORK.md and docs/CLIPBOARD.md.
+
+## Desktop network failure identified and corrected: missing T:
+
+artifacts/vz-desktop-network-dns-diagnostic FAIL3.03s identifies an untitled
+Wanderer window at the front plus a System requester behind it. The blocking
+condition was the requester exclusion, not another foreground window alone.
+Added DOS ErrorReport task/error/volume/device serial evidence immediately before
+display, preserving suppression and Retry/Cancel semantics (core d6ee88aca9).
+artifacts/vz-desktop-network-requester FAIL2.96s records the exact cause:
+[DOS] requester task=AROSTCP DHCP client code=218 volume=T device=-.
+This supersedes the earlier unproven logging/foreground hypotheses.
+
+Desktop startup now includes standard AROS MakeDir/Assign, creates RAM:T and
+assigns T: before launching services. AROSTCP logs use T:AROSTCP.log and
+T:AROSTCP-startup.log. All desktop packages use the existing 16MiB SYS expansion;
+the small FAT12 image is only the seed. No network driver or resolver changes.
+
+Building workbench-c exposed absent pinned LoadResource and R catalog submodules.
+Initialized b84bda0fa63c0dfc7945749a0fdaf08cb3d0c46e and
+ed5d3b16fd320735ad962b56da00ab6fe5f9b21d; fresh configure now initializes both.
+Full workbench-c build then PASS; MakeDir/Assign are consumed from that build.
+The earlier frozen 18,069-file reproducibility comparison did not include these
+additional base-command products; do not extend its claim to them.
+
+artifacts/vz-desktop-network-temp PASS23.02s with a 20-second guest hold:
+normal AROSTCP Startup-Sequence launch, DHCP192.168.64.6, DNS server192.168.64.1,
+gethostbyname(example.com) ->172.66.147.243, Wanderer foreground/USB-HID/ticks,
+actual VMSync daemon text/images/no-echo and foreground-session contention.
+No static DNS/hosts entry or foreground waiver. TCP/HTTP, GUI editing commands
+and prolonged reliability remain separate. Named host clipboard only.
+Disk be627affbea6df4420a49f1a65bb673ff1ef2f8810c8796ed8bd1e60ec844b88;
+launcher b2e99ffd87dc3b645ef7ad9a72c82d5ae12a5b1dd7cbefd8283acd81d9fc23b3;
+bundle ed74274dccb6b4f584e28b479ac69a689103faf0f04ed2546f7c4180271afda9;
+SYS b6a8a8c5c267583b656dec10f1fc5fbc2b216c63c2338afcde33a015db74bcba.
+Core d6ee88aca9 includes both diagnostics. Three short runs in this step:
+two diagnostic failures, then the corrected combined pass; no further runs.
+
+Next product boundary: persistent desktop work storage (the current persistent
+FAT proof uses an isolated test volume, while embedded SYS is RAM-backed), TCP
+usage and remaining visual/GPU IRQ and complete-current-build acceptance. Keep
+the full stage-six goal active; no SMP/M1 work was done.
+Captured-log marker admission also passes 48 positive/negative cases in
+artifacts/desktop-network-marker-controls.json. Build logs are preserved as
+artifacts/base-commands-missing-catalogs.log, base-commands-complete.log and
+dos-requester-build.log. Base command Makefiles also contain wall-clock ADATE
+macros (for example Mount/SetClock); a complete cross-date reproducibility claim
+must account for these rather than reuse the frozen subset comparison.

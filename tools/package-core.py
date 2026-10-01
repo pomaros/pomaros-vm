@@ -167,7 +167,7 @@ if a.network_stack:
         'netdb':'WITH interfaces PREFIX=I\n',
     }
     if a.profile=='wanderer':
-        configs['general.config'] += 'LOGFILENAME=RAM:AROSTCP.log\n'
+        configs['general.config'] += 'LOGFILENAME=T:AROSTCP.log\n'
     for name,content in configs.items():
         config_file=output/('net-'+name);config_file.write_text(content)
         pci_files.append(('System/Network/AROSTCP/db/'+name,config_file))
@@ -190,10 +190,12 @@ if a.usb_desktop:
     pci_files += [(rel,sdk/'AROS'/rel) for rel in ['Libs/poseidon.library',
         'Devs/USBHardware/pcixhci.device','Classes/USB/hub.class',
         'Classes/USB/hubss.class','Classes/USB/hid.class']]
+if a.profile=='wanderer':
+    pci_files += [(rel,sdk/'AROS'/rel) for rel in ['C/Assign','C/MakeDir']]
 desktop_services = a.host_services and a.profile=='wanderer'
-expanded_system = a.network_stack or desktop_services
+expanded_system = a.network_stack or a.profile=='wanderer'
 def deferred_file(rel):
-    return (a.network_stack and (rel.startswith('System/Network/') or rel in {'VMNET','Libs/rexxsyslib.library','Libs/commodities.library','Libs/keymap.library','Devs/Networks/virtionet.device'})) or (desktop_services and rel in {
+    return (a.profile=='wanderer' and rel in {'C/Assign','C/MakeDir'}) or (a.network_stack and (rel.startswith('System/Network/') or rel in {'VMNET','Libs/rexxsyslib.library','Libs/commodities.library','Libs/keymap.library','Devs/Networks/virtionet.device'})) or (desktop_services and rel in {
         'C/VMExchange','C/VMSync','Devs/clipboard.device','Devs/vmbridge.device','VMCLIP'})
 ramdisk = output / 'SYS.img'
 image_command = ['python3', str(root / 'tools/make-fat12-image.py'), '--abi-probe', str(probe)]
@@ -229,14 +231,16 @@ if a.clipboard_probe:
         'Run >NIL: SYS:C/VMSync\nRun >NIL: SYS:VMCLIP\n',1)
     pci_files.append(('VMCLIP',clipboard_command))
 if a.network_stack and a.profile=='wanderer':
-    startup_lines='Run >RAM:AROSTCP-startup.log SYS:System/Network/AROSTCP/C/AROSTCP\n'+(startup_lines or 'G4Ready\nEndCLI\n')
+    startup_lines='Run >T:AROSTCP-startup.log SYS:System/Network/AROSTCP/C/AROSTCP\n'+(startup_lines or 'G4Ready\nEndCLI\n')
 if a.network_probe:
     network_command=output/'VMNET'
     subprocess.run([str(root/'tools/build-abi-probe'),'--sdk',str(sdk),
         '--crosstools',str(a.toolchain.resolve()),'--profile','desktop-network',str(network_command)],check=True)
-    startup_lines=startup_lines.replace('Run >RAM:AROSTCP-startup.log SYS:System/Network/AROSTCP/C/AROSTCP\n',
-        'Run >RAM:AROSTCP-startup.log SYS:System/Network/AROSTCP/C/AROSTCP\nRun >NIL: SYS:VMNET\n',1)
+    startup_lines=startup_lines.replace('Run >T:AROSTCP-startup.log SYS:System/Network/AROSTCP/C/AROSTCP\n',
+        'Run >T:AROSTCP-startup.log SYS:System/Network/AROSTCP/C/AROSTCP\nRun >NIL: SYS:VMNET\n',1)
     pci_files.append(('VMNET',network_command))
+if a.profile=='wanderer':
+    startup_lines='SYS:C/MakeDir RAM:T\nSYS:C/Assign T: RAM:T\n'+(startup_lines or 'G4Ready\nEndCLI\n')
 if startup_lines is not None:
     startup=output/'Startup-Sequence'
     startup.write_text(startup_lines)

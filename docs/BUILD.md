@@ -133,8 +133,8 @@ configure command and log, and selects `--enable-vm-guest`. This profile exports
 `AROS_VM_GUEST=1` to generated makefiles and omits the native x18 reservation
 from C and C++ flags. Other targets cannot select this profile; the physical
 Apple default retains its existing flags. This creates no copy of native
-object files. It initializes the four pinned catalog submodules required by
-DOS, ASL, muimaster and Wanderer before configuring.
+object files. It initializes the pinned catalog submodules required by DOS, base commands
+(LoadResource/R), ASL, muimaster and Wanderer before configuring.
 
 The packager consumes ordered paths in `boot/headless-modules.json` or
 `boot/wanderer-modules.json`,
@@ -148,11 +148,16 @@ comparing two independent complete builds. Build and package the desktop with:
 
 ```sh
 make -C "$HOME/Build/macaros-vm/clean-core" -j8 apple-wanderer-payloads
+make -C "$HOME/Build/macaros-vm/clean-core" -j8 workbench-c
 python3 tools/package-core.py --build "$HOME/Build/macaros-vm/clean-core" \
   --efi build/uefi-clean/BOOTAA64.EFI --profile wanderer --output build/fresh-wanderer
 python3 tools/run-qemu.py --esp build/fresh-wanderer --output artifacts/fresh-desktop \
   --require-timer --require-irq-chain --gic-version 3
 ```
+
+The desktop package includes the standard Assign and MakeDir commands, creates
+RAM:T and assigns T: before services start. Desktop SYS uses the expanded
+16 MiB FAT layout; a 1.44 MiB seed is a packaging intermediate.
 
 This uses QEMU's framebuffer. It does not qualify the VZ virtio GPU or input
 devices. The desktop's source and binary identities are in package provenance;
