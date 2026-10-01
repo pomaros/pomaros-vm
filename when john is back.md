@@ -3068,3 +3068,42 @@ explicitly promise flock semantics; the live second-instance test will establish
 observed behavior. The earlier unit proof of our disk flock is superseded.
 A documentation edit accidentally overwrote this handoff with BUILD.md; restored
 its complete prior contents from 07613bf before packaging or publishing.
+
+## Standalone application qualified — 2026-10-01
+
+Usable package: artifacts/app-ready/Macaros VM.app. Built from clean VM db69e5a
+(code implementation 07613bf + VZ lease correction 44899fb), core 8b6693cc27,
+using the probe-free desktop-safe-quit guest bundle. codesign --verify --strict
+passes; private ad-hoc signature, no notarization/public distribution claim.
+The obsolete artifacts/Macaros VM.app is the failed disk-flock build retained
+for diagnosis; use the app-ready package.
+
+artifacts/vz-standalone-app-ready/verdict.json PASS 7.71 s. Ran the executable
+inside the signed app in bundled mode, with isolated state override and
+--headless --gpu --usb-input --clipboard-test. This exercises resource lookup,
+first-launch copy, normal desktop/HID startup, private clipboard and SIGTERM
+shutdown acknowledgement. The test did not launch Finder or inspect pixels.
+The bundled seed remains byte-identical after guest shutdown. During the live
+VM, a second bundled instance with the same state is refused by the state lock;
+a separate CLI instance with a different state and the same disk is refused by
+VZ (storage attachment invalid). This experimentally verifies disk exclusivity
+for this platform/SDK, without layering our own conflicting flock on the disk.
+
+Seed SHA256: a890885d9d382ade095fb02aaf549295b15ac9e80bc0a8284a6779cbe42da33d
+Launcher SHA256: 926f85f9735f7c8167d90ad4558a997ae8d6934b9f8098d817c2f9b17c1fa474
+Actual state, console, refusal logs and ephemeral qualification script are under
+artifacts/vz-standalone-app-ready and artifacts/qualify-app-ready.py.
+Host storage unit tests separately verify seed updates never replace personal
+bytes, failed-copy recovery and symlink refusal. Earlier disk-flock test/build
+failure retained; one successful bundled VZ boot, no repetitive qualification.
+
+Opening app-ready/Macaros VM.app normally needs no arguments and creates/reuses
+~/Library/Application Support/Macaros VM/Default. Our test did not touch that
+normal directory or the general Mac pasteboard. The app includes a Quit menu;
+GUI click behavior and VZ pixels remain outside this run's proof.
+
+Next: remaining stage-six gates, especially VZ visual acceptance/GPU IRQ,
+updated complete reproducible build, TCP and bounded sustained desktop use.
+The standalone app milestone does not complete the full goal. No SMP or M1
+operations performed. Protocol/first-copy paths remain reusable host tooling;
+AROS portable hardware requirements and physical Pi proofs remain distinct.

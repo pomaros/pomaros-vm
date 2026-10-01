@@ -42,3 +42,10 @@ network callback before processing completions. Both queues share the registered
 PCI vector; packet draining stays in task context. The transport supports MTU up
 to 1500 and requires
 coherent PCI DMA; physical-platform cache/IOMMU contracts need separate work.
+
+Standalone application: `tools/package-app.py` produces a private signed .app
+with a probe-free seed. Bundled VZ mode passes first-launch copy, desktop/HID
+startup, state/disk exclusivity and guest-acknowledged shutdown; host tests prove
+later seed changes preserve personal disk bytes. Normal location is Application
+Support/Macaros VM/Default. This is not Finder-click or VZ pixel verification,
+and app/launcher/updated guest reproducibility still needs comparison.
