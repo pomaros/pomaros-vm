@@ -44,7 +44,7 @@ def build_runtime(a):
     _, source = config(a.build)
     modules = subprocess.check_output(['git', '-C', str(source), 'config', '--file', '.gitmodules', '--get-regexp', 'path'], text=True)
     paths = [line.split(' ', 1)[1] for line in modules.splitlines()]
-    paths = [p for p in paths if p.startswith('workbench/') and p.lower().endswith(('/catalogs', '/translations'))]
+    paths = [p for p in paths if p.lower().endswith(('/catalogs', '/translations'))]
     run(['git', '-C', source, 'submodule', 'update', '--init', '--jobs', '4', '--', *paths])
     targets = json.loads((ROOT / 'distribution/targets.json').read_text())
     batch = a.build / 'vm-distribution.mk'
