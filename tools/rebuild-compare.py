@@ -47,18 +47,47 @@ save()
 
 def build_one(label):
     build=a.output/('build-'+label);steps=[];started=time.monotonic()
-    with (a.output/('build-'+label+'.log')).open('w') as log:
-        for target in targets:
-            result=subprocess.run(['make','-C',str(build),'-j'+str(a.jobs),target],env=env,stdout=log,stderr=subprocess.STDOUT)
-            steps.append({'target':target,'returncode':result.returncode})
-            outcome={'build':str(build),'steps':steps,'seconds':round(time.monotonic()-started,2),'returncode':result.returncode}
+    # One ordinary target establishes the toolchain, feature configuration and
+    # generated prerequisites. Then retain one MetaMake graph for the rest:
+    # its main loop executes targets sequentially and shares dependency state.
+    # Going through CALL also supplies the mandatory host/target environment.
+    batch=a.output/('batch-'+label+'.mk')
+    batch.write_text('.PHONY: vm-comparison-batch\nvm-comparison-batch:\n\t@+$(CALL) $(MMAKE) $(MMAKE_OPTIONS) '+
+                     ' '.join('AROS.'+target for target in targets[1:])+'\n')
+    commands=[([targets[0]],['make','-C',str(build),'-j'+str(a.jobs),targets[0]]),
+              (targets[1:],['make','-C',str(build),'-j'+str(a.jobs),'-f','Makefile',
+                            '-f',str(batch),'vm-comparison-batch'])]
+    logfile=a.output/('build-'+label+'.log')
+    with logfile.open('w') as log:
+        for group,command in commands:
+            result=subprocess.run(command,env=env,stdout=log,stderr=subprocess.STDOUT)
+            log.flush()
+            # MetaMake historically returns zero for unknown targets. A large
+            # SDK alone cannot turn an omitted driver into a successful build.
+            unknown='Nothing known about' in logfile.read_text(errors='replace')
+            code=result.returncode or (1 if unknown else 0)
+            if code:steps.append({'targets':group,'returncode':code,'unknown_target':unknown})
+            else:steps.extend({'target':target,'returncode':0} for target in group)
+            outcome={'build':str(build),'steps':steps,'seconds':round(time.monotonic()-started,2),'returncode':code}
             (a.output/('build-'+label+'-progress.json')).write_text(json.dumps(outcome,indent=2)+'\n')
-            print(f'{label} {target} rc={result.returncode}',flush=True)
-            if result.returncode:break
+            print(f'{label} targets={len(group)} rc={code}',flush=True)
+            if code:break
     return outcome
 
 def inventory(label):
     sdk=a.output/('build-'+label)/'bin/apple-aarch64'
+    required=['Devs/Drivers/virtiogfx.hidd','Devs/Drivers/vmpci.hidd',
+              'Devs/virtio.device','Devs/USBHardware/pcixhci.device',
+              'Classes/USB/hub.class','Classes/USB/hubss.class','Classes/USB/hid.class',
+              'Devs/Networks/virtionet.device','System/Network/AROSTCP/C/AROSTCP',
+              'System/Network/AROSTCP/C/dhclient','Devs/vmbridge.device','Devs/clipboard.device',
+              'C/VMExchange','C/VMSync','C/Assign','C/MakeDir','C/Mount','C/LoadResource',
+              'Libs/rexxsyslib.library','Libs/commodities.library','Libs/keymap.library',
+              'System/Wanderer/Wanderer','boot/apple/Devs/kernel.resource','Libs/dos.library']
+    for name in required:
+        with (sdk/'AROS'/name).open('rb') as stream:header=stream.read(20)
+        if len(header)!=20 or header[:6]!=b'\x7fELF\x02\x01' or header[18:20]!=b'\xb7\x00':
+            raise RuntimeError('required AArch64 ELF missing or invalid: '+name)
     products={}
     for path in sorted((sdk/'AROS').rglob('*')):
         name=path.relative_to(sdk).as_posix()

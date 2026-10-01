@@ -3370,3 +3370,35 @@ this is not a Finder-click or VZ-pixel proof.
 Frozen full-build comparison20748/exec46525 remains live at27m27; both desktop
 and PCI targets passed, virtio targetA passed. Original source d3301fb648 unchanged;
 its eventual verdict excludes subsequent GPU/MSI fixes and this app overlay.
+
+## Complete-build orchestration efficiency and admission — 2026-10-01
+
+Inspection explains much of the repeated work: each generic top-level target's
+.DEFAULT recipe reruns crosstools-toolchain and features before launching
+MetaMake. Future rebuild-compare.py runs now bootstrap once with the first target,
+then use a generated second makefile to invoke one MetaMake process for the
+remaining 18 roots. MetaMake's own target loop is sequential and retains dependency
+state; this does not reintroduce parallel meta-target/genmf races. Inner make
+parallelism stays at the requested job count.
+
+Direct standalone MetaMake trial failed because host/target environment variables
+were absent; artifacts/mmake-sequential-batch.log retained. Corrected wrapper
+uses $(CALL) $(MMAKE) $(MMAKE_OPTIONS) from the configured Makefile. Two existing
+quick targets ran successfully through that wrapper (no code rebuild needed;
+MetaMake filters make's Nothing-to-be-done output). Log:
+artifacts/mmake-sequential-batch-via-make.log. This establishes invocation and
+environment, not fresh full 19-target acceptance of the optimized driver.
+
+Comparison rejects MetaMake's historically zero-exit unknown-target diagnostic.
+Inventory additionally requires 24 named AArch64 ELF products before hashing the
+entire SDK. Actual function checked 18,285 entries in existing clean-core and
+rejected an invalid required-driver header; artifacts/rebuild-inventory-check/
+verdict.json. This is an inventory contract test, not independent build evidence.
+
+The already-running comparison remains untouched, with its original frozen
+helper/source and per-target sequence. Supervisor 20748/exec 46525 was live at
+37m36; both hubss targets finished. Intermediate six-component observation
+(kernel/DOS/Wanderer/GPU/PCI/block) matches in both directories, stored in
+repro-current-20261001/completed-component-observation.json. Full verdict remains
+pending. Do not silently attribute optimized scheduling or newer core fixes to
+that original run. No guest boot or SMP changes this turn.

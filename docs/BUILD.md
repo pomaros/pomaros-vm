@@ -725,3 +725,14 @@ replacement. Both inputs remain untouched. A running VZ disk lease, symlink,
 unsupported layout or existing destination is refused. New profile machine/network
 identity is generated normally; this command copies disk data, not host Shared
 files or firmware state. Keep the old profile as the rollback copy.
+
+The complete comparison driver bootstraps each empty output with the first
+ordinary target, then executes the remaining targets in one MetaMake process.
+MetaMake retains dependency state and processes those roots sequentially; `-j`
+applies inside the build, avoiding concurrent graph generators. The generated
+batch makefile invokes the configured `CALL` wrapper, which supplies mandatory
+host/target variables. A bare direct MetaMake invocation lacks that environment.
+Unknown-target diagnostics fail the comparison even if MetaMake exits zero.
+Before hashing the complete SDK, the inventory also requires 24 named commands,
+services and drivers to contain AArch64 ELF headers; file count alone is not
+coverage of those targets.
