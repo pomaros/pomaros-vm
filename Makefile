@@ -30,7 +30,7 @@ clean:
 	rm -rf build
 
 build/macaros-vm: Makefile src/main.swift src/VMStorage.swift src/HostServices.swift src/ClipboardCodec.swift src/ClipboardStore.swift entitlements.plist | build
-	swiftc -target arm64-apple-macos13.0 -O -whole-module-optimization -warnings-as-errors -framework AppKit -framework Virtualization src/main.swift src/VMStorage.swift src/HostServices.swift src/ClipboardCodec.swift src/ClipboardStore.swift -o $@
+	SWIFT_DETERMINISTIC_HASHING=1 swiftc -target arm64-apple-macos13.0 -O -whole-module-optimization -num-threads 1 -module-cache-path build/swift-module-cache -warnings-as-errors -framework AppKit -framework Virtualization src/main.swift src/VMStorage.swift src/HostServices.swift src/ClipboardCodec.swift src/ClipboardStore.swift -o $@
 	codesign --force --sign - --entitlements entitlements.plist $@
 
 build/vz-platform-test: tests/vz-platform.c boot/arosboot/vz_platform.c include/vm-console.h $(FDT_SOURCES) | build

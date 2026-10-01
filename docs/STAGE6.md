@@ -66,8 +66,10 @@ The clipboard service now has focused socket-pair recovery coverage: truncated
 headers/bodies, partial and complete unpublished uploads, new-connection state
 isolation, lost publication reply, stale retry refusal and subsequent successful
 publication on the same server. Private named pasteboards protect user content.
-This qualifies the host protocol state machine, not the guest daemon's recovery
-after a forced virtio-vsock failure. That end-to-end test remains open.
+The host-only test qualifies the protocol state machine. The separate integrated
+VZ gate below now also exercises recovery of an in-flight guest request and
+the automatically running guest clipboard client after an active connection
+is severed.
 
 ### Stage-six integrated recovery and image check (2026-10-01)
 
@@ -114,3 +116,17 @@ The final app uses the fresh `Distribution-Stage6` profile. Its normal first
 launch is qualified separately from the injected probes. The image should be
 visible in the macOS VM view; the guest pixel readback alone does not assert
 what the host presented.
+
+The same signed app also passed a normal, unpatched first launch in 11.56
+seconds: desktop and both HID bindings, GPU IRQ completion, state/disk
+exclusivity, unchanged seed and acknowledged guest shutdown. Evidence:
+`artifacts/vz-stage6-release-normal/verdict.json`. This is a bounded acceptance
+check; it does not substitute for John's visual inspection or long use.
+
+For the launcher build, two fresh, isolated source copies now compile with
+`SWIFT_DETERMINISTIC_HASHING=1`, whole-module optimization, one compiler thread
+and a build-local Swift module cache. Both signed launchers have SHA256
+`db00d7697aa48c756ef2b1288daa06110e959b36d1a70b3e1fdeb567a5717ff0`.
+Earlier cold builds with the default compilation options produced differing
+code bytes, so the Makefile now pins this tested recipe. The signed app still
+requires a fresh bounded VZ run after this launcher change.
