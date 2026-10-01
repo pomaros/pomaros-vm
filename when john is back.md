@@ -3796,3 +3796,31 @@ updates on distribution disks. Normal boot-only update, marker-only rejection,
 and older WORK:System rejection passed (artifacts/distribution-update-guard.json).
 Lost shutdown acknowledgement / failed VZ stop can leave SYS inhibited: this is
 documented, and that state must not be used as a live desktop.
+
+
+### Full desktop loader capacity and font geometry
+
+After adding kms, the VZ guest screenshot identified a jfif.library requester.
+The file was present at version52.6: this was not a missing codec. A paired
+negative control with the same kernel and runtime but the old16MiB boot
+reservation logged `[MM] code page arena exhausted: requested=14 used=1605
+capacity=1614 pages` (artifacts/distribution-arena-control/console.log).
+Core c826da4904 permits up to64MiB of executable pages in the VM; the VM packager
+reserves128MiB for the boot/module/page arena. Physical stage2 remains capped
+at8MiB. Allocation failures log page demand/use/capacity. With the larger
+reservation, VZ renders the complete background and icons; screenshot at
+artifacts/distribution-vz-capture-v5/screen.png. These diagnostic snapshots are
+read from the guest bitmap, not captures of the macOS VZView surface.
+
+The unchanged readiness gate then found a genuine layout defect: after IPrefs
+changed the font, screen1024x768/bar19 had a backdrop at0,15 sized1024x748,
+leaving its bottom at763. Wanderer's ShowMe path computed a new TopEdge but
+only applied width/height. Core7552cfc160 applies LeftEdge/TopEdge too. The
+Wanderer quick build passed; the final bundled app check follows.
+
+An attempted reuse of the native stage2-fdt-map host test did NOT pass. Its
+wrapper rejected worktree .git, then lacked the moved generic FDT include/link
+inputs; an isolated adapted wrapper compiled but its fixture returned
+wrong-profile. No native MMU or physical acceptance is inferred from it.
+Retained logs: artifacts/distribution-mmu-regression*.log. The VZ boot uses the
+actual enlarged arena and page tables, but is not a native hardware test.
