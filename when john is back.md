@@ -3127,3 +3127,44 @@ including a UTF-8 filename, roundtrip exactly through mtype; image bytes match.
 Existing output refusal preserves the image hash. These are host packaging
 proofs, not new guest boots or independent compilation. The app comparison
 will use the same frozen guest/launcher inputs, not claim a complete rebuild.
+
+## Launcher/EFI/application reproducibility — 2026-10-01
+
+App packaging: artifacts/app-repro-verdict.json PASS. Two independent signed
+packaging invocations from clean VM 91a0cbc, identical frozen guest bundle and
+pre-WMO launcher inputs, produce identical bytes and modes for all 11 app files,
+including signature resources. Seed SHA256
+d6b65eda08a8dff17df80097ecf9f334a28dd28932c48bc7e019ed979b226638.
+The files/individual hashes are recorded in that verdict. This is same-input
+packaging, not independent guest compilation or a reproducible archive claim.
+
+Launcher: actual independent per-file Swift -O builds differed, not just their
+signatures/UUIDs (section layout differed). Preserved initial verdict and both
+binaries in artifacts/launcher-repro-{a,b}; no unproven low-level compiler cause
+claimed. Whole-module optimization produces identical trial builds, then the
+actual Makefile recipe with WMO produces identical signed executables in the
+main checkout and a separate copied source/build tree. Current Makefile includes
+itself as a launcher prerequisite, so flag changes trigger a rebuild.
+artifacts/launcher-repro-verdict.json PASS SHA256
+06b6dfee5cc30e896aa7a96502f11bbb1505394a8c95ffab96384729cbf12840.
+The trial binary had a different output/module name; the accepted comparison
+uses the actual build/macaros-vm basename and entitlements in both trees.
+
+EFI: artifacts/efi-repro-verdict.json PASS. Two fresh source/output copies,
+same clean core 8b6693cc27 libfdt input and toolchain, match SHA256
+e6b21692a8a4b838e880c2cee89ff116a121b7e63e48fd42cd791ba77b53cc55,
+which is exactly the previously qualified build/uefi-desktop-session loader.
+No EFI change was needed; existing /timestamp:0 already supplies that part.
+Compiler/mtools/platform versions: artifacts/packaging-repro-tools.json.
+
+One targeted VM check for the changed Swift compilation: artifacts/vz-wmo-launcher-shutdown
+PASS 3.83 s, normal desktop/HID startup, host-request/guest-quiesce/host-ACK,
+exit0 and independent 65536-byte host readback. Uses the existing shutdown
+fixture, not a full new guest build; no repeated graphics/network suite.
+
+Remaining stage5 gap is the updated full guest/SDK comparison including network,
+vsock and base commands. workbench/c/mmakefile.src still injects wall-clock date
+in USER_CPPFLAGS/ADATE; other command recipes also do this. Fix the explicit
+build epoch before claiming cross-date reproducibility. No SMP or M1 work.
+The qualified app-ready package remains usable; its earlier launcher was not
+silently replaced. New deterministic packaging/compiler changes are in source.

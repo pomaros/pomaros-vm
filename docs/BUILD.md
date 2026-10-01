@@ -634,3 +634,15 @@ oppositely ordered trees, different mtimes/timezones, and verifies every file
 including a UTF-8 name. It also checks refusal to overwrite an existing output.
 This packaging comparison does not establish independent guest compilation or
 launcher/EFI reproducibility.
+
+Launcher release builds use Swift whole-module optimization. Independent normal
+per-file optimized builds differed; the WMO builds match in separate source and
+output directories after entitlements signing. The Makefile is a launcher
+prerequisite so changing build flags triggers recompilation. This was checked
+with the installed toolchain recorded in artifacts/packaging-repro-tools.json.
+
+The EFI makefile already fixes the PE timestamp to zero. Two fresh copies of
+boot/arosboot and include, built with `make AROS_CORE_SOURCE=/Users/jkn/Source/aros-core-vm`,
+produce identical EFI bytes matching the qualified desktop loader. App packaging
+also produces identical signed file bytes and modes from frozen inputs. None
+of these claims closes the remaining updated full guest/SDK rebuild comparison.
