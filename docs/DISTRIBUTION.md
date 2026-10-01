@@ -52,6 +52,13 @@ an already running VM and saves the choice for later boots. Users can choose
 another installed keymap with the same command. An existing profile keeps its
 own saved preference when a new app is packaged.
 
+The icon set named by `Prefs/Env-Archive/SYS/iconset.var` is installed during
+packaging. The selected set's `def_*.info` files go into
+`WORK:System/Prefs/Env-Archive/SYS`, where `icon.library` looks for defaults;
+icons for applications and drawers go beside objects actually shipped in the
+VM distribution. Preset icons for absent programs are left in the preset and
+do not create dead desktop entries. The current selected set is Gorilla.
+
 The distribution app uses the separate `Distribution` profile under
 `~/Library/Application Support/Macaros VM/`. Opening it does not replace the
 existing minimal `Default` profile. An explicit `MACAROS_VM_STATE_DIRECTORY`

@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import runpy
 import shutil
 import subprocess
@@ -114,6 +115,38 @@ def copy_runtime(sdk, destination):
         if icon.is_file():
             shutil.copy2(icon, destination / icon.name)
 
+
+def install_iconset(system):
+    """Install the selected preset's defaults and icons for shipped objects."""
+    name = (system / 'Prefs/Env-Archive/SYS/iconset.var').read_text().strip()
+    if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*', name):
+        raise ValueError('invalid iconset name')
+    source = system / 'Prefs/Presets/Icons' / name / 'Default/AROS'
+    if not source.is_dir() or source.is_symlink():
+        raise ValueError('selected iconset is missing: ' + name)
+    installed = []
+    for icon in sorted(source.rglob('*')):
+        if icon.is_symlink() or not (icon.is_file() or icon.is_dir()):
+            raise ValueError('invalid iconset entry: ' + str(icon))
+        if not icon.is_file():
+            continue
+        rel = icon.relative_to(source)
+        if icon.suffix.lower() != '.info':
+            raise ValueError('non-icon file in selected iconset: ' + str(rel))
+        default = (rel.parts[:3] == ('Prefs', 'Env-Archive', 'SYS')
+                   and icon.name.startswith('def_'))
+        target = system / rel
+        if not default and not target.with_suffix('').exists():
+            continue  # Do not expose icons for programs omitted from this VM.
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(icon, target)
+        installed.append(rel.as_posix())
+    if not {'Prefs/Env-Archive/SYS/def_Disk.info',
+            'Prefs/Env-Archive/SYS/def_Drawer.info',
+            'Prefs/Env-Archive/SYS/def_Tool.info'} <= set(installed):
+        raise ValueError('selected iconset lacks required desktop defaults')
+    return installed
+
 def package(a):
     sdk, source = config(a.build)
     if a.output.exists():
@@ -144,6 +177,9 @@ def package(a):
     # LoadKeymap RESTORE applies this on first boot. Later choices made with
     # LoadKeymap replace the saved preference on the user's own WORK volume.
     (system / 'Prefs/Env-Archive/Keymap').write_text('pc105_f\n')
+    installed_icons = install_iconset(system)
+    print(f'distribution iconset installed={len(installed_icons)} '
+          f'name={(system / "Prefs/Env-Archive/SYS/iconset.var").read_text().strip()}')
     shutil.copy2(ROOT / 'distribution/ReadMe', system / 'ReadMe')
     (system / 'Prefs/Env-Archive/SYS').mkdir(exist_ok=True)
     (system / 'Prefs/Env-Archive/SYS/theme.var').write_text('THEMES:AROSDefault\n')

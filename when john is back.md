@@ -4019,3 +4019,18 @@ devices or timed out because that probe runner waits for `[B2Q]` completion,
 whereas the distribution intentionally holds the desktop. The direct bundled
 launcher run above is the relevant acceptance for this disk. The user's
 existing profile disk was never replaced by the migrated test disk.
+
+2026-10-02, icon theme: the distribution shipped the Gorilla preset and
+`iconset.var=Gorilla` but did not install its `def_*.info` files into
+`WORK:System/Prefs/Env-Archive/SYS`, where icon.library reads default icons.
+`tools/distribution.py` now installs the selected preset's default icons and
+icons beside objects actually shipped, skipping icons for absent tools. On a
+real staged Stage6French tree, 153 icons were selected and `def_Disk.info`
+round-tripped byte-identically. An isolated patched seed booted in VZ with
+desktop/HID/graphics IRQ and guest-acknowledged WORK flush in 6.97s; local
+evidence is `artifacts/iconset-vz-1/verdict.json` and `console.log`. The running
+Distribution-Stage6Final profile was cleanly stopped, patched with the same
+153 icons, and relaunched. Its previous disk is hard-linked at
+`~/Library/Application Support/Macaros VM/Distribution-Stage6Final/.system-before-gorilla.img`.
+Host screen capture was denied, so a human visual check of the icons remains
+useful; this is not evidence of a visual regression.
