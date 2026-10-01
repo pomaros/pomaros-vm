@@ -3202,3 +3202,31 @@ PID 20748; log artifacts/repro-current-supervisor.log. Configuration A passed;
 B is in progress. Inspect the existing process/handle before any restart.
 verdict.json is RUNNING, not acceptance. Both revisions were pushed privately;
 board review 280 covers the epoch change and comparison driver.
+
+## Bounded desktop TCP stream — 2026-10-01
+
+One VZ run: artifacts/tcp-combined-verdict.json PASS, combining independent
+peer verdict (artifacts/tcp-peer) and strict guest desktop verdict
+(artifacts/vz-desktop-tcp). 64 KiB upload, host verifies every byte and challenge;
+64 KiB transformed response verified in guest, half-close and EOF checked.
+TCP uses nonblocking connect/SO_ERROR and partial-send/read loops with bounded
+readiness waits. Host deadline 90s; guest runner deadline 45s and desktop hold20.
+DHCP, public DNS lookup, USB/HID and real clipboard daemon gate also pass.
+No repeated run, no throughput, HTTP or sustained reliability claim.
+
+This fixture deliberately reuses the previously qualified core bundle from
+artifacts/desktop-network-temp-bundle, replacing only SYS's VMNET command and
+adding NETTCP.REQ. All non-SYS bundle component records were verified identical.
+This is not acceptance of the ongoing d3301fb648 rebuild. Exact original
+provenance, changed bundle/probe hashes and component assertion are recorded in
+artifacts/desktop-tcp-fixture/fixture.json; construction/run script retained at
+artifacts/qualify-tcp.py. Probe compiled against existing clean-core SDK.
+Probe SHA256 4a9a85ced61e31cc726312315f6950b412fd291d847d986e83ae0257ebcbbba7.
+Input bundle SHA256 59c3b53f14ac536652a6e4cd2ab47eba63d53d7ddc5e9047ff915a08a3975bf9.
+The TCP diagnostic prints stale errno36 after successful nonblocking connect;
+result1 and complete byte/EOF checks are the acceptance, not errno on success.
+
+Reproduction uses new network-tcp-server.py, package-core --network-tcp-request,
+and run-vz --require-network-tcp; see docs/NETWORK.md. Current full guest rebuild
+supervisor 20748/exec46525 remains live, configurations A/B PASS; no final build
+comparison verdict yet. No SMP or M1 work.

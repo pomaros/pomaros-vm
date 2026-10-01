@@ -30,6 +30,7 @@ def expected_markers(a):
     if getattr(a,'require_desktop_network',False): markers += ['[VM] AROSTCP socket library PASS','[VM] AROSTCP DHCP address PASS','[VM] desktop network autostart PASS']
     if getattr(a,'require_network_dns',False): markers += ['[VM] AROSTCP DHCP DNS lookup PASS']
     if a.require_network_stack: markers += ['[VM] AROSTCP socket library PASS','[VM] AROSTCP DHCP address PASS']
+    if getattr(a,'require_network_tcp',False): markers += ['[VM] AROSTCP TCP 64KiB duplex PASS']
     if a.require_network_echo: markers += ['[VM] AROSTCP host UDP exchange PASS']
     if a.require_input: markers += ['[VM] input observer ready','[VM] window keyboard and pointer PASS']
     if a.require_usb_desktop: markers += ['[VM] desktop two HID bindings PASS']

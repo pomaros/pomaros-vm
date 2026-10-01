@@ -11,6 +11,7 @@
 #include <netdb.h>
 #include <aros/debug.h>
 #include <string.h>
+#include <errno.h>
 
 struct Library *SocketBase;
 static void mark(const char *s) { while(*s)RawPutChar(*s++); }
@@ -43,6 +44,71 @@ static int test_socket_exchange(void)
 done:
     CloseSocket(fd);
     mark(okay?"[VM] AROSTCP host UDP exchange PASS\n":"[VM] AROSTCP host UDP exchange FAIL\n");
+    return okay;
+}
+/* Exercise stream segmentation and partial IO, not a single packet echo.
+ * The runner and host peer impose absolute deadlines; each readiness wait is
+ * also bounded. Endpoint/challenge format is shared with the UDP fixture. */
+static int tcp_ready(LONG fd,int writing)
+{
+    fd_set set;FD_ZERO(&set);FD_SET(fd,&set);
+    struct timeval timeout={0};timeout.tv_sec=2;
+    return WaitSelect(fd+1,writing?NULL:&set,writing?&set:NULL,
+                      NULL,&timeout,NULL)>0;
+}
+static int tcp_send_all(LONG fd,const UBYTE *data,unsigned length)
+{
+    while(length) {
+        if(!tcp_ready(fd,1))return 0;
+        LONG n=send(fd,data,length,0);
+        if(n<=0 || (unsigned)n>length)return 0;
+        data+=n;length-=n;
+    }
+    return 1;
+}
+static UBYTE tcp_pattern(const UBYTE *seed,unsigned offset)
+{
+    return seed[offset%32]^(UBYTE)(offset*37u+(offset>>8));
+}
+static int test_tcp_exchange(void)
+{
+    UBYTE request[39],buffer[1024];
+    BPTR file=Open((CONST_STRPTR)"SYS:NETTCP.REQ",MODE_OLDFILE);
+    if(!file)return 1;
+    LONG count=Read(file,request,sizeof(request));Close(file);
+    if(count!=38)return 0;
+    struct sockaddr_in peer={0};
+    peer.sin_len=sizeof(peer);peer.sin_family=AF_INET;
+    memcpy(&peer.sin_addr,request,4);memcpy(&peer.sin_port,request+4,2);
+    LONG fd=socket(AF_INET,SOCK_STREAM,0);int okay=0;
+    if(fd<0)return 0;
+    LONG nonblocking=1;
+    if(IoctlSocket(fd,FIONBIO,(APTR)&nonblocking))goto done;
+    if(connect(fd,(struct sockaddr *)&peer,sizeof(peer))) {
+        if(Errno()!=EINPROGRESS || !tcp_ready(fd,1))goto done;
+        LONG error=0; socklen_t size=sizeof(error);
+        if(getsockopt(fd,SOL_SOCKET,SO_ERROR,&error,&size) || error)goto done;
+    }
+    if(!tcp_send_all(fd,request+6,32))goto done;
+    for(unsigned offset=0;offset<65536;offset+=sizeof(buffer)) {
+        for(unsigned i=0;i<sizeof(buffer);++i)buffer[i]=tcp_pattern(request+6,offset+i);
+        if(!tcp_send_all(fd,buffer,sizeof(buffer)))goto done;
+    }
+    if(shutdown(fd,1))goto done;
+    for(unsigned offset=0;offset<65536;) {
+        if(!tcp_ready(fd,0))goto done;
+        LONG n=recv(fd,buffer,sizeof(buffer),0);
+        if(n<=0 || (unsigned)n>65536-offset)goto done;
+        for(unsigned i=0;i<(unsigned)n;++i)
+            if(buffer[i]!=(UBYTE)(tcp_pattern(request+6,offset+i)^0xa5))goto done;
+        offset+=n;
+    }
+    if(!tcp_ready(fd,0) || recv(fd,buffer,1,0)!=0)goto done;
+    okay=1;
+done:
+    bug("[VM] TCP result=%ld errno=%ld\n",(long)okay,(long)Errno());
+    CloseSocket(fd);
+    mark(okay?"[VM] AROSTCP TCP 64KiB duplex PASS\n":"FAIL: AROSTCP TCP stream\n");
     return okay;
 }
 /* Fresh stack, minimal NetDB and no seeded hosts entry: exercise the public
@@ -114,6 +180,7 @@ done:
     mark(okay?"[VM] AROSTCP DHCP address PASS\n":"[VM] AROSTCP DHCP address FAIL\n");
     if(okay)okay=test_socket_exchange();
     if(okay)okay=test_dns();
+    if(okay)okay=test_tcp_exchange();
     CloseLibrary(SocketBase);SocketBase=NULL;
     return okay;
 }

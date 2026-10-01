@@ -11,8 +11,9 @@ socket round trip to a host peer. The peer receives and returns a per-run
 32-byte random challenge. The connected guest socket verifies source and bytes;
 no public echo service is required. A separate combined desktop run passes automatic AROSTCP startup, DHCP and
 resolution of example.com through the DHCP-provided DNS server while Wanderer,
-USB/HID and clipboard synchronization run. This is not TCP, HTTP or
-sustained-traffic qualification.
+USB/HID and clipboard synchronization run. A bounded desktop TCP transaction also passes: 64 KiB uploaded and checked by
+the host, then a transformed 64 KiB response verified by the guest, including
+half-close and EOF. HTTP and sustained traffic remain unqualified.
 
 ## Host peer and guest gate
 
@@ -65,4 +66,19 @@ temporary-directory setup resolves it; the foreground/requester exclusion stays
 unchanged. Kernel failure diagnostics retain bounded window titles, and DOS
 ErrorReport records requester task/error/volume/device before waiting for input.
 DNS is qualified through the public resolver on a fresh stack without a seeded
-hosts entry. TCP, HTTP and sustained Internet traffic remain unqualified.
+hosts entry. HTTP and sustained Internet traffic remain unqualified.
+
+## TCP stream gate
+
+Start `tools/network-tcp-server.py --bind 0.0.0.0 --advertise HOST_NAT_IPV4
+--output NEW_PEER_DIR --timeout 90`. It accepts one connection on an ephemeral
+port, validates the per-run challenge and every uploaded byte, then returns a
+transformed response and closes. Both upload and download are 64 KiB; different
+send/read boundaries exercise stream handling. The peer has an absolute deadline.
+
+Add `--network-tcp-request NEW_PEER_DIR/NETTCP.REQ` to packaging. For a desktop,
+this enables the existing network observer and requires a bounded desktop
+session. Add `--require-network-tcp` to the corresponding `tools/run-vz.py`
+invocation. Acceptance requires both the guest verdict and peer verdict; a
+host successful send alone does not prove guest receipt. This gate uses a local
+NAT peer; it does not validate HTTP, public Internet TCP or throughput.

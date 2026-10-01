@@ -29,6 +29,7 @@ p.add_argument('--network-dns', action='store_true')
 p.add_argument('--network-probe', action='store_true')
 p.add_argument('--network-stack', action='store_true')
 p.add_argument('--network-echo-request', type=Path)
+p.add_argument('--network-tcp-request', type=Path)
 p.add_argument('--startup-sequence', type=Path)
 p.add_argument('--desktop-session', help='1..3600 seconds or forever; omitted for boot proof')
 p.add_argument('--clipboard-probe',action='store_true')
@@ -59,6 +60,10 @@ if a.vsock_device and not (a.pci_hidd or (a.profile=='wanderer' and a.virtio_gpu
 if a.network_echo_request:
     if len(a.network_echo_request.read_bytes()) != 38:
         p.error('network echo request must be 38 bytes')
+    a.network_stack=True
+if a.network_tcp_request:
+    if len(a.network_tcp_request.read_bytes()) != 38: p.error('network TCP request must be 38 bytes')
+    if a.profile=='wanderer': a.network_probe=True
     a.network_stack=True
 if a.network_probe:
     if a.profile!='wanderer' or not a.desktop_session: p.error('--network-probe requires a desktop session')
@@ -187,6 +192,8 @@ if a.network_dns:
     pci_files.append(('DNS.REQ',request))
 if a.network_echo_request:
     pci_files.append(('NETECHO.REQ',a.network_echo_request))
+if a.network_tcp_request:
+    pci_files.append(('NETTCP.REQ',a.network_tcp_request))
 if a.xhci_driver:
     pci_files += [(rel,sdk/'AROS'/rel) for rel in ['Libs/poseidon.library','Devs/USBHardware/pcixhci.device']]
     request = output/'XHCITEST.REQ'
@@ -310,7 +317,7 @@ shutil.copyfile(efi, output / 'EFI/BOOT/BOOTAA64.EFI')
 inputs = ([output/'AROS/SESSION.CFG'] if a.desktop_session is not None else []) + ([pci_probe] if a.pci_hidd else []) + [path for _, path in pci_files] + [stage2, efi, probe, ramdisk] + [path for _, path in components] + programs
 manifest = {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in inputs}
 (output / 'provenance.json').write_text(json.dumps({
-    'profile': a.profile, 'work_volume': a.work_volume, 'work_probe': a.work_probe, 'shutdown_probe': a.shutdown_probe, 'clipboard_probe': a.clipboard_probe, 'clipboard_sync': a.clipboard_sync, 'file_commands': a.file_commands, 'command_startup': a.command_startup, 'vsock_device': a.vsock_device, 'host_services': a.host_services, 'network_dns': a.network_dns, 'network_probe': a.network_probe, 'network_stack': a.network_stack, 'virtionet_device': a.virtionet_device, 'input_probe': a.input_probe, 'desktop_session': a.desktop_session, 'usb_desktop': a.usb_desktop, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,
+    'profile': a.profile, 'work_volume': a.work_volume, 'work_probe': a.work_probe, 'shutdown_probe': a.shutdown_probe, 'clipboard_probe': a.clipboard_probe, 'clipboard_sync': a.clipboard_sync, 'file_commands': a.file_commands, 'command_startup': a.command_startup, 'vsock_device': a.vsock_device, 'host_services': a.host_services, 'network_tcp': bool(a.network_tcp_request), 'network_dns': a.network_dns, 'network_probe': a.network_probe, 'network_stack': a.network_stack, 'virtionet_device': a.virtionet_device, 'input_probe': a.input_probe, 'desktop_session': a.desktop_session, 'usb_desktop': a.usb_desktop, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,
     'source_revision': revision, 'configure_command': configure_command,
     'inputs': manifest, 'bundle_sha256': hashlib.sha256(data).hexdigest(),
 }, indent=2) + '\n')

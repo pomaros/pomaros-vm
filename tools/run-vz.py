@@ -30,6 +30,7 @@ p.add_argument('--require-desktop-work',choices=['write','restart'])
 p.add_argument('--require-network-dns',action='store_true')
 p.add_argument('--require-network-stack',action='store_true')
 p.add_argument('--require-network-echo',action='store_true')
+p.add_argument('--require-network-tcp',action='store_true')
 p.add_argument('--no-input-events',action='store_true',help='negative control: withhold host input events')
 p.add_argument('--require-input',action='store_true')
 p.add_argument('--require-usb-desktop',action='store_true')
@@ -60,6 +61,9 @@ if a.require_vsock_device: a.require_vsock=True
 if a.require_vsock and not a.require_pci_hidd: p.error('--require-vsock requires --require-pci-hidd')
 if a.require_desktop_work and not (a.desktop_startup and a.require_desktop_session):
     p.error('--require-desktop-work requires a desktop session')
+if a.require_network_tcp:
+    if a.desktop_startup: a.require_desktop_network=True
+    else: a.require_network_stack=True
 if a.require_desktop_network:
     if not (a.desktop_startup and a.require_desktop_session): p.error('--require-desktop-network requires a desktop session')
     a.require_network_dns=True
@@ -197,6 +201,7 @@ verdict={'result':'PASS' if passed else 'FAIL','reason':reason,
          'desktop_network_autostart_verified':passed and a.require_desktop_network,
          'network_dns_verified':passed and a.require_network_dns,
          'network_host_udp_verified':passed and a.require_network_echo,
+         'network_tcp_verified':passed and a.require_network_tcp,
          'network_stack_address_verified':passed and a.require_network_stack,
          'network_config_verified':passed and a.require_network_config,'network_packets_verified':passed and a.require_network_packets,'network_irq_verified':passed and a.require_network_irq,'input_events_withheld':a.no_input_events,'desktop_session_seconds':a.require_desktop_session,'desktop_session_verified':passed and a.require_desktop_session is not None,
          'backend':'Virtualization.framework','host_shutdown_mode':'force-stop','graphics':a.require_gpu or a.desktop_startup,'usb_input_exposed':a.usb_input,'xhci_mapping_required':a.usb_input and a.require_pci_hidd,'input_verified':passed and a.require_input,'usb_hid_bindings_verified':passed and a.require_usb_desktop,'xhci_driver_required':a.require_xhci_driver,'xhci_enumeration_required':a.require_xhci_enumeration,'usb_child_descriptors_verified':passed and a.require_xhci_enumeration,'usb_transfers_verified':False,'desktop_startup':a.desktop_startup,'desktop_pixels_verified':False,'gpu_query_required':a.require_gpu,'gpu_scanout_required':a.require_gpu_scanout,'pixels_verified':pixels_verified,'storage_phase':a.storage_phase,'filesystem_phase':a.filesystem_phase,
