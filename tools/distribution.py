@@ -158,7 +158,7 @@ def package(a):
     # This runs only after the existing storage readiness barrier. Explicit
     # assigns replace bootstrap RAM paths; modules already resident stay loaded.
     setup = '''FailAt 21
-SYS:C/Echo >VMWORK0:distribution-startup.log "Switching SYS to disk"
+Echo >VMWORK0:distribution-startup.log "Switching SYS to disk"
 SYS:C/Assign SYS: VMWORK0:System
 SYS:C/Assign C: SYS:C
 SYS:C/Assign S: SYS:S
@@ -196,14 +196,14 @@ SYS:C/LoadKeymap RESTORE
 SYS:C/SetEnv HOME WORK:
 SYS:C/Path C: SYS:System S: SYS:Prefs SYS:Tools SYS:Utilities QUIET
 CD SYS:
-SYS:C/Echo >>VMWORK0:distribution-startup.log "Datatypes and preferences"
+Echo >>VMWORK0:distribution-startup.log "Datatypes and preferences"
 SYS:C/AddDataTypes REFRESH QUIET
 If NOT EXISTS FONTS:fixed.font
     SYS:System/FixFonts
 EndIf
 SYS:C/IPrefs
 Run >NIL: SYS:C/ConClip
-SYS:C/Echo >>VMWORK0:distribution-startup.log "Desktop setup complete"
+Echo >>VMWORK0:distribution-startup.log "Desktop setup complete"
 '''
     startup = (base / 'Startup-Sequence').read_text()
     marker = 'SYS:C/Assign VMWorkReady: REMOVE\n'
