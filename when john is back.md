@@ -4007,3 +4007,15 @@ or root-model switch. It is groundwork for roadmap DT1, not full DT1 and
 not Pi/Apple physical qualification. Follow-up: add full YAML/dt-schema
 bindings and the actual m1n1 and Pi firmware trees, then bind runtime drivers
 from those descriptions. SMP remains reserved for bsek.
+
+John explicitly authorized stopping/relaunching the VM for tests. On
+2026-10-02, the migrated Stage6Final→Stage6French disk also booted in VZ with
+the new app's launcher: `artifacts/upgrade-distribution-vz-1/verdict.json`
+and `console.log` show desktop stable, both HID bindings, graphics IRQ and
+guest-acknowledged WORK flush on SIGTERM in 5.94s. The ordinary
+Distribution-Stage6Final app/profile was relaunched afterward (PID 84386 at
+verification). Initial `run-vz.py` attempts omitted required USB/network
+devices or timed out because that probe runner waits for `[B2Q]` completion,
+whereas the distribution intentionally holds the desktop. The direct bundled
+launcher run above is the relevant acceptance for this disk. The user's
+existing profile disk was never replaced by the migrated test disk.
