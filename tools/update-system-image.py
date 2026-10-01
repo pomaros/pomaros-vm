@@ -9,7 +9,6 @@ import json
 import os
 from pathlib import Path
 import stat
-import subprocess
 import tempfile
 
 BOOT=64*1024*1024
@@ -46,15 +45,37 @@ def volume(stream,offset,sectors):
         raise ValueError('unsupported FAT16 volume layout')
 
 def reject_distribution(stream):
-    # Read through the already locked descriptor, not a replaceable pathname.
-    disk = '/dev/fd/' + str(stream.fileno())
-    for offset, directory, marker in [(0, 'AROS', 'DISTRIB.JSON'), (BOOT, '', 'System')]:
-        listing = subprocess.check_output(
-            ['mdir', '-b', '-i', disk + '@@' + str(offset), '::/' + directory],
-            pass_fds=(stream.fileno(),), stderr=subprocess.PIPE, text=True)
-        if any(line.rstrip('/').rsplit('/', 1)[-1].casefold() == marker.casefold()
-               for line in listing.splitlines()):
-            raise ValueError('boot-only update refuses distribution disks; kernel and WORK:System must be updated together')
+    # Read FAT16 directories through the locked descriptor. mtools would take
+    # a conflicting second lock on this same disk.
+    def entries(offset, cluster=None):
+        stream.seek(offset); boot=stream.read(512)
+        u16=lambda i:int.from_bytes(boot[i:i+2], 'little')
+        reserved=u16(14); fat=u16(22); roots=u16(17)
+        root_sector=reserved+boot[16]*fat
+        data_sector=root_sector+(roots*32+511)//512
+        if cluster is None:
+            stream.seek(offset+root_sector*512); data=stream.read(roots*32)
+        else:
+            data=b'';seen=set()
+            while 2<=cluster<0xfff8:
+                if cluster in seen or cluster*2>=fat*512:
+                    raise ValueError('invalid FAT16 directory chain')
+                seen.add(cluster)
+                stream.seek(offset+(data_sector+(cluster-2)*boot[13])*512)
+                data+=stream.read(boot[13]*512)
+                stream.seek(offset+reserved*512+cluster*2)
+                cluster=int.from_bytes(stream.read(2), 'little')
+        for i in range(0,len(data),32):
+            entry=data[i:i+32]
+            if not entry or entry[0]==0:break
+            if entry[0]==0xe5 or entry[11]&0x08:continue
+            yield entry[:11],int.from_bytes(entry[26:28], 'little')
+    work={name for name,_ in entries(BOOT)}
+    boot=dict(entries(0))
+    marker=(b'AROS       ' in boot and
+            b'DISTRIB JSON' in dict(entries(0,boot[b'AROS       '])))
+    if marker or b'SYSTEM     ' in work:
+        raise ValueError('boot-only update refuses distribution disks; kernel and WORK:System must be updated together')
 
 def copy_region(source,destination,offset,length):
     source.seek(offset);digest=hashlib.sha256()
@@ -93,7 +114,7 @@ try:
     print(json.dumps({'result':'PASS','output':str(a.output.resolve()),'bytes':TOTAL,
                       'boot_sha256':boot_hash,'work_sha256':work_hash,
                       'source_disk_unchanged':True,'work_preserved':True}))
-except (OSError,ValueError,RuntimeError,subprocess.CalledProcessError) as error:
+except (OSError,ValueError,RuntimeError) as error:
     p.exit(2,f'update-system-image: {error}\n')
 finally:
     if temporary is not None:os.unlink(temporary)
