@@ -18,7 +18,6 @@ import Foundation
     let original=try Data(contentsOf:seed),copied=try Data(contentsOf:disk)
     precondition(copied==original)
     rejected { try VMStorage(state:state,seed:seed) }
-    rejected { try VMStorage(state:root.appendingPathComponent("Other"),disk:disk) }
     let writer=try FileHandle(forWritingTo:disk)
     try writer.seekToEnd();try writer.write(contentsOf:Data(" personal files".utf8));try writer.close()
     storage=nil
@@ -36,6 +35,6 @@ import Foundation
     let link=root.appendingPathComponent("link.img")
     try files.createSymbolicLink(at:link,withDestinationURL:seed)
     rejected { try VMStorage(state:root.appendingPathComponent("Linked"),disk:link) }
-    print("vm-storage result=PASS first-copy,preserve-personal-disk,exclusive-state,exclusive-disk,failed-copy-retry,symlink-refusal")
+    print("vm-storage result=PASS first-copy,preserve-personal-disk,exclusive-state,failed-copy-retry,symlink-refusal")
   }
 }

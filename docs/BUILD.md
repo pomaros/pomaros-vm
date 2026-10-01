@@ -610,7 +610,8 @@ First launch copies the seed into
 `~/Library/Application Support/Macaros VM/Default/system.img`. Later launches
 reuse that disk and state (including NVRAM, MAC and Shared directory). Updating
 or replacing the app does not replace a populated disk. A failed initial copy
-is not published as system.img. Both state and disk are locked while running.
+is not published as system.img. The application locks its state while running; VZ owns the disk attachment
+lease. An extra flock on the disk would conflict with VZ itself.
 
 `MACAROS_VM_STATE_DIRECTORY` overrides the state location for isolated testing.
 Bundled mode also accepts flags such as `--headless --gpu --usb-input

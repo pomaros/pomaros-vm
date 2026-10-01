@@ -3,21 +3,20 @@
 import Foundation
 import Darwin
 
-// Own the locks for the complete VM lifetime, including asynchronous shutdown.
+// Own the state lock through asynchronous shutdown. VZ owns the disk lease.
 final class VMStorage {
   let disk:URL
   let state:URL
   private var stateLock:Int32 = -1
-  private var diskLock:Int32 = -1
   private static func failure(_ message:String)->NSError {
     NSError(domain:"MacarosVM",code:1,userInfo:[NSLocalizedDescriptionKey:message])
   }
-  private static func lock(_ url:URL,create:Bool)throws->Int32 {
+  private static func openFile(_ url:URL,create:Bool,exclusive:Bool)throws->Int32 {
     let fd=Darwin.open(url.path,O_RDWR|O_NOFOLLOW|(create ? O_CREAT:0),mode_t(0o600))
     guard fd>=0 else { throw failure("Cannot open \(url.lastPathComponent): \(String(cString:strerror(errno)))") }
     var info=stat()
     guard fstat(fd,&info)==0,info.st_mode & S_IFMT == S_IFREG,
-          flock(fd,LOCK_EX|LOCK_NB)==0 else {
+          (!exclusive || flock(fd,LOCK_EX|LOCK_NB)==0) else {
       Darwin.close(fd)
       throw failure("This VM is already in use, or its storage is not a regular file.")
     }
@@ -27,7 +26,7 @@ final class VMStorage {
     self.state=state;self.disk=existing ?? state.appendingPathComponent("system.img")
     let files=FileManager.default
     try files.createDirectory(at:state,withIntermediateDirectories:true)
-    stateLock=try Self.lock(state.appendingPathComponent(".launch.lock"),create:true)
+    stateLock=try Self.openFile(state.appendingPathComponent(".launch.lock"),create:true,exclusive:true)
     do {
       if existing==nil && !files.fileExists(atPath:disk.path) {
         guard let seed else { throw Self.failure("The application has no base system image.") }
@@ -42,14 +41,15 @@ final class VMStorage {
         // Publication happens only after the complete copy, under the state lock.
         try files.moveItem(at:temporary,to:disk)
       }
-      diskLock=try Self.lock(disk,create:false)
+      // A flock on the disk itself conflicts with VZ's own attachment lease.
+      let fd=try Self.openFile(disk,create:false,exclusive:false)
+      Darwin.close(fd)
     } catch {
       Darwin.close(stateLock);stateLock = -1
       throw error
     }
   }
   deinit {
-    if diskLock>=0 { Darwin.close(diskLock) }
     if stateLock>=0 { Darwin.close(stateLock) }
   }
 }
