@@ -27,7 +27,7 @@ REQUIRED = ['C/CPUInfo', 'C/Copy', 'C/List', 'C/Execute', 'C/AddDataTypes',
             'Prefs/Locale', 'Prefs/Input', 'S/Shell-Startup', 'Devs/Keymaps/pc104_usa', 'Libs/datatypes.library',
             'Classes/DataTypes/picture.datatype', 'Classes/DataTypes/ilbm.datatype',
             'Classes/DataTypes/png.datatype', 'Classes/DataTypes/jpeg.datatype',
-            'Prefs/Presets/Themes/AROSDefault/system/config']
+            'Prefs/Presets/Themes/AROSDefault/system/config', 'Fonts/Open Sans Regular.font']
 
 def run(args, **kwargs):
     return subprocess.run([str(x) for x in args], check=True, **kwargs)
@@ -115,6 +115,17 @@ def package(a):
     (system / 'Prefs/Env-Archive').mkdir(parents=True, exist_ok=True)
     (system / 'Prefs/Env-Archive/HOME').write_text('WORK:')
     shutil.copy2(ROOT / 'distribution/ReadMe', system / 'ReadMe')
+    (system / 'Prefs/Env-Archive/SYS').mkdir(exist_ok=True)
+    (system / 'Prefs/Env-Archive/SYS/theme.var').write_text('THEMES:AROSDefault\n')
+    (system / 'Prefs/Presets/theme.default').write_text('THEMES:AROSDefault\n')
+    for family in sorted((source / 'workbench/fonts/truetype').iterdir()):
+        if not family.is_dir():
+            continue
+        for notice in sorted(family.iterdir()):
+            if notice.is_file() and notice.name.lower().startswith(('license', 'copying', 'ofl')):
+                destination = system / 'Documentation/Fonts' / family.name / notice.name
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(notice, destination)
     for name in ['LICENSE', 'LICENSE.GPL', 'LICENSE.LGPL', 'LICENSE.Author', 'LEGAL']:
         shutil.copy2(source / name, system / name)
     # This runs only after the existing storage readiness barrier. Explicit
