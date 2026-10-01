@@ -13,9 +13,11 @@ import subprocess
 root = Path(__file__).resolve().parents[1]
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--disk', type=Path, required=True)
+p.add_argument('--clipboard-sync', action='store_true')
 p.add_argument('--file-exchange', action='store_true')
 p.add_argument('--output', type=Path, required=True)
 a = p.parse_args()
+if a.clipboard_sync: a.file_exchange=True
 base, total = 64*1024*1024, 80*1024*1024
 if not a.disk.is_file() or a.disk.stat().st_size != base:
     p.error('input must be a regular 64 MiB test boot image')
@@ -38,13 +40,13 @@ subprocess.run(['mcopy','-i',str(volume),str(seed),'::SEED.TXT'],check=True)
 with image.open('ab') as f: f.write(volume.read_bytes())
 expected = bytes(((i*37+11)^(i>>8))&255 for i in range(65536))
 verdict = {'result': 'FAIL', 'reason': 'not-run', 'backend': 'Virtualization.framework',
-           'input_sha256': hashlib.sha256(a.disk.read_bytes()).hexdigest(), 'file_exchange':a.file_exchange, 'phases': []}
+           'input_sha256': hashlib.sha256(a.disk.read_bytes()).hexdigest(), 'file_exchange':a.file_exchange, 'clipboard_sync':a.clipboard_sync, 'phases': []}
 try:
     for phase in ['write', 'restart']:
         out = a.output/phase
         run = subprocess.run(['python3', str(root/'tools/run-vz.py'), '--disk', str(image),
             '--output', str(out), '--require-pci-hidd', '--require-msi-frame',
-            '--require-msi-irq', '--require-virtio-device', '--filesystem-phase', phase, '--timeout', '20'] + (['--require-file-commands'] if a.file_exchange else []),
+            '--require-msi-irq', '--require-virtio-device', '--filesystem-phase', phase, '--timeout', '20'] + (['--require-clipboard-sync'] if a.clipboard_sync else ['--require-file-commands'] if a.file_exchange else []),
             capture_output=True, text=True)
         (a.output/f'{phase}-runner.log').write_text(run.stdout+run.stderr)
         if run.returncode: raise RuntimeError(f'{phase}-guest-gate')

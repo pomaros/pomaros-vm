@@ -26,8 +26,9 @@ of 64 KiB, path/overwrite refusal, and the standalone command HELLO after closin
 and reopening the device. The separate file-command gate exercises CLI PUT/GET
 against an isolated FAT
 volume, checks refusal to overwrite a guest destination, and verifies bytes
-from the host after two fresh VMs. Clipboard is not implemented on the guest. The [host clipboard endpoint](CLIPBOARD.md) is
-implemented with separate host qualification.
+from the host after two fresh VMs. The [clipboard bridge](CLIPBOARD.md) also passes a real guest-device VZ gate.
+Both clients serialize the exclusive guest stream; background polling skips busy
+sessions. Desktop auto-start is packaged but remains unqualified.
 Host power-loss durability and concurrent host modification during download
 are not qualified; a download is not a snapshot.
 

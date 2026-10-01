@@ -48,5 +48,6 @@ The optional [host file service](docs/HOST-SERVICES.md) exposes the VM state's
 `Shared` directory over virtio-vsock (`--host-services`). Its VZ qualification
 covers 64 KiB upload/readback and the standalone `VMExchange HELLO` command.
 CLI PUT/GET also pass on the isolated guest FAT volume across a VM restart.
-Desktop integration and automatic clipboard sharing are tracked in
-[stage 6](docs/STAGE6.md).
+The [clipboard bridge](docs/CLIPBOARD.md) passes guest-device VZ tests for text
+and images. A desktop package with `--host-services` starts VMSync automatically;
+its desktop runtime acceptance remains tracked in [stage 6](docs/STAGE6.md).

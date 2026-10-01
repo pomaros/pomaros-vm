@@ -17,6 +17,7 @@ def expected_markers(a):
         markers += ['[VMPci] resident bridge registered', '[VM] virtio graphics driver registered']
     if a.require_desktop_session is not None:
         markers += ['[KI] shell launched','[KI] hold bounded','[KI] hold complete']
+    if getattr(a,'require_clipboard_sync',False): markers += ['[VM] clipboard device text image sync no-echo PASS']
     if a.require_file_commands: markers += ['[VM] VMExchange CLI put get no-replace PASS']
     if a.require_host_services: markers += ['[VM] host file put get containment PASS','[VM] VMExchange command hello PASS']
     if a.require_vsock: markers += [('[VM] vmbridge read write abort reopen PASS' if a.require_vsock_device else '[VM] vsock two 64KiB streams PASS'),'[HOST] vsock 64KiB stream echo PASS']

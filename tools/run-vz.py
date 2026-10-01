@@ -16,6 +16,7 @@ root=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser()
 p.add_argument('--require-desktop-session',type=int,metavar='SECONDS')
 p.add_argument('--require-host-services',action='store_true')
+p.add_argument('--require-clipboard-sync',action='store_true')
 p.add_argument('--require-file-commands',action='store_true')
 p.add_argument('--require-vsock-device',action='store_true')
 p.add_argument('--require-vsock',action='store_true')
@@ -44,6 +45,7 @@ p.add_argument('--disk',type=Path,required=True)
 p.add_argument('--output',type=Path,required=True)
 p.add_argument('--timeout',type=float,default=45)
 a=p.parse_args()
+if a.require_clipboard_sync: a.require_file_commands=True
 if a.require_file_commands:
     a.require_host_services=True
     if not a.filesystem_phase: p.error('--require-file-commands requires --filesystem-phase')
@@ -91,7 +93,7 @@ pixels_verified=False
 capture_count=0
 passed=False;reason='timeout';start=time.monotonic()
 with log.open('w') as out:
-    proc=subprocess.Popen([str(root/'build/macaros-vm'),str(disk),str(a.output/'state'),'--headless']+(['--gpu-window'] if a.require_gpu_scanout or a.require_input else ['--gpu'] if a.require_gpu or a.desktop_startup else [])+(['--usb-input'] if a.usb_input else [])+(['--input-probe'] if a.require_input else [])+(['--network'] if a.require_network_config else [])+(['--vsock-probe'] if a.require_vsock else [])+(['--host-services'] if a.require_host_services else []),stdout=out,stderr=subprocess.STDOUT)
+    proc=subprocess.Popen([str(root/'build/macaros-vm'),str(disk),str(a.output/'state'),'--headless']+(['--gpu-window'] if a.require_gpu_scanout or a.require_input else ['--gpu'] if a.require_gpu or a.desktop_startup else [])+(['--usb-input'] if a.usb_input else [])+(['--input-probe'] if a.require_input else [])+(['--network'] if a.require_network_config else [])+(['--vsock-probe'] if a.require_vsock else [])+(['--host-services'] if a.require_host_services else [])+(['--clipboard-test'] if a.require_clipboard_sync else []),stdout=out,stderr=subprocess.STDOUT)
     try:
         while time.monotonic()-start<a.timeout:
             text=log.read_text(errors='replace')
@@ -149,6 +151,9 @@ with log.open('w') as out:
                     names.insert(0,'command-upload.bin');expected_irqs=5
                     command_file=shared/'command-upload.bin'
                     command_file_ok=command_file.is_file() and command_file.read_bytes()==bytes(((i*37+11)^(i>>8))&255 for i in range(65536))
+                if a.require_clipboard_sync:
+                    expected_irqs=19
+                    command_file_ok=command_file_ok and text.count('clipboard-test private named pasteboard seeded')==1
                 services_ok=fixture.is_file() and fixture.read_bytes()==expected and sorted(p.name for p in shared.iterdir())==names and len(bridge_irqs)==expected_irqs and all(int(n)>0 for n in bridge_irqs) and command_file_ok
             if services_ok and bridge_irq_ok and network_ok and session_ok and (not a.require_gpu_scanout or pixels_verified) and markers_match(text,marker_counts): passed=True;reason='headless-startup-contract';break
             if proc.poll() is not None: reason='early-exit';break
@@ -169,6 +174,7 @@ verdict={'result':'PASS' if passed else 'FAIL','reason':reason,
          'vsock_stream_verified':passed and a.require_vsock,
          'vsock_device_verified':passed and a.require_vsock_device,
          'vsock_device_irq_verified':passed and (a.require_vsock_device or a.require_host_services),
+         'clipboard_sync_engine_verified':passed and a.require_clipboard_sync,
          'host_file_exchange_verified':passed and a.require_host_services,
          'file_commands_verified':passed and a.require_file_commands,
          'network_host_udp_verified':passed and a.require_network_echo,

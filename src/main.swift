@@ -128,8 +128,17 @@ final class Application: NSObject, NSApplicationDelegate, VZVirtualMachineDelega
       machine.delegate = self
       if CommandLine.arguments.contains("--host-services"),
          let device=machine.socketDevices.first as? VZVirtioSocketDevice {
+        let pasteboard: NSPasteboard
+        if CommandLine.arguments.contains("--clipboard-test") {
+          pasteboard=NSPasteboard(name:NSPasteboard.Name("org.aros.vm.test."+UUID().uuidString))
+          pasteboard.clearContents()
+          guard pasteboard.setString("Macaros clipboard qualification",forType:.string) else {
+            throw NSError(domain:"MacarosClipboard",code:1)
+          }
+          print("clipboard-test private named pasteboard seeded");fflush(stdout)
+        } else { pasteboard = .general }
         let services=try HostServices(directory:state.appendingPathComponent("Shared",isDirectory:true),
-                                      clipboard:ClipboardStore(pasteboard:.general))
+                                      clipboard:ClipboardStore(pasteboard:pasteboard))
         services.attach(to:device);hostServices=services
         print("host-services port=4051 directory=\(services.directory.path)");fflush(stdout)
       }
@@ -231,8 +240,8 @@ if options.contains("--input-probe") && options.contains("--headless") && (!opti
   fputs("--input-probe requires a VZ window and USB input\n",stderr);exit(2)
 }
 if CommandLine.arguments.count < 3 || options.count != Set(options).count
-  || options.contains(where: { $0 != "--headless" && $0 != "--gpu" && $0 != "--gpu-window" && $0 != "--usb-input" && $0 != "--input-probe" && $0 != "--network" && $0 != "--vsock-probe" && $0 != "--host-services" }) {
-  fputs("usage: macaros-vm DISK_IMAGE STATE_DIRECTORY [--headless] [--gpu] [--gpu-window] [--usb-input] [--input-probe] [--network] [--vsock-probe] [--host-services]\n", stderr)
+  || options.contains(where: { $0 != "--headless" && $0 != "--gpu" && $0 != "--gpu-window" && $0 != "--usb-input" && $0 != "--input-probe" && $0 != "--network" && $0 != "--vsock-probe" && $0 != "--host-services" && $0 != "--clipboard-test" }) {
+  fputs("usage: macaros-vm DISK_IMAGE STATE_DIRECTORY [--headless] [--gpu] [--gpu-window] [--usb-input] [--input-probe] [--network] [--vsock-probe] [--host-services] [--clipboard-test]\n", stderr)
   exit(2)
 }
 if #available(macOS 13.0, *) {

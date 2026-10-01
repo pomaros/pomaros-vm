@@ -2711,3 +2711,45 @@ combined build had a missing codec/store dependency in the file-service test
 Makefile rule; fixed without changing behavior. No clipboard VM run yet. Guest
 clipboard.device integration, auto-sync/anti-echo/reconnect and desktop startup
 are next; stage6 remains active and incomplete.
+
+## Guest clipboard engine and desktop package
+
+Core f83a2ba5b1 adds VMSync (one-second polling, Ctrl-C, ONCE) and a named
+reference-counted session gate shared with VMExchange. Heap-owned semaphore/name
+survive command unload; UP registry operations only, no SMP implementation.
+Host-first initial import; later simultaneous copies resolve in favor of the
+changed host revision. A guest copy during download cancels that cycle.
+Our own write IDs/revisions are remembered across ordinary session reconnects.
+Network input is complete before touching clipboard.device. The stock device
+cannot roll back local disk errors or abort a deferred producer wait; guest
+ID checking is not an atomic CAS. Forced removal of a gate owner can strand it.
+
+Builds PASS for VMSync, VMExchange and clipboard.device. An initial parallel
+invocation of three make targets raced genmf's temporary file; rerunning targets
+successively fixed the build invocation. No core build-system workaround.
+
+artifacts/vz-clipboard-sync PASS on exactly two fresh VZ boots (write and restart),
+with private named Mac pasteboards, real clipboard.device and 19 positive
+vmbridge IRQ closure counts each. Standalone ONCE imported the exact Mac seed;
+the shared engine then checked text and two-color ILBM in both directions,
+host-wins conflict resolution, two unchanged cycles without echo, recursive
+session refusal/reopen, and existing CLI file/persistence checks. Image host
+publication passes through ClipboardStore's PNG encoding; readback uses its
+retained original IFF. No interactive application paste or physical M1 proof.
+Input disk SHA256 143040cea606ca5a6fbd0a9995c9a6305630b404e6599aeb32a398a06134c75d.
+Launcher SHA256 b2e99ffd87dc3b645ef7ad9a72c82d5ae12a5b1dd7cbefd8283acd81d9fc23b3.
+Write disk 0d64c351b46c6f1c35984b7c224e46fb28c88f96567f43aae940e70c981189af;
+restart disk 3a67c8fb2dda200c42ecf81951e79e10ea30d99b02a42a2e37a6f5ce4c7c479d.
+artifacts/clipboard-marker-controls.json PASS 58 positive/negative marker
+admission checks, without changing either VM verdict.
+
+Desktop --host-services packaging adds VMSync/VMExchange/devices and starts
+VMSync before G4Ready. The original 1.44MiB SYS overflowed with USB plus these
+components; reused the existing 16MiB FAT expansion, deferring service files
+until expansion. artifacts/desktop-clipboard-expanded-bundle packaging PASS,
+bundle da2387a394263f3ffc554d0583264535dd6fc3abd649f2e9117ddb7c19b8effd;
+SYS 34b8306c3197c2b35ab45de785c44f3722ab276b82984bf6ce84f3ed0dc55210.
+That desktop package has NOT been boot-qualified. Next: verify daemon auto-start
+with Wanderer and actual text/image paste, plus cross-task file contention and
+failure recovery. No extra VM runs after the two focused guest tests, no M1/SMP.
+Stage6 remains active; the other checklist gaps remain intact.

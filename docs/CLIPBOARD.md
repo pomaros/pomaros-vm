@@ -4,10 +4,11 @@ The host service transports the native AROS clipboard's IFF payload. Host
 conversion is separate from the stream transport and guest clipboard device;
 the protocol can be carried by another transport for physical machines.
 
-Host support is implemented and tested on a private named NSPasteboard. The
-VZ launcher supplies the general pasteboard to HostServices when launched with
-`--host-services`. No guest synchronization daemon or desktop auto-start is
-implemented yet: the host endpoint alone does not provide automatic copy/paste.
+`VMSync` bridges clipboard unit 0 to the host service. The VZ launcher supplies
+its general pasteboard with `--host-services`; `--clipboard-test` substitutes a
+private named pasteboard for qualification. The guest engine passes VZ tests
+with the real clipboard device. Desktop auto-start is packaged but has not yet
+been qualified with Wanderer.
 
 ## Data and conversion
 
@@ -54,8 +55,12 @@ reduces stale writes but cannot exclude a simultaneous write by another Mac app.
 
 The host admits at most four connections, including ones finishing shutdown.
 Each owns its file and clipboard transfer state. Pasteboard calls run on the
-main queue. The guest device still supports one open stream; the future daemon
-and file command must serialize sessions and avoid echoing their own updates.
+main queue. The guest device supports one open stream. VMExchange and VMSync share a named
+Exec semaphore with reference-counted storage independent of command segments.
+File commands wait for the session; background polls skip a busy session.
+Registry lifetime relies on the single-CPU Exec contract; it is not an SMP
+implementation. Forced process removal while owning the semaphore is not
+recoverable by this mechanism.
 
 ## Verification
 
@@ -66,6 +71,42 @@ socket framing with a multi-frame Unicode clipboard, image publication,
 revision conflicts, size rejection and abandoned uploads. Both use fresh named
 pasteboards and leave the user's general clipboard untouched.
 
-These are host tests, not guest clipboard-device or end-to-end VM qualification.
-The latter, automatic synchronization, reconnect behavior, and desktop copy/paste
-remain required before claiming the clipboard part of stage 6 complete.
+The guest gate uses `tools/package-core.py --pci-hidd --clipboard-sync`, then
+`tools/make-disk.py` and `tools/run-filesystem-vz.py --clipboard-sync`. Two fresh
+VZ boots exercise clipboard.device, the standalone `VMSync ONCE` import,
+text/image transfers through the shared synchronization engine, host-wins
+conflicts, unchanged revisions, recursive session refusal/reopen, and the file
+CLI/persistence gate. Each requires 19 positive bridge IRQ closure counters and
+exact markers; the host pasteboard seed and guest/file fixtures are checked.
+The image fixture is a two-color ILBM; broader format coverage belongs to the
+host codec tests. This does not prove interactive desktop paste, simultaneous
+commands from separate tasks, forced transport failure recovery, or prolonged
+operation of the daemon loop.
+
+## Guest operation
+
+Build `workbench-tools-vmexchange`, `workbench-tools-vmsync` and
+`workbench-devs-clipboard` successively in the configured core build. Run
+`VMSync` for one-second polling until Ctrl-C; `VMSync ONCE` imports one host
+snapshot and exits. Only one daemon is admitted. The device uses `CLIPS:` or
+its standard `RAM:Clipboards` fallback.
+
+The first poll imports the Mac clipboard. Later polls compare the host revision
+and guest write ID; our own writes update these baselines and are not echoed.
+A changed Mac clipboard wins a conflict already present at poll start. A new
+guest copy detected during a host download defers the poll. Host publication is
+conditional on the last observed revision. Failed sessions leave baselines
+unchanged and are retried, so disconnecting does not reset the initial policy.
+Complete bounded IFF data is staged before writing locally; the stock device
+cannot roll back a disk write failure. Guest ID checking and clipboard writing
+are not an atomic compare-and-swap. A stock deferred CBD_POST read can wait for
+its producer inside BeginIO, and that device's AbortIO cannot cancel the wait;
+this occurs before acquiring the transport session.
+
+For the desktop, package with `--profile wanderer --virtio-gpu --usb-desktop
+--host-services --desktop-session forever`, plus explicit build/EFI/output
+paths. The package includes both commands/devices and starts VMSync from the
+startup sequence. It expands SYS to the existing 16 MiB FAT layout to fit the
+USB and host-service components. Launch with `--gpu --usb-input --host-services`.
+The expansion and startup contents are verified during packaging; runtime
+desktop auto-start and actual copy/paste remain unqualified.

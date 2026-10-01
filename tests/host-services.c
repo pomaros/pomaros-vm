@@ -47,6 +47,7 @@ static int command_files(void)
     if(okay)services_mark("[VM] VMExchange CLI put get no-replace PASS\n");
     return okay;
 }
+int test_clipboard_sync(void);
 int test_host_services(void)
 {
     struct VMExchangeClient c;int okay=0;UBYTE data[4096];ULONG got=0;
@@ -79,6 +80,7 @@ close:VMExchangeClose(&c);
         okay=run_command(arguments,0);
         if(okay)services_mark("[VM] VMExchange command hello PASS\n");
         if(okay)okay=command_files();
+        if(okay)okay=test_clipboard_sync();
     }
 done:services_mark(okay?"[VM] host file put get containment PASS\n":"[VM] host file put get containment FAIL\n");return okay;
 }

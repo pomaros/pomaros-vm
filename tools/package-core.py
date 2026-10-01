@@ -18,6 +18,7 @@ p.add_argument('--pci-hidd', action='store_true')
 p.add_argument('--virtio-device', action='store_true')
 p.add_argument('--virtionet-device', action='store_true')
 p.add_argument('--host-services', action='store_true')
+p.add_argument('--clipboard-sync', action='store_true')
 p.add_argument('--file-commands', action='store_true')
 p.add_argument('--command-startup', action='store_true')
 p.add_argument('--vsock-device', action='store_true')
@@ -35,12 +36,16 @@ p.add_argument('--profile', choices=['headless', 'wanderer'], default='headless'
 p.add_argument('--toolchain', type=Path, default=Path.home() / 'aros-crosstools')
 p.add_argument('--efi', type=Path, required=True, help='explicit built UEFI loader; no implicit stale build selection')
 a = p.parse_args()
+if a.clipboard_sync:
+    if a.profile!='headless': p.error('--clipboard-sync is the headless qualification; use --host-services for the desktop')
+    a.file_commands=True
 if a.file_commands:
     a.host_services=True;a.virtio_device=True
 if a.command_startup and (a.profile!='headless' or a.host_services or a.vsock_device):
     p.error('--command-startup requires headless without host services or vsock device')
 if a.host_services: a.vsock_device=True
-if a.vsock_device and not a.pci_hidd: p.error('--vsock-device requires --pci-hidd')
+if a.vsock_device and not (a.pci_hidd or (a.profile=='wanderer' and a.virtio_gpu)):
+    p.error('--vsock-device requires --pci-hidd or a resident virtio-GPU desktop')
 if a.network_echo_request:
     if len(a.network_echo_request.read_bytes()) != 38:
         p.error('network echo request must be 38 bytes')
@@ -126,11 +131,18 @@ if a.virtio_device:
 if a.virtionet_device:
     pci_files += [('Devs/Networks/virtionet.device',sdk/'AROS/Devs/Networks/virtionet.device')]
 if a.host_services:
-    request=output/'HOSTSERVICES.REQ';request.write_text('file-services-v1\n')
-    pci_files += [('HOSTSERVICES.REQ',request),('C/VMExchange',sdk/'AROS/C/VMExchange')]
+    pci_files.append(('C/VMExchange',sdk/'AROS/C/VMExchange'))
+    if a.profile=='headless':
+        request=output/'HOSTSERVICES.REQ';request.write_text('file-services-v1\n')
+        pci_files.append(('HOSTSERVICES.REQ',request))
+    else:
+        pci_files += [('C/VMSync',sdk/'AROS/C/VMSync'),('Devs/clipboard.device',sdk/'AROS/Devs/clipboard.device')]
 if a.file_commands:
     request=output/'FILECOMMANDS.REQ';request.write_text('file-commands-v1\n')
     pci_files.append(('FILECOMMANDS.REQ',request))
+if a.clipboard_sync:
+    request=output/'CLIPBOARD.REQ';request.write_text('clipboard-sync-v1\n')
+    pci_files += [('CLIPBOARD.REQ',request),('C/VMSync',sdk/'AROS/C/VMSync'),('Devs/clipboard.device',sdk/'AROS/Devs/clipboard.device')]
 if a.vsock_device:
     pci_files.append(('Devs/vmbridge.device',sdk/'AROS/Devs/vmbridge.device'))
 if a.network_stack:
@@ -164,41 +176,50 @@ if a.usb_desktop:
     pci_files += [(rel,sdk/'AROS'/rel) for rel in ['Libs/poseidon.library',
         'Devs/USBHardware/pcixhci.device','Classes/USB/hub.class',
         'Classes/USB/hubss.class','Classes/USB/hid.class']]
+desktop_services = a.host_services and a.profile=='wanderer'
+expanded_system = a.network_stack or desktop_services
+def deferred_file(rel):
+    return (a.network_stack and rel.startswith('System/Network/')) or (desktop_services and rel in {
+        'C/VMExchange','C/VMSync','Devs/clipboard.device','Devs/vmbridge.device'})
 ramdisk = output / 'SYS.img'
 image_command = ['python3', str(root / 'tools/make-fat12-image.py'), '--abi-probe', str(probe)]
 if a.pci_hidd:
     image_command += ['--file', f'PCIPROBE={pci_probe}']
 for rel, path in pci_files:
-    if not (a.network_stack and rel.startswith('System/Network/')):
+    if not deferred_file(rel):
         image_command += ['--file', f'{rel}={path}']
+startup_lines = None
 if a.startup_sequence:
-    startup=output/'Startup-Sequence'
-    shutil.copyfile(a.startup_sequence,startup)
-    image_command += ['--startup-sequence',str(startup)]
-    pci_files += [('Startup-Sequence',startup)]
+    startup_lines=a.startup_sequence.read_text()
 if a.usb_desktop:
     usb_command=output/'VMUSB'
     subprocess.run([str(root/'tools/build-abi-probe'),'--sdk',str(sdk),
         '--crosstools',str(a.toolchain.resolve()),'--profile','usb-desktop',str(usb_command)],check=True)
-    startup=output/'Startup-Sequence'
-    startup.write_text('SYS:VMUSB\n'+('Run >NIL: SYS:VMINPUT\n' if a.input_probe else '')+'G4Ready\nEndCLI\n')
+    startup_lines='SYS:VMUSB\n'+('Run >NIL: SYS:VMINPUT\n' if a.input_probe else '')+'G4Ready\nEndCLI\n'
     if a.input_probe:
         input_command=output/'VMINPUT'
         subprocess.run([str(root/'tools/build-abi-probe'),'--sdk',str(sdk),
             '--crosstools',str(a.toolchain.resolve()),'--profile','desktop-input',str(input_command)],check=True)
         image_command += ['--file',f'VMINPUT={input_command}']
         pci_files += [('VMINPUT',input_command)]
-    image_command += ['--file',f'VMUSB={usb_command}','--startup-sequence',str(startup)]
-    pci_files += [('VMUSB',usb_command),('Startup-Sequence',startup)]
+    image_command += ['--file',f'VMUSB={usb_command}']
+    pci_files.append(('VMUSB',usb_command))
+if a.host_services and a.profile=='wanderer':
+    startup_lines='Run >NIL: SYS:C/VMSync\n'+(startup_lines or 'G4Ready\nEndCLI\n')
+if startup_lines is not None:
+    startup=output/'Startup-Sequence'
+    startup.write_text(startup_lines)
+    image_command += ['--startup-sequence',str(startup)]
+    pci_files.append(('Startup-Sequence',startup))
 if programs:
     image_command += ['--wanderer', str(programs[0])]
-seed=output/'SYS-seed.img' if a.network_stack else ramdisk
+seed=output/'SYS-seed.img' if expanded_system else ramdisk
 subprocess.run(image_command + [str(seed)], check=True)
 subprocess.run(image_command + ['--verify', str(seed)], check=True)
-if a.network_stack:
+if expanded_system:
     expand=['python3',str(root/'tools/expand-system-image.py'),'--seed',str(seed),'--output',str(ramdisk)]
     for rel,path in pci_files:
-        if rel.startswith('System/Network/'):expand += ['--file',f'{rel}={path}']
+        if deferred_file(rel):expand += ['--file',f'{rel}={path}']
     subprocess.run(expand,check=True)
 bundle = runpy.run_path(str(root / 'tools/arosbundle'))
 args = SimpleNamespace(kernel=stage2, kernel_name='aros-apple-stage2',
@@ -219,7 +240,7 @@ shutil.copyfile(efi, output / 'EFI/BOOT/BOOTAA64.EFI')
 inputs = ([output/'AROS/SESSION.CFG'] if a.desktop_session is not None else []) + ([pci_probe] if a.pci_hidd else []) + [path for _, path in pci_files] + [stage2, efi, probe, ramdisk] + [path for _, path in components] + programs
 manifest = {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in inputs}
 (output / 'provenance.json').write_text(json.dumps({
-    'profile': a.profile, 'file_commands': a.file_commands, 'command_startup': a.command_startup, 'vsock_device': a.vsock_device, 'host_services': a.host_services, 'network_stack': a.network_stack, 'virtionet_device': a.virtionet_device, 'input_probe': a.input_probe, 'desktop_session': a.desktop_session, 'usb_desktop': a.usb_desktop, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,
+    'profile': a.profile, 'clipboard_sync': a.clipboard_sync, 'file_commands': a.file_commands, 'command_startup': a.command_startup, 'vsock_device': a.vsock_device, 'host_services': a.host_services, 'network_stack': a.network_stack, 'virtionet_device': a.virtionet_device, 'input_probe': a.input_probe, 'desktop_session': a.desktop_session, 'usb_desktop': a.usb_desktop, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,
     'source_revision': revision, 'configure_command': configure_command,
     'inputs': manifest, 'bundle_sha256': hashlib.sha256(data).hexdigest(),
 }, indent=2) + '\n')
