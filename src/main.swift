@@ -341,8 +341,12 @@ if #available(macOS 13.0, *) {
       if let override=ProcessInfo.processInfo.environment["MACAROS_VM_STATE_DIRECTORY"] {
         state=URL(fileURLWithPath:override,isDirectory:true)
       } else {
+        let profile = Bundle.main.object(forInfoDictionaryKey:"MacarosVMProfileName") as? String ?? "Default"
+        guard !profile.isEmpty, profile.utf8.allSatisfy({ ($0 >= 65 && $0 <= 90) || ($0 >= 97 && $0 <= 122) || ($0 >= 48 && $0 <= 57) || $0 == 45 || $0 == 95 }) else {
+          throw NSError(domain:"MacarosVM",code:1,userInfo:[NSLocalizedDescriptionKey:"Invalid bundled profile name."])
+        }
         state=try FileManager.default.url(for:.applicationSupportDirectory,in:.userDomainMask,appropriateFor:nil,create:true)
-          .appendingPathComponent("Macaros VM/Default",isDirectory:true)
+          .appendingPathComponent("Macaros VM",isDirectory:true).appendingPathComponent(profile,isDirectory:true)
       }
       storage=try VMStorage(state:state,seed:seed)
     } else {

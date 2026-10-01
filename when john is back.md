@@ -3748,3 +3748,22 @@ Next useful acceptance: force disconnect during a real VMSync transfer, verify
 automatic recovery without changing conflict policy or losing a newer guest copy.
 Other remaining scope: GUI image copy/paste, broader interrupted-write recovery,
 physical/Pi portability proofs; SMP remains bsek's work.
+
+## Standard AROS distribution work
+
+John requested the AROS contents of hosted Macaros's release, excluding Zed and
+Ferail. Read graft/make-aros-release.sh (file revision f44b2ce96738f2af4522310f7b5e44b54fd9f1ee)
+and run-window.sh staging. Reuse its runtime boundary, not hosted executables.
+New make distrib builds explicit runtime targets and packages WORK:System as
+persistent SYS after the established VMWORK0 readiness barrier. Standard assigns,
+fonts, theme, datatypes, preferences and desktop tools are staged with per-file
+hashes; make-disk reads each installed file back. Keep 64+256 MiB disk layout.
+Separate Distribution profile protects the existing Default disk. This is a
+private ad-hoc signed app; no upstream publication or notarization.
+
+First broad build reached AHI and exposed missing AHI translations submodules;
+initialized pinned translations and included them in the build recipe. Second
+build adds PNG/JPEG/Freetype/Zune and datatype descriptors to the runtime list.
+Swift launcher build PASS; Python syntax and exclusions/wrong-architecture/Mach-O
+refusal checks PASS. Full runtime packaging/boot proof still pending at this
+checkpoint; do not claim completion from an available build directory alone.

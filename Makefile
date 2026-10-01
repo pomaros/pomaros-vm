@@ -217,3 +217,14 @@ test-vm-storage: build/vm-storage-test
 	build/vm-storage-test
 build/vm-storage-test: src/VMStorage.swift tests/vm-storage.swift | build
 	swiftc -target arm64-apple-macos13.0 -O -warnings-as-errors src/VMStorage.swift tests/vm-storage.swift -o $@
+
+# Full standard AROS distribution; build binaries for VM, never copy hosted ones.
+VM_DISTRIB_BUILD ?= $(HOME)/Build/macaros-vm/clean-core
+VM_DISTRIB_EFI ?= build/uefi-desktop-session/BOOTAA64.EFI
+VM_DISTRIB_OUTPUT ?= artifacts/distribution
+.PHONY: distrib distribution distribution-build
+distribution-build:
+	python3 tools/distribution.py build --build "$(VM_DISTRIB_BUILD)"
+distrib distribution: build/macaros-vm distribution-build
+	python3 tools/distribution.py package --build "$(VM_DISTRIB_BUILD)" --efi "$(VM_DISTRIB_EFI)" --output "$(VM_DISTRIB_OUTPUT)"
+	python3 tools/package-app.py --esp "$(VM_DISTRIB_OUTPUT)/esp" --output "$(VM_DISTRIB_OUTPUT)/Macaros VM.app" --profile-name Distribution

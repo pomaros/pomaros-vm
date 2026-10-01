@@ -1,0 +1,206 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 John Knipper
+"""Build/package the standard AROS runtime for Macaros VM (no hosted binaries)."""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import runpy
+import shutil
+import subprocess
+from types import SimpleNamespace
+from fat_metadata import EPOCH, normalize_fat16
+
+ROOT = Path(__file__).resolve().parents[1]
+# Runtime boundary derived from Macaros/graft/make-aros-release.sh. Platform
+# boot modules come from package-core, never from the hosted Macaros directory.
+ROOTS = 'C Classes Devs Extras Fonts L Libs Locale Prefs S Storage System Tools Utilities WBStartup'.split()
+EXCLUDED = {'Zed', 'ZedAros', 'Ferail', 'Feraille', 'Moonstone', 'Developer',
+            'AppleCPU', 'AppleCopy', 'AppleDisk', 'AppleFiles', 'ApplePCIeDiag',
+            'AppleWrite', 'PkgRecv', 'Install-grub', 'Install-grub2'}
+REQUIRED = ['C/CPUInfo', 'C/Copy', 'C/List', 'C/Execute', 'C/AddDataTypes',
+            'C/IPrefs', 'C/VMExchange', 'C/VMSync', 'System/Wanderer/Wanderer',
+            'Tools/Editor', 'Tools/Calculator', 'Utilities/Clock',
+            'Utilities/MultiView', 'Utilities/More', 'Prefs/ScreenMode',
+            'Prefs/Locale', 'Prefs/Input', 'Libs/datatypes.library',
+            'Classes/DataTypes/picture.datatype', 'Classes/DataTypes/ilbm.datatype',
+            'Classes/DataTypes/png.datatype', 'Classes/DataTypes/jpeg.datatype',
+            'Prefs/Presets/Themes/AROSDefault/system/config']
+
+def run(args, **kwargs):
+    return subprocess.run([str(x) for x in args], check=True, **kwargs)
+
+def config(build):
+    sdk = build / 'bin/apple-aarch64/AROS'
+    cfg = (sdk.parent / 'gen/config/target.cfg').read_text(encoding='latin-1')
+    if 'AROS_VM_GUEST           := 1' not in cfg or '-ffixed-x18' in cfg:
+        raise ValueError('requires a VM-configured AArch64 build with ordinary x18')
+    source = Path(json.loads((build / 'vm-configure-command.json').read_text())[0]).parent
+    return sdk, source
+
+def build_runtime(a):
+    _, source = config(a.build)
+    modules = subprocess.check_output(['git', '-C', str(source), 'config', '--file', '.gitmodules', '--get-regexp', 'path'], text=True)
+    paths = [line.split(' ', 1)[1] for line in modules.splitlines()]
+    paths = [p for p in paths if p.startswith('workbench/') and p.lower().endswith(('/catalogs', '/translations'))]
+    run(['git', '-C', source, 'submodule', 'update', '--init', '--jobs', '4', '--', *paths])
+    targets = json.loads((ROOT / 'distribution/targets.json').read_text())
+    batch = a.build / 'vm-distribution.mk'
+    batch.write_text('.PHONY: vm-distribution\nvm-distribution:\n\t@+$(CALL) $(MMAKE) $(MMAKE_OPTIONS) ' +
+                     ' '.join('AROS.' + target for target in targets) + '\n')
+    log = a.build / 'vm-distribution.log'
+    with log.open('w') as stream:
+        result = subprocess.run(['make', '-C', str(a.build), '-j' + str(a.jobs), '-f', 'Makefile', '-f', str(batch), 'vm-distribution'], stdout=stream, stderr=subprocess.STDOUT)
+    if result.returncode or 'Nothing known about' in log.read_text(errors='replace'):
+        raise RuntimeError('distribution build failed: ' + str(log))
+    print('distribution build PASS: ' + str(log))
+
+def permitted(path):
+    return (not any(part.startswith('.') for part in path.parts) and
+            not any(part.removesuffix('.info') in EXCLUDED for part in path.parts) and
+            not path.name.startswith(('mmakefile', 'Makefile')) and
+            path.suffix.lower() not in {'.o', '.a', '.dbg', '.snapshot', '.ips', '.core'})
+
+def copy_runtime(sdk, destination):
+    for name in ROOTS:
+        top = sdk / name
+        if not top.is_dir():
+            continue
+        for path in sorted(top.rglob('*')):
+            rel = path.relative_to(sdk)
+            if not permitted(rel):
+                continue
+            if path.is_symlink():
+                raise ValueError('runtime symlink must be resolved explicitly: ' + str(rel))
+            target = destination / rel
+            if path.is_dir():
+                target.mkdir(parents=True, exist_ok=True)
+            elif path.is_file():
+                data = path.read_bytes()
+                if data[:4] == b'\x7fELF' and (data[4:6] != b'\x02\x01' or int.from_bytes(data[18:20], 'little') != 183):
+                    raise ValueError('non-AArch64 runtime executable: ' + str(rel))
+                if data[:4] in (b'\xcf\xfa\xed\xfe', b'\xfe\xed\xfa\xcf', b'\xca\xfe\xba\xbe'):
+                    raise ValueError('host Mach-O in runtime: ' + str(rel))
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(data)
+    for name in ROOTS:
+        icon = sdk / (name + '.info')
+        if icon.is_file():
+            shutil.copy2(icon, destination / icon.name)
+
+def package(a):
+    sdk, source = config(a.build)
+    if a.output.exists():
+        raise ValueError('output must be new; existing distributions and user disks are never overwritten')
+    missing = [name for name in REQUIRED if not (sdk / name).is_file()]
+    if missing:
+        raise ValueError('build the distribution first; missing ' + ', '.join(missing))
+    a.output.mkdir(parents=True)
+    base = a.output / 'base'
+    run(['python3', ROOT / 'tools/package-core.py', '--build', a.build, '--efi', a.efi,
+         '--output', base, '--profile', 'wanderer', '--virtio-gpu', '--usb-desktop',
+         '--work-volume', '--host-services', '--network-stack', '--desktop-session', 'forever'])
+    esp = a.output / 'esp'
+    shutil.copytree(base, esp)
+    system = esp / 'WORK/System'
+    system.mkdir(parents=True)
+    copy_runtime(sdk, system)
+    # The boot seed owns VM-specific commands, mountlists and network settings.
+    env = dict(os.environ, LC_ALL='en_US.UTF-8', TZ='UTC')
+    run(['mcopy', '-o', '-s', '-i', base / 'SYS.img', '::*', system], env=env, stdout=subprocess.DEVNULL)
+    for name in ROOTS:
+        (system / name).mkdir(exist_ok=True)
+    (system / 'Prefs/Env-Archive').mkdir(parents=True, exist_ok=True)
+    (system / 'Prefs/Env-Archive/HOME').write_text('WORK:')
+    for name in ['LICENSE', 'LICENSE.GPL', 'LICENSE.LGPL', 'LICENSE.Author', 'LEGAL']:
+        shutil.copy2(source / name, system / name)
+    # This runs only after the existing storage readiness barrier. Explicit
+    # assigns replace bootstrap RAM paths; modules already resident stay loaded.
+    setup = '''SYS:C/Assign SYS: VMWORK0:System
+SYS:C/Assign C: SYS:C
+SYS:C/Assign S: SYS:S
+SYS:C/Assign L: SYS:L
+SYS:C/Assign LIBS: SYS:Libs
+SYS:C/Assign LIBS: SYS:Classes ADD
+SYS:C/Assign DEVS: SYS:Devs
+SYS:C/Assign FONTS: SYS:Fonts
+SYS:C/Assign LOCALE: SYS:Locale
+SYS:C/Assign ENVARC: SYS:Prefs/Env-Archive
+SYS:C/Assign WANDERER: SYS:System/Wanderer
+SYS:C/Assign HELP: LOCALE:Help DEFER
+SYS:C/Assign THEMES: SYS:Prefs/Presets/Themes
+SYS:C/Assign THEME: THEMES:AROSDefault
+SYS:C/Assign IMAGES: THEME:Images
+SYS:C/MakeDir RAM:ENV
+SYS:C/Assign ENV: RAM:ENV
+SYS:C/Copy ENVARC: ENV: ALL QUIET
+SYS:C/SetEnv HOME WORK:
+SYS:C/Path C: SYS:System S: SYS:Prefs SYS:Tools SYS:Utilities QUIET
+CD SYS:
+SYS:C/AddDataTypes REFRESH QUIET
+SYS:System/FixFonts
+SYS:C/IPrefs
+Run >NIL: SYS:C/ConClip
+'''
+    startup = (base / 'Startup-Sequence').read_text()
+    marker = 'SYS:C/Assign VMWorkReady: REMOVE\n'
+    if startup.count(marker) != 1:
+        raise ValueError('missing unique WORK readiness barrier')
+    startup = startup.replace(marker, marker + setup)
+    (esp / 'Startup-Sequence').write_text(startup)
+    (system / 'S/Startup-Sequence').write_text(startup)
+    # Keep boot and desktop startup identical. Changing only an outer ESP copy
+    # would leave the RAM boot volume running the old startup.
+    run(['mcopy', '-o', '-i', esp / 'SYS.img', esp / 'Startup-Sequence', '::S/Startup-Sequence'], env=env)
+    (esp / 'SYS.img').write_bytes(normalize_fat16((esp / 'SYS.img').read_bytes()))
+    bundle = runpy.run_path(str(ROOT / 'tools/arosbundle'))
+    old = (base / 'AROS/GEN0.BND').read_bytes()
+    entries = bundle['verify_bundle'](old)
+    inputs = a.output / 'bundle-inputs'; inputs.mkdir()
+    args = SimpleNamespace(component=[])
+    for entry in entries:
+        path = inputs / entry['name']
+        path.write_bytes(old[entry['offset']:entry['offset'] + entry['size']])
+        if entry['type'] == bundle['TYPE']['kernel']:
+            args.kernel = path; args.kernel_name = entry['name']; args.kernel_memory_size = entry['memory_size']
+        elif entry['type'] == bundle['TYPE']['ramdisk']:
+            args.ramdisk = esp / 'SYS.img'; args.ramdisk_name = entry['name']
+        else:
+            args.component.append((entry['name'], path))
+    data = bundle['create_bundle'](args)
+    (esp / 'AROS/GEN0.BND').write_bytes(data)
+    (esp / 'AROS/BOOT0.ID').unlink()
+    run(['python3', ROOT / 'tools/boot_generation.py', 'create', '--bundle', esp / 'AROS/GEN0.BND',
+         '--sequence', '1', '--slot', '0', '--state', 'accepted', '--output', esp / 'AROS/BOOT0.ID'])
+    inventory = {}
+    for path in sorted(system.rglob('*')):
+        os.utime(path, (EPOCH, EPOCH))
+        if path.is_file():
+            inventory[path.relative_to(system).as_posix()] = {'bytes': path.stat().st_size, 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}
+    manifest = json.loads((base / 'provenance.json').read_text())
+    manifest.update(base_package=str(base), bootstrap_ramdisk_sha256=hashlib.sha256((esp/'SYS.img').read_bytes()).hexdigest(), startup_sha256=hashlib.sha256(startup.encode()).hexdigest(), distribution=True, distribution_location='WORK:System',
+                    bundle_sha256=hashlib.sha256(data).hexdigest(), distribution_files=inventory,
+                    excluded_products=['Zed', 'Ferail', 'Moonstone', 'hosted macOS drivers', 'Developer SDK'])
+    (esp / 'provenance.json').write_text(json.dumps(manifest, indent=2) + '\n')
+    print('distribution package PASS files=' + str(len(inventory)) + ' bytes=' + str(sum(x['bytes'] for x in inventory.values())))
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('action', choices=['build', 'package'])
+    parser.add_argument('--build', type=Path, required=True)
+    parser.add_argument('--jobs', type=int, default=6)
+    parser.add_argument('--efi', type=Path)
+    parser.add_argument('--output', type=Path)
+    a = parser.parse_args(); a.build = a.build.resolve()
+    if a.action == 'build':
+        build_runtime(a)
+    else:
+        if not a.efi or not a.output:
+            parser.error('package requires --efi and --output')
+        a.efi = a.efi.resolve(); a.output = a.output.resolve()
+        package(a)
+
+if __name__ == '__main__':
+    main()
