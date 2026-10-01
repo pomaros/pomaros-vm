@@ -117,6 +117,8 @@ def package(a):
     run(['mcopy', '-o', '-s', '-i', base / 'SYS.img', '::*', system], env=env, stdout=subprocess.DEVNULL)
     for name in ROOTS:
         (system / name).mkdir(exist_ok=True)
+    (system / 'Devs/DOSDrivers').mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source / 'workbench/devs/DOSDrivers/PIPE', system / 'Devs/DOSDrivers/PIPE')
     (system / 'Prefs/Env-Archive').mkdir(parents=True, exist_ok=True)
     (system / 'Prefs/Env-Archive/HOME').write_text('WORK:')
     shutil.copy2(ROOT / 'distribution/ReadMe', system / 'ReadMe')
@@ -145,6 +147,9 @@ SYS:C/Assign DEVS: SYS:Devs
 SYS:C/Assign KEYMAPS: DEVS:Keymaps
 SYS:C/Assign FONTS: SYS:Fonts
 SYS:C/Assign LOCALE: SYS:Locale
+SYS:C/MakeDir RAM:Clipboards
+SYS:C/Assign CLIPS: RAM:Clipboards
+SYS:C/Mount DEVS:DOSDrivers/PIPE
 SYS:C/Assign ENVARC: SYS:Prefs/Env-Archive
 SYS:C/Assign WANDERER: SYS:System/Wanderer
 SYS:C/Assign HELP: LOCALE:Help DEFER
