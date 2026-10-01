@@ -317,7 +317,7 @@ if expanded_system:
     subprocess.run(expand,check=True)
 bundle = runpy.run_path(str(root / 'tools/arosbundle'))
 args = SimpleNamespace(kernel=stage2, kernel_name='aros-apple-stage2',
-                       kernel_memory_size=16 * 1024 * 1024, component=components,
+                       kernel_memory_size=128 * 1024 * 1024, component=components,
                        ramdisk=ramdisk, ramdisk_name='SYS')
 data = bundle['create_bundle'](args)
 entries = bundle['verify_bundle'](data)

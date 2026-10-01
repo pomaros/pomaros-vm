@@ -65,3 +65,10 @@ visible but SYS is unavailable. Do not resume work in that state: terminate the
 VM process and relaunch it. A lost acknowledgement does not prove a successful
 flush. The boot-only updater rejects distribution disks: their kernel and
 WORK:System must be upgraded together.
+
+The VM boot payload reserves 128 MiB of guest RAM for relocated boot modules,
+page tables and the executable allocation arena. The arena receives up to
+64 MiB (bounded by the remaining reservation); this is separate from the disk
+layout and the 16 MiB RAM filesystem. A full desktop must have room to load
+codecs and applications alongside USB, networking and host services. Physical
+boot retains its existing arena limit.
