@@ -26,6 +26,7 @@ p.add_argument('--require-network-packets',action='store_true')
 p.add_argument('--require-network-irq',action='store_true')
 p.add_argument('--require-sana-device',action='store_true')
 p.add_argument('--require-desktop-network',action='store_true')
+p.add_argument('--require-desktop-work',choices=['write','restart'])
 p.add_argument('--require-network-dns',action='store_true')
 p.add_argument('--require-network-stack',action='store_true')
 p.add_argument('--require-network-echo',action='store_true')
@@ -57,6 +58,8 @@ if a.require_file_commands:
 if a.require_host_services and (not a.require_pci_hidd or a.require_vsock or a.require_vsock_device): p.error('--require-host-services requires PCI and excludes the echo probes')
 if a.require_vsock_device: a.require_vsock=True
 if a.require_vsock and not a.require_pci_hidd: p.error('--require-vsock requires --require-pci-hidd')
+if a.require_desktop_work and not (a.desktop_startup and a.require_desktop_session):
+    p.error('--require-desktop-work requires a desktop session')
 if a.require_desktop_network:
     if not (a.desktop_startup and a.require_desktop_session): p.error('--require-desktop-network requires a desktop session')
     a.require_network_dns=True
@@ -189,6 +192,8 @@ verdict={'result':'PASS' if passed else 'FAIL','reason':reason,
          'clipboard_sync_engine_verified':passed and a.require_clipboard_sync,
          'host_file_exchange_verified':passed and a.require_host_services,
          'file_commands_verified':passed and a.require_file_commands,
+         'desktop_work_phase':a.require_desktop_work,
+         'desktop_work_verified':passed and bool(a.require_desktop_work),
          'desktop_network_autostart_verified':passed and a.require_desktop_network,
          'network_dns_verified':passed and a.require_network_dns,
          'network_host_udp_verified':passed and a.require_network_echo,

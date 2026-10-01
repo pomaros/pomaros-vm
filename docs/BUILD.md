@@ -572,12 +572,19 @@ WORK. `make-disk.py --work-volume` also explicitly requests this layout.
 Existing outputs are refused; this does not upgrade or resize existing images.
 
 Startup uses stock LoadResource for the non-expunging bus/storage HIDDs, then
-Mount with DEVS:WORK.mount. Geometry: virtio.device unit 0, 512-byte sectors,
+Mount with DEVS:WORK.mount. Device VMWORK0: is distinct from volume WORK:.
+Startup temporarily locks through VMWORK0: using Assign, then removes that
+assign: FAT replies to startup before publishing WORK, so Mount alone is not
+a volume-readiness barrier. Geometry: virtio.device unit 0, 512-byte sectors,
 one sector per cylinder, low cylinder 131072, high cylinder 655359. Mask retains
 Mount's native-width default. This is explicit VM geometry, not GPT discovery.
 SYS is RAM-backed; use WORK for persistent files. Reuse the same disk on later
 launcher invocations. Test runners copy disks: reuse their resulting system.img.
 
-Two short VZ runs pass desktop startup and guest directory creation with host
-readback. Guest restart read and integrated clean shutdown/flush remain to
-qualify for this desktop path. Forced exit is not a durable-save acknowledgement.
+The combined desktop passes a 64 KiB write, FAT drain, negotiated virtio FLUSH,
+and fresh-VM exact read with independent host byte checks. Add --work-probe to
+a bounded package for this test; run-vz --require-desktop-work write requires
+the creation phase, and --require-desktop-work restart requires existing-file
+readback. Reuse the resulting system.img, never regenerate its WORK volume.
+The host Quit path still needs graceful-shutdown integration. Forced exit is
+not a durable-save acknowledgement.

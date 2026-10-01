@@ -2920,3 +2920,59 @@ Next: guest re-read on a fresh VM from the resulting disk, explicit clean
 shutdown/flush integration, combined network/clipboard/WORK packaging and
 normal user image refresh. No power-loss guarantee claimed. Two short VM
 runs only; the older two-boot filesystem harness is separate evidence.
+
+## WORK fresh-VM read and combined desktop — 2026-10-01
+
+Two startup issues found and corrected, without changing the filesystem driver:
+- Device and volume both named WORK made DOS getdevpacketinfo reject Inhibit:
+  it requires DLT_DEVICE, but GetDeviceProc returned the volume. Device is now
+  VMWORK0; user-visible volume remains WORK.
+- fat-handler replies to its startup packet before ProcessDiskChange publishes
+  the volume (rom/filesys/fat/main.c). Opening WORK immediately after Mount can
+  request a missing volume on restart. Stock Assign temporarily locks VMWORK0,
+  then removes VMWorkReady. This waits for the handler without a timed sleep or
+  a retained assign lock. The same startup is used by normal and test images.
+
+Added independent desktop-work probe: uses the already-mounted volume, creates
+or verifies a deterministic 65536-byte file, checks EOF and Close, drains FAT
+with Inhibit(VMWORK0), checks negotiated VIRTIO_BLK_F_FLUSH, requests CMD_UPDATE,
+then uninhibits. File creation and existing-file read have distinct strict
+run-vz markers/phase flags. Errors report the failing stage. This is a test
+command, not a host Quit implementation.
+
+Evidence artifacts/desktop-work-persistence-verdict.json PASS, including host
+mtype comparisons and exact disk hashes. Write run
+artifacts/vz-desktop-work-integrated-fixed-write PASS 23.14 s; restart read
+artifacts/vz-desktop-work-restart-fixed PASS 23.11 s. Both include bounded
+20-second desktop, USB HID, actual clipboard daemon text/image/foreground
+contention/no-echo and DHCP/DNS. File SHA256
+1942de172742ea4cc88bacca1802a39924147e552ff0a36397597ad066c3e94f.
+Core d6ee88aca9, launcher b2e99ffd87dc3b645ef7ad9a72c82d5ae12a5b1dd7cbefd8283acd81d9fc23b3.
+The read boot used the corrected startup bundle and a byte-for-byte copy of
+WORK from the successful write. Transfer hash/paths are independently recorded
+in artifacts/work-restart-volume-transfer.json. This is persistent data across
+fresh VMs with an updated boot bundle, not an identical-whole-disk two-boot gate.
+
+Failed attempts retained: integrated-write (2.25 s, generic probe failure),
+integrated-diagnostic (Inhibit error 218), integrated-restart (40.11 s timeout,
+WORK requester before the readiness barrier). Initial probe build rejected
+IOStdReq/IORequest pointer mismatches; corrected explicitly, no warning override.
+An orchestration attempt checked the write verdict before it existed and started
+copying for the first failed restart while the writer runner was finishing. The
+first failed restart's input SHA matches the writer's final disk SHA exactly;
+that failed run remains FAIL and is not the accepted fresh-read proof. The
+accepted restart copied only after the source runner was confirmed complete.
+
+Normal image prepared, no probes and no extra boot test:
+artifacts/desktop-work-ready-v2.img (320 MiB), bundle
+artifacts/desktop-work-ready-v2-bundle. Includes WORK, network and VMSync.
+Run from the VM repository:
+
+    build/macaros-vm artifacts/desktop-work-ready-v2.img artifacts/desktop-work-user-state --gpu --usb-input --host-services --network
+
+Automated clipboard runs used private named pasteboards; normal launch uses the
+Mac clipboard. Host SIGTERM/quit still stops the VM without a guest flush
+handshake: the probe's explicit flush is not a product shutdown guarantee.
+Next implementation: clean host-requested shutdown, then app packaging and
+remaining stage-six acceptance (visual/input, GPU IRQ, full rebuild comparison,
+TCP and bounded sustained use). No SMP, no physical M1/Pi validation claimed.

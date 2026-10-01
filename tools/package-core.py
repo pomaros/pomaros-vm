@@ -16,6 +16,7 @@ p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--virtio-gpu', action='store_true')
 p.add_argument('--pci-hidd', action='store_true')
 p.add_argument('--virtio-device', action='store_true')
+p.add_argument('--work-probe', action='store_true')
 p.add_argument('--work-volume', action='store_true', help='mount the appended 256 MiB WORK volume made by make-disk --work-volume')
 p.add_argument('--virtionet-device', action='store_true')
 p.add_argument('--host-services', action='store_true')
@@ -81,6 +82,8 @@ if a.xhci_enumerate and not a.xhci_driver:
     p.error('--xhci-enumerate requires --xhci-driver')
 if a.xhci_driver and not a.pci_hidd:
     p.error('--xhci-driver requires --pci-hidd')
+if a.work_probe and not (a.work_volume and a.desktop_session):
+    p.error('--work-probe requires --work-volume and a desktop session')
 if a.work_volume and not (a.profile=='wanderer' and a.virtio_gpu):
     p.error('--work-volume requires a resident virtio-GPU desktop')
 if a.virtio_device and not a.pci_hidd:
@@ -198,15 +201,20 @@ if a.profile=='wanderer':
 if a.work_volume:
     pci_files += [(rel,sdk/'AROS'/rel) for rel in ['C/Mount','C/LoadResource','L/fat-handler']]
     mountlist=output/'WORK.mount'
-    mountlist.write_text('WORK:\nFileSystem = L:fat-handler\nDevice = virtio.device\nUnit = 0\n'
+    mountlist.write_text('VMWORK0:\nFileSystem = L:fat-handler\nDevice = virtio.device\nUnit = 0\n'
         'BlockSize = 512\nSurfaces = 1\nBlocksPerTrack = 1\nLowCyl = 131072\nHighCyl = 655359\n'
         'Buffers = 64\nBufMemType = 1\nMaxTransfer = 0x100000\n'
         'DosType = 0x46415401\nStackSize = 65536\nActivate = 1\n#\n')
     pci_files.append(('Devs/WORK.mount',mountlist))
+    if a.work_probe:
+        command=output/'VMWORK'
+        subprocess.run([str(root/'tools/build-abi-probe'),'--sdk',str(sdk),
+            '--crosstools',str(a.toolchain.resolve()),'--profile','desktop-work',str(command)],check=True)
+        pci_files.append(('VMWORK',command))
 desktop_services = a.host_services and a.profile=='wanderer'
 expanded_system = a.network_stack or a.profile=='wanderer'
 def deferred_file(rel):
-    return (a.work_volume and rel in {'C/Mount','C/LoadResource','L/fat-handler','Devs/WORK.mount','Devs/Drivers/bus.hidd','Devs/Drivers/storage.hidd','Devs/virtio.device'}) or (a.profile=='wanderer' and rel in {'C/Assign','C/MakeDir'}) or (a.network_stack and (rel.startswith('System/Network/') or rel in {'VMNET','Libs/rexxsyslib.library','Libs/commodities.library','Libs/keymap.library','Devs/Networks/virtionet.device'})) or (desktop_services and rel in {
+    return (a.work_volume and rel in {'VMWORK','C/Mount','C/LoadResource','L/fat-handler','Devs/WORK.mount','Devs/Drivers/bus.hidd','Devs/Drivers/storage.hidd','Devs/virtio.device'}) or (a.profile=='wanderer' and rel in {'C/Assign','C/MakeDir'}) or (a.network_stack and (rel.startswith('System/Network/') or rel in {'VMNET','Libs/rexxsyslib.library','Libs/commodities.library','Libs/keymap.library','Devs/Networks/virtionet.device'})) or (desktop_services and rel in {
         'C/VMExchange','C/VMSync','Devs/clipboard.device','Devs/vmbridge.device','VMCLIP'})
 ramdisk = output / 'SYS.img'
 image_command = ['python3', str(root / 'tools/make-fat12-image.py'), '--abi-probe', str(probe)]
@@ -251,7 +259,15 @@ if a.network_probe:
         'Run >T:AROSTCP-startup.log SYS:System/Network/AROSTCP/C/AROSTCP\nRun >NIL: SYS:VMNET\n',1)
     pci_files.append(('VMNET',network_command))
 if a.work_volume:
-    startup_lines='SYS:C/LoadResource DEVS:Drivers/bus.hidd DEVS:Drivers/storage.hidd\nSYS:C/Mount WORK: FROM DEVS:WORK.mount\n'+(startup_lines or 'G4Ready\nEndCLI\n')
+    startup_lines='SYS:C/LoadResource DEVS:Drivers/bus.hidd DEVS:Drivers/storage.hidd\nSYS:C/Mount VMWORK0: FROM DEVS:WORK.mount\n'+(startup_lines or 'G4Ready\nEndCLI\n')
+if a.work_volume:
+    # FAT replies to handler startup before publishing the volume name.
+    # Lock through the device once, then release it before desktop use.
+    startup_lines=startup_lines.replace('SYS:C/Mount VMWORK0: FROM DEVS:WORK.mount\n',
+        'SYS:C/Mount VMWORK0: FROM DEVS:WORK.mount\nSYS:C/Assign VMWorkReady: VMWORK0:\nSYS:C/Assign VMWorkReady: REMOVE\n',1)
+if a.work_probe:
+    startup_lines=startup_lines.replace('SYS:C/Assign VMWorkReady: REMOVE\n',
+        'SYS:C/Assign VMWorkReady: REMOVE\nSYS:VMWORK\n',1)
 if a.profile=='wanderer':
     startup_lines='SYS:C/MakeDir RAM:T\nSYS:C/Assign T: RAM:T\n'+(startup_lines or 'G4Ready\nEndCLI\n')
 if startup_lines is not None:
@@ -288,7 +304,7 @@ shutil.copyfile(efi, output / 'EFI/BOOT/BOOTAA64.EFI')
 inputs = ([output/'AROS/SESSION.CFG'] if a.desktop_session is not None else []) + ([pci_probe] if a.pci_hidd else []) + [path for _, path in pci_files] + [stage2, efi, probe, ramdisk] + [path for _, path in components] + programs
 manifest = {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in inputs}
 (output / 'provenance.json').write_text(json.dumps({
-    'profile': a.profile, 'work_volume': a.work_volume, 'clipboard_probe': a.clipboard_probe, 'clipboard_sync': a.clipboard_sync, 'file_commands': a.file_commands, 'command_startup': a.command_startup, 'vsock_device': a.vsock_device, 'host_services': a.host_services, 'network_dns': a.network_dns, 'network_probe': a.network_probe, 'network_stack': a.network_stack, 'virtionet_device': a.virtionet_device, 'input_probe': a.input_probe, 'desktop_session': a.desktop_session, 'usb_desktop': a.usb_desktop, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,
+    'profile': a.profile, 'work_volume': a.work_volume, 'work_probe': a.work_probe, 'clipboard_probe': a.clipboard_probe, 'clipboard_sync': a.clipboard_sync, 'file_commands': a.file_commands, 'command_startup': a.command_startup, 'vsock_device': a.vsock_device, 'host_services': a.host_services, 'network_dns': a.network_dns, 'network_probe': a.network_probe, 'network_stack': a.network_stack, 'virtionet_device': a.virtionet_device, 'input_probe': a.input_probe, 'desktop_session': a.desktop_session, 'usb_desktop': a.usb_desktop, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,
     'source_revision': revision, 'configure_command': configure_command,
     'inputs': manifest, 'bundle_sha256': hashlib.sha256(data).hexdigest(),
 }, indent=2) + '\n')

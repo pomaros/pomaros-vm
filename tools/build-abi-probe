@@ -6,7 +6,7 @@ set -eu
 
 usage()
 {
-    echo "usage: build-abi-probe [--profile cli|tls|workbench|platform|pci|usb-desktop|desktop-input|desktop-clipboard|desktop-network] [--sdk SDK_ROOT] [--sdk-tools DIR] [--crosstools DIR] OUTPUT" >&2
+    echo "usage: build-abi-probe [--profile cli|tls|workbench|platform|pci|usb-desktop|desktop-input|desktop-clipboard|desktop-network|desktop-work] [--sdk SDK_ROOT] [--sdk-tools DIR] [--crosstools DIR] OUTPUT" >&2
     exit 2
 }
 
@@ -60,6 +60,9 @@ case "$profile" in
         ;;
     pci)
         source_file="$project_root/tests/pci-hidd-probe.c"
+        ;;
+    desktop-work)
+        source_file="$project_root/tests/desktop-work.c"
         ;;
     desktop-network)
         source_file="$project_root/tests/network-stack.c"
