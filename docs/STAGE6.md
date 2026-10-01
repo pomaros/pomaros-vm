@@ -133,3 +133,18 @@ at `artifacts/stage6-final/Macaros VM.app` passed the integrated VZ gate in
 19.55 seconds (`artifacts/vz-stage6-final-deterministic-1/verdict.json`). Its
 packaged executable has a different outer hash because the app itself is
 signed again; its provenance records the matching pre-package launcher hash.
+
+The final frozen core revision `2d167429e3` passed two complete independent
+builds in `artifacts/repro-final-stage6-20261001/verdict.json`: all 26 targets
+in each tree, 18,308 SDK/product entries each, and zero differences including
+stage2. This is a build check, separate from the bounded VZ runs above.
+
+The later French-keyboard distribution stores `pc105_f` in `ENVARC:Keymap`;
+the existing `LoadKeymap RESTORE` startup command reads it. Its signed app at
+`artifacts/stage6-french/Macaros VM.app` passed the integrated VZ gate in
+21.89 seconds (`artifacts/vz-stage6-french-1/verdict.json`). The packaged seed
+and stopped test disk read back `pc105_f`. John confirmed that French typing
+works in the existing `Distribution-Stage6Final` profile after it was updated
+while stopped and relaunched. An
+extra concurrent VM run with an optional keymap probe timed out before the
+probe started and is not counted as keymap proof.

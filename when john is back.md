@@ -3919,8 +3919,8 @@ from the first sample inside the window. The test-only guest probes and a
 copy of SYS: are placed on an isolated disk; the released seed is unchanged.
 This proves guest GUI image decode/drawing, not host VZ view pixels.
 
-Reproducibility: two new isolated builds from frozen core2d167429e3 started
-under `artifacts/repro-final-stage6-20261001`; results to append when complete.
+Reproducibility: two new isolated builds from frozen core2d167429e3 ran
+under `artifacts/repro-final-stage6-20261001`; final PASS detailed below.
 The build includes kernel-openfirmware and workbench-c-devicetree, compares
 all generated product/SDK files and stage2. No native/Pi/SMP work.
 
@@ -3950,3 +3950,26 @@ nonflat guest pixels, and actual NSWindow.performClose leads to one guest
 quiesce/host ack and exit0. Packaged binary hash differs after outer signing;
 provenance records the pre-package launcher hash. Manual host VZ image judgment
 was requested from John with the exact MultiView command in docs/STAGE6.md.
+
+The final frozen core2d167429e3 independent comparison completed PASS:
+`artifacts/repro-final-stage6-20261001/verdict.json`, 26 targets per tree,
+18,308 SDK/product entries per tree, zero differences including stage2.
+Builds took 2,158.22s and 2,127.22s under concurrent system load. Later VM
+packaging changes do not alter the compared core product bytes.
+
+John requested French AZERTY on2026-10-01. VM54223f5 seeds
+`Prefs/Env-Archive/Keymap` with `pc105_f` for new distributions and requires
+the matching keymap payload. Existing `LoadKeymap RESTORE` applies saved
+preferences; later `LoadKeymap <name>` choices persist. New signed app:
+`artifacts/stage6-french/Macaros VM.app` with fresh profile
+Distribution-Stage6French. Its isolated integration gate passed in21.89s:
+`artifacts/vz-stage6-french-1/verdict.json`. Seed and stopped test disk read
+back pc105_f. The existing Distribution-Stage6Final profile was offline
+when `Keymap` was added and read back, then relaunched. John confirmed the
+French keyboard works in that session.
+An exploratory concurrent VZ run with a temporary runtime keymap probe timed
+out before the probe began; the user's GUI VM also disappeared during that
+period. There is no MacarosVM crash report. Cause of that exit remains unknown,
+and the concurrent run is not counted as a product failure or keymap proof.
+The temporary probe code was removed; do not run another VZ qualification
+alongside John's GUI session. Review threads299 and301 are open.
