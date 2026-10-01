@@ -7,6 +7,15 @@ launcher follows Apple's host ABI.
 This private project reuses the AROS kernel, UEFI loader and bundle tools.
 The existing hosted Macaros remains in its own repository.
 
+## Standard AROS distribution
+
+`make distrib` builds and packages the AROS desktop distribution for the VM,
+including tools, utilities, preferences, fonts, themes, catalogs and datatypes.
+Zed and Ferail are excluded. The result is
+`artifacts/distribution/Macaros VM.app`, with a separate `Distribution` profile
+and persistent system files in `WORK:System`. See the
+[distribution build and disk layout](docs/DISTRIBUTION.md).
+
 ## Use the application
 
 Open the packaged `Macaros VM.app` to start the AROS desktop. The application
