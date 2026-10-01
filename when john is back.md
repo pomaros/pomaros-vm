@@ -3465,3 +3465,29 @@ the stale impression that only the headless developer probe is usable. It
 does not claim GUI Copy/Paste acceptance or imply replacing an app upgrades
 an existing profile. Documentation-only change; paths/commands checked against
 BUILD, HOST-SERVICES and CLIPBOARD. No additional guest tests.
+
+## Full comparison completed; missing packaging dependency found — 2026-10-01
+
+Original supervisor20748/exec46525 completed normally. Frozen core
+d3301fb648, VMdriver0613f3b: all19targets return0 in both builds,18,281
+product/SDK entries match with zero differences. Independent audit rehashed
+every file, checked modes/symlink targets, rejected error/unknown-target log
+diagnostics, and verified24required AArch64 ELF products. Build durations
+4222.02/4257.61s. Evidence in Build/macaros-vm/repro-current-20261001:
+verdict.json, products-a/b.json and completion-audit.json. These exclude later
+GPU IRQ/MSI reservation changes and do not qualify the current tip.
+
+Fresh packaging then failed before any VM launch: poseidon.library missing.
+The19target list built its headers/classes, not the library itself. This is a
+real completeness omission despite equal inventories. package log retained at
+artifacts/repro-full-package.log; no complete image or boot claim.
+
+rebuild-compare.py adds kernel-usb-poseidon (20targets) and requires
+poseidon.library, bus.hidd, storage.hidd and fat-handler (28ELFproducts).
+Supplemental Poseidon builds run in both existing independent outputs with
+the same frozen epoch, through the configured CALL/MetaMake wrapper.
+artifacts/complete-poseidon.py: PID3926, exec63968, still running at handoff.
+Original comparison manifests are retained unchanged. On completion run
+artifacts/audit-complete-build.py, which writes separate products-complete-a/b
+and complete-build-verdict.json, then retry packaging to a NEW output and
+perform one bounded desktop boot. No full rebuild restart or extra guest run.

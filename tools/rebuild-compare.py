@@ -30,7 +30,7 @@ source=a.output/'source'
 configure=a.output/'configure-core.py'
 shutil.copyfile(root/'tools/configure-core.py',configure)
 targets=['kernel-hidd-virtiogfx','apple-wanderer-payloads','kernel-hidd-vmpci',
-         'kernel-virtio','kernel-usb-pcixhci','kernel-usb-classes-hub',
+         'kernel-virtio','kernel-usb-poseidon','kernel-usb-pcixhci','kernel-usb-classes-hub',
          'kernel-usb-classes-hubss','kernel-usb-classes-hid','workbench-c',
          'workbench-devs-networks-virtionet','workbench-network-stacks-arostcp',
          'network-dhcp-client','workbench-devs-vmbridge','workbench-devs-clipboard',
@@ -82,6 +82,7 @@ def inventory(label):
               'Devs/Networks/virtionet.device','System/Network/AROSTCP/C/AROSTCP',
               'System/Network/AROSTCP/C/dhclient','Devs/vmbridge.device','Devs/clipboard.device',
               'C/VMExchange','C/VMSync','C/Assign','C/MakeDir','C/Mount','C/LoadResource',
+              'Libs/poseidon.library','Devs/Drivers/bus.hidd','Devs/Drivers/storage.hidd','L/fat-handler',
               'Libs/rexxsyslib.library','Libs/commodities.library','Libs/keymap.library',
               'System/Wanderer/Wanderer','boot/apple/Devs/kernel.resource','Libs/dos.library']
     for name in required:
