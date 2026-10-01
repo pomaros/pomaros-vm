@@ -3572,3 +3572,20 @@ independent of those implied flags; it does not fix an observed shipped-app
 regression. A soak fixture automatically runs 60 WORK writes and file exchanges. A focused admission check accepts a normal desktop manifest
 and rejects each enabled probe, including this fixture. No VM boot was needed.
 The current-core independent rebuild continues separately without source changes.
+
+## Current core: complete rebuild and application
+
+Core `01e0e1a4b12d6e7f55817a69a3077bc5c4e0c6f9` now passes the
+22-target independent comparison: 18,285 entries in each build, zero differences.
+Evidence: `/Users/jkn/Build/macaros-vm/repro-irq-current-20261001/verdict.json`.
+The build supervisor exited zero; its former handle must not be restarted.
+`artifacts/current-full-application/verdict.json` records successful direct
+packaging of build-a, without component overlays. The signed application is
+`artifacts/current-full-application/Macaros VM.app`.
+One isolated-profile VZ check passed in 8.66 seconds, including desktop startup,
+two HID bindings, GPU IRQ completion, state/disk exclusivity, immutable seed
+and guest-acknowledged clean shutdown. Evidence:
+`artifacts/vz-current-full-application/verdict.json` and `console.log`.
+Seed SHA256: `34d01a2da28e098b0405ac9341defe2fc13e39bd33bb679e49dce08692ca613e`.
+This headless check does not prove VZ pixels or physical input. The user's
+default profile was not touched. No repeated boot is needed for this check.
