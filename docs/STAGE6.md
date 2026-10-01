@@ -50,3 +50,9 @@ later seed changes preserve personal disk bytes. Normal location is Application
 Support/Macaros VM/Default. This is not Finder-click or VZ pixel verification,
 and updated full guest reproducibility still needs comparison. Independent launcher
 builds and same-input signed app packaging have passed their comparisons.
+
+Corrected app artifact and profile update: the private app with qualified GPU/MSI
+components passes bundled startup and clean quit on an updated image retaining
+existing WORK files. The no-replace image updater preserves WORK byte for byte
+and refuses active VZ disks. This component-overlay application is distinct from
+the frozen full-rebuild comparison; see the handoff for exact identities.

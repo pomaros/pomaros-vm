@@ -703,3 +703,25 @@ stop. Workload timeout is 180 seconds; shutdown gets 20 seconds. The runner
 copies the disk and uses isolated host services/private clipboard state.
 Memory snapshots are observations, not a leak-free assertion. This is a bounded
 integrated workload, not exhaustive crash recovery or prolonged reliability.
+
+## Updating an existing VM system while preserving WORK
+
+The application copies its seed only for a new profile. Replacing the .app does
+not replace an existing profile's guest system. To prepare updated boot files,
+stop the VM and create a separate disk with the new seed and existing WORK:
+
+```sh
+python3 tools/update-system-image.py \
+  --seed "NEW.app/Contents/Resources/System.img" \
+  --disk "OLD_PROFILE/system.img" --output "NEW_PROFILE/system.img"
+MACAROS_VM_STATE_DIRECTORY="NEW_PROFILE" "NEW.app/Contents/MacOS/MacarosVM"
+```
+
+Use absolute profile paths when launching from another directory. The helper
+supports the fixed 64 MiB boot + 256 MiB WORK layout. It validates both FAT16
+volumes, obtains exclusive locks on read-only inputs, copies the new boot volume
+and byte-identical existing WORK, then publishes a new file atomically without
+replacement. Both inputs remain untouched. A running VZ disk lease, symlink,
+unsupported layout or existing destination is refused. New profile machine/network
+identity is generated normally; this command copies disk data, not host Shared
+files or firmware state. Keep the old profile as the rollback copy.

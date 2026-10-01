@@ -3329,3 +3329,44 @@ more soak repeats without another concrete reason. Source01e0e1a4b1 pushed.
 Full rebuild supervisor20748/exec46525 still running at20m34 on frozen d3301;
 GPU target completed in both, Wanderer dependencies compiling. Its eventual
 comparison excludes later GPU/observer and source-reservation changes.
+
+## Corrected standalone application and preserved-WORK update — 2026-10-01
+
+Usable private application: artifacts/app-ready-irq/Macaros VM.app. Normal live
+WORK/USB/network/host-services startup, no qualification probes. It is a qualified
+component overlay on desktop-safe-quit: kernel.resource + virtiogfx.hidd from
+14461d32e8, vmpci.hidd from 01e0e1a4b1. Every other payload, including normal SYS,
+was asserted byte-identical to the previously qualified base. Its provenance
+explicitly preserves base source identity plus component_overrides and their
+hashes; it is NOT represented as a fresh full build. Assembly script retained at
+artifacts/prepare-refreshed-app.py; ESP artifacts/desktop-app-irq-bundle.
+Signed app packaging and codesign strict verification PASS. Seed SHA256
+38d702ebe4194ecd140c6bce9fec60e9e7031e2736d6e4f1a3c28a85bc970907.
+Signed app executable SHA256
+78e215204323583e763f8212d56be139d4b49caa76623fc5000a430f6906cee8.
+
+An existing profile intentionally retains its original guest seed. Added
+update-system-image.py to create a NEW disk: updated 64 MiB boot from the new
+seed, exact 256 MiB WORK from a stopped existing disk. Read-only inputs with
+exclusive flock; fixed FAT16 geometry validation, temporary fsync and atomic
+no-replace link publication. It never updates an existing disk in place or
+copies unrelated user profiles. Host Shared files/firmware state are separate.
+Existing destination and busy source are refused. See docs/BUILD.md for use.
+
+Host controls artifacts/update-image-host-verdict.json PASS: independent byte
+comparison of both regions, original full disk hash unchanged, existing output
+refused unchanged, invalid geometry refused. Real VZ lock refusal is recorded in
+artifacts/app-updated-profile/busy-update.log (before concise-error formatting).
+
+One actual bundled application run artifacts/app-updated-profile/verdict.json
+PASS, 9.79 s: a disk prepared from the completed soak WORK volume boots the new
+normal system; GPU IRQ/desktop/HID, state and VZ disk exclusivity, updater's
+active-disk refusal, guest-quiesced shutdown and independent readback of both
+SOAK files pass. Seed unchanged. Test state is isolated under artifacts; John's
+default Application Support profile was neither read nor modified. Test script
+artifacts/qualify-updated-app.py retained. Capture permission remains pending;
+this is not a Finder-click or VZ-pixel proof.
+
+Frozen full-build comparison20748/exec46525 remains live at27m27; both desktop
+and PCI targets passed, virtio targetA passed. Original source d3301fb648 unchanged;
+its eventual verdict excludes subsequent GPU/MSI fixes and this app overlay.
