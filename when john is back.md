@@ -3973,3 +3973,11 @@ period. There is no MacarosVM crash report. Cause of that exit remains unknown,
 and the concurrent run is not counted as a product failure or keymap proof.
 The temporary probe code was removed; do not run another VZ qualification
 alongside John's GUI session. Review threads299 and301 are open.
+
+John's final hands-on check on 2026-10-01: after the profile relaunch, French
+AZERTY typing worked. He opened the included JPEG wallpaper in MultiView and
+confirmed that the image displayed correctly in the macOS VZ window. This
+closes the stage-six manual visual gate that automated guest pixel readback
+could not establish. The app remains a bounded VM qualification: physical Pi
+and Apple-native hardware, SMP (bsek's work), exhaustive interruption and
+multi-hour reliability are separate future work. Stage-six task74 is complete.
