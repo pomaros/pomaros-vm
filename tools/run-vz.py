@@ -15,6 +15,7 @@ import time
 root=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser()
 p.add_argument('--require-desktop-session',type=int,metavar='SECONDS')
+p.add_argument('--require-host-services',action='store_true')
 p.add_argument('--require-vsock-device',action='store_true')
 p.add_argument('--require-vsock',action='store_true')
 p.add_argument('--require-network-config',action='store_true')
@@ -42,6 +43,7 @@ p.add_argument('--disk',type=Path,required=True)
 p.add_argument('--output',type=Path,required=True)
 p.add_argument('--timeout',type=float,default=45)
 a=p.parse_args()
+if a.require_host_services and (not a.require_pci_hidd or a.require_vsock or a.require_vsock_device): p.error('--require-host-services requires PCI and excludes the echo probes')
 if a.require_vsock_device: a.require_vsock=True
 if a.require_vsock and not a.require_pci_hidd: p.error('--require-vsock requires --require-pci-hidd')
 if a.require_network_echo: a.require_network_stack=True
@@ -85,7 +87,7 @@ pixels_verified=False
 capture_count=0
 passed=False;reason='timeout';start=time.monotonic()
 with log.open('w') as out:
-    proc=subprocess.Popen([str(root/'build/macaros-vm'),str(disk),str(a.output/'state'),'--headless']+(['--gpu-window'] if a.require_gpu_scanout or a.require_input else ['--gpu'] if a.require_gpu or a.desktop_startup else [])+(['--usb-input'] if a.usb_input else [])+(['--input-probe'] if a.require_input else [])+(['--network'] if a.require_network_config else [])+(['--vsock-probe'] if a.require_vsock else []),stdout=out,stderr=subprocess.STDOUT)
+    proc=subprocess.Popen([str(root/'build/macaros-vm'),str(disk),str(a.output/'state'),'--headless']+(['--gpu-window'] if a.require_gpu_scanout or a.require_input else ['--gpu'] if a.require_gpu or a.desktop_startup else [])+(['--usb-input'] if a.usb_input else [])+(['--input-probe'] if a.require_input else [])+(['--network'] if a.require_network_config else [])+(['--vsock-probe'] if a.require_vsock else [])+(['--host-services'] if a.require_host_services else []),stdout=out,stderr=subprocess.STDOUT)
     try:
         while time.monotonic()-start<a.timeout:
             text=log.read_text(errors='replace')
@@ -93,6 +95,8 @@ with log.open('w') as out:
                 (a.output/'state/input.request').write_text('window-keyboard-pointer-v1\n')
                 input_requested=True
             if 'FAIL:' in text: reason='guest-failure';break
+            if a.require_host_services and '[B2Q] AROS startup contract PASS' in text and '[VM] host file put get containment PASS' not in text:
+                reason='host-services-not-run';break
             if a.require_vsock and '[B2Q] AROS startup contract PASS' in text and ('[VM] vmbridge read write abort reopen PASS' if a.require_vsock_device else '[VM] vsock two 64KiB streams PASS') not in text:
                 reason='vsock-not-run';break
             if a.require_network_packets and '[B2Q] AROS startup contract PASS' in text and '[VM] virtio network DHCP exchange PASS' not in text:
@@ -131,7 +135,12 @@ with log.open('w') as out:
                 network_ok=len(host_mac)==len(guest_mac)==1 and int(host_mac[0].replace(':',''),16)==int(guest_mac[0],16)
             bridge_irqs=re.findall(r'\[VMBridge\] closed IRQ completions=(\d+)',text)
             bridge_irq_ok=not a.require_vsock_device or (len(bridge_irqs)==2 and all(int(n)>0 for n in bridge_irqs))
-            if bridge_irq_ok and network_ok and session_ok and (not a.require_gpu_scanout or pixels_verified) and markers_match(text,marker_counts): passed=True;reason='headless-startup-contract';break
+            services_ok=not a.require_host_services
+            if a.require_host_services and '[VM] host file put get containment PASS' in text:
+                shared=a.output/'state/Shared';fixture=shared/'vmbridge-qualification.bin'
+                expected=bytes((i*37+i//251)&255 for i in range(65536))
+                services_ok=fixture.is_file() and fixture.read_bytes()==expected and sorted(p.name for p in shared.iterdir())==['vmbridge-qualification.bin'] and len(bridge_irqs)==2 and all(int(n)>0 for n in bridge_irqs)
+            if services_ok and bridge_irq_ok and network_ok and session_ok and (not a.require_gpu_scanout or pixels_verified) and markers_match(text,marker_counts): passed=True;reason='headless-startup-contract';break
             if proc.poll() is not None: reason='early-exit';break
             time.sleep(.1)
     except Exception as error:
@@ -149,7 +158,8 @@ verdict={'result':'PASS' if passed else 'FAIL','reason':reason,
          'sana_device_verified':passed and a.require_sana_device,
          'vsock_stream_verified':passed and a.require_vsock,
          'vsock_device_verified':passed and a.require_vsock_device,
-         'vsock_device_irq_verified':passed and a.require_vsock_device,
+         'vsock_device_irq_verified':passed and (a.require_vsock_device or a.require_host_services),
+         'host_file_exchange_verified':passed and a.require_host_services,
          'network_host_udp_verified':passed and a.require_network_echo,
          'network_stack_address_verified':passed and a.require_network_stack,
          'network_config_verified':passed and a.require_network_config,'network_packets_verified':passed and a.require_network_packets,'network_irq_verified':passed and a.require_network_irq,'input_events_withheld':a.no_input_events,'desktop_session_seconds':a.require_desktop_session,'desktop_session_verified':passed and a.require_desktop_session is not None,

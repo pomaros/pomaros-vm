@@ -51,10 +51,13 @@ static int platform_probe(void)
     while(*message) RawPutChar(*message++);
     return 0;
 }
+int test_command_startup(void);
 int main(int argc,char **argv)
 {
     int result=abi_main(argc,argv);
     if(result!=73) return result;
     result=platform_probe();
+    if(result) return result;
+    if(!test_command_startup()) return 78;
     return result?result:73;
 }

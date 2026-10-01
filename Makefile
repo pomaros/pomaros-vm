@@ -29,8 +29,8 @@ test: all build/vz-platform-test build/gic-contract-test build/pci-ecam-access-t
 clean:
 	rm -rf build
 
-build/macaros-vm: src/main.swift entitlements.plist | build
-	swiftc -target arm64-apple-macos13.0 -O -warnings-as-errors -framework AppKit -framework Virtualization $< -o $@
+build/macaros-vm: src/main.swift src/HostServices.swift entitlements.plist | build
+	swiftc -target arm64-apple-macos13.0 -O -warnings-as-errors -framework AppKit -framework Virtualization src/main.swift src/HostServices.swift -o $@
 	codesign --force --sign - --entitlements entitlements.plist $@
 
 build/vz-platform-test: tests/vz-platform.c boot/arosboot/vz_platform.c include/vm-console.h $(FDT_SOURCES) | build
@@ -193,3 +193,9 @@ test-vsock-stream: build/vsock-stream-test
 build/vsock-stream-test: tests/vsock-stream.c $(VIRTIO_SOURCE)/vsock_stream.c $(VIRTIO_SOURCE)/vsock_stream.h | build
 	clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -fno-sanitize-recover=all \
 	 -I$(VIRTIO_SOURCE) tests/vsock-stream.c $(VIRTIO_SOURCE)/vsock_stream.c -o $@
+
+.PHONY: test-host-services
+test-host-services: build/host-services-test
+	build/host-services-test
+build/host-services-test: src/HostServices.swift tests/host-services.swift | build
+	swiftc -target arm64-apple-macos13.0 -O -warnings-as-errors -framework Virtualization src/HostServices.swift tests/host-services.swift -o $@

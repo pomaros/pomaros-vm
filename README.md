@@ -42,3 +42,10 @@ and bounded stream qualification.
 
 See [the handoff](when%20john%20is%20back.md) for measured results and work in
 progress, [portable architecture](docs/PORTABILITY.md), and [provenance](docs/PROVENANCE.md) for reused code.
+
+
+The optional [host file service](docs/HOST-SERVICES.md) exposes the VM state's
+`Shared` directory over virtio-vsock (`--host-services`). Its VZ qualification
+covers 64 KiB upload/readback and the standalone `VMExchange HELLO` command;
+CLI file operations and automatic clipboard integration are tracked in
+[stage 6](docs/STAGE6.md).

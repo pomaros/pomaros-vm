@@ -33,6 +33,7 @@ int test_virtio_device(void);
 int test_virtionet_device(void);
 int test_network_stack(void);
 int test_vmbridge_device(void);
+int test_host_services(void);
 int test_gpu_query(OOP_Object *,struct Library *);
 static OOP_Object *driver;
 static struct PCIECAMConfig host;
@@ -475,7 +476,9 @@ int main(int argc,char **argv)
         if(!test_xhci_device())return 95;
         if(!test_virtionet_device())return 96;
         if(!test_network_stack())return 97;
-        if(!test_vmbridge_device())return 98;
+        BPTR services=Lock((CONST_STRPTR)"SYS:HOSTSERVICES.REQ",ACCESS_READ);
+        if(services) { UnLock(services);if(!test_host_services())return 99; }
+        else if(!test_vmbridge_device())return 98;
         return 0;
     }
     OOP_AttrBase attr=OOP_ObtainAttrBase((CONST_STRPTR)IID_Hidd_PCIECAM);

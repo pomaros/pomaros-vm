@@ -21,6 +21,7 @@ p.add_argument('--timeout',type=float,default=60)
 p.add_argument('--virtio-desktop',action='store_true')
 p.add_argument('--require-gpu-scanout',action='store_true')
 p.add_argument('--require-timer',action='store_true')
+p.add_argument('--require-command-startup',action='store_true')
 p.add_argument('--require-platform',action='store_true')
 p.add_argument('--require-pci-hidd',action='store_true')
 p.add_argument('--require-msi-frame',action='store_true')
@@ -104,6 +105,7 @@ with (a.output/'host.log').open('w') as log:
                 passed=passed and (not a.require_msi_irq or text.count('[VM] virtio block MSI-X completion PASS')==1)
                 passed=passed and (not a.require_gpu_scanout or (pixels_verified and text.count('[VM] virtio GPU scanout cleanup PASS')==1 and text.count('[VM] virtio GPU display query PASS')==1))
                 passed=passed and (not a.virtio_desktop or text.count('[VM] virtio graphics driver registered')==1)
+                passed=passed and (not a.require_command_startup or (text.count('[VM] command startup without service PASS')==1 and text.count('[VMExchange] main argc=')==1))
                 reason='startup-contract' if passed else 'proof-missing';break
             if proc.poll() is not None:
                 reason='early-exit';break
@@ -122,6 +124,13 @@ with (a.output/'host.log').open('w') as log:
                             if 'error' in reply: raise RuntimeError(reply)
                             if 'return' in reply: break
                     (a.output/'registers.txt').write_text(str(reply['return']))
+                    for filename,command_line in [('instructions.txt','x /20i $pc'),('stack.txt','x /32gx $sp')]:
+                        f.write(json.dumps({'execute':'human-monitor-command','arguments':{'command-line':command_line}}).encode()+b'\n');f.flush()
+                        while True:
+                            reply=json.loads(f.readline())
+                            if 'error' in reply: raise RuntimeError(reply)
+                            if 'return' in reply: break
+                        (a.output/filename).write_text(str(reply['return']))
                     if a.profile == 'wanderer':
                         args={'filename':str(a.output/'failure-desktop.png'),'format':'png'}
                         if a.virtio_desktop: args.update(device='gpu',head=0)
@@ -156,6 +165,7 @@ with (a.output/'host.log').open('w') as log:
             try: proc.wait(timeout=5)
             except subprocess.TimeoutExpired: proc.kill();proc.wait()
 verdict={'result':'PASS' if passed else 'FAIL','reason':reason,'backend':a.accel,
+         'command_startup_verified':a.require_command_startup and passed,
          'profile':a.profile,'virtio_desktop':a.virtio_desktop,'gpu_scanout_required':a.require_gpu_scanout,'pixels_verified':pixels_verified, 'console':a.console, 'desktop_checked':a.profile == 'wanderer' and passed,
          'seconds':round(time.monotonic()-started,2),'hardware_virtualization':a.accel=='hvf',
          'gic_version':int(a.gic_version),'timer_required':a.require_timer,'platform_required':a.require_platform,'pci_hidd_required':a.require_pci_hidd,'msi_frame_required':a.require_msi_frame,'msi_irq_required':a.require_msi_irq,'irq_chain_required':a.require_irq_chain,

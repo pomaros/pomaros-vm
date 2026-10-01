@@ -542,3 +542,18 @@ headers and a short-name/vararg fixture. `--source` selects an isolated source
 revision; `--expect-failure` verifies that an old revision triggers a sanitizer
 failure. Logs and a JSON verdict are retained. Leak checking is disabled for
 this process-lifetime generator; bounds and undefined behavior checks are fatal.
+
+
+### Nested command startup
+
+`package-core.py` requires an explicit `--efi` path; old build directories can
+contain loaders without the PCI description needed by the current guest.
+Add `--command-startup` to a headless package without the vsock device. This
+packages VMExchange and checks NewStackSwap, LoadSeg, and RunCommand with an
+expected clean failure when HELLO cannot open the absent service. Run QEMU
+with `--require-command-startup --profile core --console virtio` and the usual
+`--esp` / `--output` arguments. The gate requires the full startup contract,
+command main entry and expected command result. On failure the runner preserves
+QMP registers, current instructions and stack words before ending the VM.
+
+File services have their own [protocol and qualification](HOST-SERVICES.md).

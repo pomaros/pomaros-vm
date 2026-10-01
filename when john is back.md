@@ -2627,3 +2627,35 @@ another acceptance run. No more blind VZ repetitions. No M1 or SMP work.
 
 Host Wi-Fi supplied by John: Apartmenthaus Berlin Mitte, no password. No network
 association changed; VZ NAT uses the host connection. Clipboard remains open.
+
+
+## Command startup corrected; VZ file-service gate passes
+
+Core 49ec565a3d defines WBenchMsg in the CLI alongside __nowbsupport, following
+the existing portable probe and native CLI tools. Without it commandline.o
+pulled fromwb.o, whose startup waits for a WBStartup message when pr_CLI is
+null. The non-CLI RunCommand caller never sends that message. QEMU independently
+captured AROSAppleKernelIdleLoop while NewStackSwap itself had passed. Adding
+the symbol removes __startup_fromwb from the binary and reaches main argc=2.
+This was not a linker relocation loss or an Exec stack-switch diagnosis.
+
+An additional packaging mistake selected build/uefi/BOOTAA64.EFI (SHA256
+dbbf5ad58003810b746d4b55f3941236a749d27c0dff8ef86163ef1bae817b7a), an older
+loader without PCI FDT nodes. The OF tree dump proves their absence; there was
+no demonstrated memory corruption. The previous packages actually selected
+build/uefi-desktop-session/BOOTAA64.EFI (SHA256
+e6b21692a8a4b838e880c2cee89ff116a121b7e63e48fd42cd791ba77b53cc55).
+package-core.py now requires --efi explicitly rather than silently choosing
+an old build. Failed diagnostic verdicts remain unchanged.
+
+artifacts/hvf-command-current-efi: PASS 6.50 s, NewStackSwap, nested
+LoadSeg/RunCommand, real VMExchange main and expected unavailable-service result,
+plus complete startup contract. Bundle SHA256
+0afbc6849dd740e3abdf1ba420f0cb3820ec42977c0c8e61be2e077a7811d41f.
+artifacts/vz-host-services-current-efi: PASS 2.26 s, protocol 64 KiB
+upload/readback, no replacement, path refusal, standalone HELLO and two
+positive IRQ counts. Input disk SHA256
+f78744a37f6997ddc4a1957f17d27bb27b8c147f295c9d74598796ad8a5d6530;
+launcher b70bf5b682df747f80c07e12a74c150e97183757a472a5d9714cd6e3ad9527ab.
+CLI PUT/GET against guest files, automatic desktop startup and text/image
+clipboard remain unfinished. No M1, no SMP, no prolonged reruns.

@@ -20,17 +20,18 @@ GET_CHUNK (6) and GET_END (7). Only one connection is admitted at a time.
 Status values are success (0), invalid request (1), invalid state (2), IO
 failure (3), destination exists (4) and unsupported operation (5).
 
-The protocol and command are under qualification. Host socket-pair tests pass;
-the VZ protocol workload uploads and reads back 64 KiB, but the complete gate
-fails when invoking the standalone command through RunCommand before main.
-The command is built, not accepted as usable. Clipboard is not implemented.
+Host socket-pair tests and the complete VZ service gate pass: upload/readback
+of 64 KiB, path/overwrite refusal, and the standalone command HELLO after closing
+and reopening the device. CLI PUT/GET against guest files remain unqualified;
+this gate exercises their shared protocol client directly. Clipboard is not
+implemented.
 Host power-loss durability and concurrent host modification during download
 are not qualified; a download is not a snapshot.
 
 Build the host with `make`; run host tests with `make test-host-services`.
-Package the headless PCI guest with `tools/package-core.py --host-services`
-and the other required packaging arguments. `tools/run-vz.py
---require-host-services` requires the protocol marker, successful command
+Package the headless PCI guest with `tools/package-core.py --host-services
+--pci-hidd --build BUILD --efi EFI --output NEW_ESP`. The EFI path is explicit
+to prevent silently selecting an old loader without PCI description. `tools/run-vz.py --require-host-services` requires the protocol marker, successful command
 HELLO, two positive device IRQ counters and exact host fixture contents.
 A partial transfer result cannot make this gate pass.
 

@@ -5,6 +5,7 @@ import Virtualization
 
 @available(macOS 13.0, *)
 final class Application: NSObject, NSApplicationDelegate, VZVirtualMachineDelegate, VZVirtioSocketListenerDelegate {
+  var hostServices: HostServices?
   var socketListener: VZVirtioSocketListener?
   var socketProbeAccepted=0
   var machine: VZVirtualMachine!
@@ -118,13 +119,19 @@ final class Application: NSObject, NSApplicationDelegate, VZVirtualMachineDelega
         print("network-config attachment=NAT mac=\(network.macAddress.string)")
         fflush(stdout)
       }
-      if CommandLine.arguments.contains("--vsock-probe") {
+      if CommandLine.arguments.contains("--vsock-probe") || CommandLine.arguments.contains("--host-services") {
         config.socketDevices=[VZVirtioSocketDeviceConfiguration()]
       }
       config.entropyDevices = [VZVirtioEntropyDeviceConfiguration()]
       try config.validate()
       machine = VZVirtualMachine(configuration: config)
       machine.delegate = self
+      if CommandLine.arguments.contains("--host-services"),
+         let device=machine.socketDevices.first as? VZVirtioSocketDevice {
+        let services=try HostServices(directory:state.appendingPathComponent("Shared",isDirectory:true))
+        services.attach(to:device);hostServices=services
+        print("host-services port=4051 directory=\(services.directory.path)");fflush(stdout)
+      }
       if CommandLine.arguments.contains("--vsock-probe"),
          let device=machine.socketDevices.first as? VZVirtioSocketDevice {
         let listener=VZVirtioSocketListener();listener.delegate=self
@@ -223,8 +230,8 @@ if options.contains("--input-probe") && options.contains("--headless") && (!opti
   fputs("--input-probe requires a VZ window and USB input\n",stderr);exit(2)
 }
 if CommandLine.arguments.count < 3 || options.count != Set(options).count
-  || options.contains(where: { $0 != "--headless" && $0 != "--gpu" && $0 != "--gpu-window" && $0 != "--usb-input" && $0 != "--input-probe" && $0 != "--network" && $0 != "--vsock-probe" }) {
-  fputs("usage: macaros-vm DISK_IMAGE STATE_DIRECTORY [--headless] [--gpu] [--gpu-window] [--usb-input] [--input-probe] [--network] [--vsock-probe]\n", stderr)
+  || options.contains(where: { $0 != "--headless" && $0 != "--gpu" && $0 != "--gpu-window" && $0 != "--usb-input" && $0 != "--input-probe" && $0 != "--network" && $0 != "--vsock-probe" && $0 != "--host-services" }) {
+  fputs("usage: macaros-vm DISK_IMAGE STATE_DIRECTORY [--headless] [--gpu] [--gpu-window] [--usb-input] [--input-probe] [--network] [--vsock-probe] [--host-services]\n", stderr)
   exit(2)
 }
 if #available(macOS 13.0, *) {
