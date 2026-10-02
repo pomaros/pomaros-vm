@@ -4127,3 +4127,28 @@ Apple build. Latest upstream fetched: `5bc380c77f`. AROSTCP work remains bsek's.
 Claude is changing native widget redraw to incremental cells; his pending
 merge requires CPU bars to clear their own areas and paged unused rows to be
 cleared. Keep full Exec SMP and native hardware activation explicitly open.
+
+## SMP review hardening — 2026-10-02
+
+Core commits 8cd49ae259, 4bfb06ccfe and 0be3c97c30 address review 309.
+CPU startup failures request PSCI CPU_OFF before parking; a returned call still
+requires kernel retention. The boot CPU publishes initialized state only after
+binding its CPU anchor, and EL0 entry refuses a null anchor. Repeated accounting
+states no longer manufacture transitions. Spurious GIC interrupts take the idle
+return path. CPU inventory visits direct /cpus children without looking up the
+parent of every firmware node.
+
+Claude’s incremental widget renderer (6db0e83e5e) is imported with provenance.
+CPU bars clear their full 200-pixel range and unused final-page rows clear their
+text and bars; the renderer has 40 text slots.
+
+Validation: ASan/UBSan CPU monitor test passes, including repeated-state
+accounting. Kernel rebuild passes. One bounded QEMU/HVF two-CPU run passes in
+27.78 seconds: artifacts/smp-hvf-review/verdict.json, startup, timer, GPU interrupt, IRQ chain, secondary busy/idle
+execution, bidirectional IPI and confirmed CPU_OFF. cpu-widget.png was visually
+inspected. This is not Exec SMP acceptance or physical M1 acceptance.
+
+Next integration step: adapt upstream Exec TLS and interrupt-mask operations
+to the EL0-readable CPU anchor before selecting its SMP scheduler. Native
+TPIDR_EL1 reads and DAIF instructions cannot execute in EL0. The regular desktop
+remains single-scheduler-CPU; Claude owns the separate AFS+ investigation.

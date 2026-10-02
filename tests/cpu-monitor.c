@@ -22,6 +22,8 @@ int main(int argc, char **argv)
     assert(AROSCPUSnapshot(&cpu,50,&a) && !a.state);
     AROSCPUAccount(&cpu,AROS_CPU_BUSY,100);
     assert(AROSCPUSnapshot(&cpu,100,&a));
+    AROSCPUAccount(&cpu,AROS_CPU_BUSY,110);
+    assert(cpu.transitions==1 && cpu.since==100 && cpu.sequence==2);
     AROSCPUAccount(&cpu,AROS_CPU_IDLE,125);
     assert(AROSCPUSnapshot(&cpu,200,&b));
     assert(b.busy==25 && b.idle==75 && AROSCPULoad(&a,&b)==250);
