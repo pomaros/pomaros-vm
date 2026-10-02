@@ -45,9 +45,19 @@ register setup must not become an Apple backend.
    is never saved or restored as task state. Guest x18 remains an ordinary register.
    `AROSAppleRuntimeIRQSave/IRQRestore` provide nested CPU-local IRQ/FIQ
    exclusion from EL0 through SVC, and from early EL1 directly. Restore changes
-   only those two mask bits. Save/restore pairs must stay on the same CPU, in
-   nesting order, without blocking or scheduling inside the region. This does
-   not exclude other CPUs; shared scheduler lists also require spinlocks.
+   only those two mask bits and respects Disable nesting, interrupt depth and
+   controller readiness. A CPU-local depth preserves exclusion across return
+   paths. Scheduler syscalls are rejected while the depth is nonzero; save/restore
+   pairs must stay on the same CPU, in nesting order, without blocking.
+   Masking FIQ also masks the native Apple timer: an unbounded critical section
+   can stall its CPU. Per-CPU entry/rejection counts, start tick and longest
+   completed interval support debugger inspection; they are not a watchdog.
+   This does not exclude other CPUs; shared scheduler lists also require spinlocks.
+   The Apple `exec_platform_smp.h` adapter reuses upstream Exec accessors and
+   TLS layout through `TLS_PTR_GET`, mapping local exclusions to these runtime
+   calls. Each CPU anchor points to separate Exec TLS storage. The adapter is
+   not selected by the UP build; attaching live tasks and enabling the scheduler
+   are separate integration steps. Native privileged access retains TPIDR_EL1.
 4. **Secondary entry and interrupt transport.** Allocate separate stacks,
    install translation tables, cache attributes, vectors and per-CPU state
    before enabling interrupts. The shared GIC separates one-time distributor setup from local
@@ -137,7 +147,8 @@ keeps `exec_smp_verified` false. QEMU failures preserve registers for every
 configured CPU. This probe exercises CPU activation and the widget's source
 of measurements; it does not replace task migration, IPI and driver testing.
 
-Host checks: `python3 tests/cpu-monitor.py` and
+Host checks: `python3 tests/exec-tls.py` (IRQ policy and both Exec accessor
+backends), `python3 tests/cpu-monitor.py` and
 `make build/vz-platform-test && build/vz-platform-test`.
 
 AROSTCP SMP safety is a separate acceptance requirement. Its unpublished

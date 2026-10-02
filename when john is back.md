@@ -4197,3 +4197,35 @@ Final validation: core5ca50a54ce, artifacts/smp-hvf-irqmask-final/verdict.json
 PASS in 21.80 seconds (HVF, two CPUs): runtime nested mask proof, startup,
 timer, GPU IRQ, IRQ chain, secondary busy/idle, IPI and confirmed CPU_OFF.
 Review312 requested. Full Exec scheduling and physical M1 SMP remain untested.
+
+## IRQ review fixes and Exec TLS adaptation — 2026-10-02
+
+John requested that Codex own the fixes and continuation without delegating
+them to Claude. Core595fe97938 addresses review312: per-CPU exclusion depth,
+SC_* rejection while held, policy-clamped Restore/STI (Disable, readiness and
+interrupt depth), entry/rejection/duration diagnostic counters, failure-only
+proof output and shared supervisor/rejection count constants. Save masks the
+Apple FIQ tick; a non-returning section can still stall its CPU. Counters make
+this inspectable, not preemptible. The guest proof tries SC_SCHEDULE under a
+hold and verifies rejection plus retained masks, and tries a permissive nested
+restore. Host policy checks run with ASan/UBSan. HVF2CPU qualification passes
+in21.35s: artifacts/smp-hvf-mask-policy/verdict.json.
+
+Core5e17aaddf6 reuses bsek’s Exec TLS layout/accessors via TLS_PTR_GET. The
+Apple adapter reads TPIDRRO_EL0 and bridges interrupt exclusion through the
+corrected runtime; the privileged native backend retains TPIDR_EL1/DAIF.
+Each CPU has separate TLS storage and its logical CPU number. CPU bring-up
+checks the TLS identity on both boot/EL0 and secondary CPUs. The adapter is
+explicitly unselected by UP builds: live task attachment, scheduler lists,
+per-core timers, locks/IPIs and migration still need integration.
+
+python3 tests/exec-tls.py passes: host IRQ policy and cross-compilation of
+eight Exec accessors for both backends, no privileged TPIDR_EL1/DAIF in the
+Apple accessor code, and runtime calls for local exclusion. Kernel+stage2
+build passes. No physical M1 access.
+
+Final TLS qualification: artifacts/smp-hvf-exec-tls/verdict.json PASS21.24s,
+two CPUs, startup/timer/GPU IRQ/IRQ chain/IPI/confirmed CPU_OFF, including
+the extended boot and secondary Exec TLS identity checks. Early-kernel gate
+also passes (31 functions, no FP/SIMD or StdCBase dependency). Only these two
+bounded VM runs were needed for this iteration.
