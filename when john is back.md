@@ -4170,3 +4170,30 @@ tests pass. Requested changes: do not cache a reclaim error as a settled
 backlog; include checkpoint generation in rest invalidation. A constant net
 backlog is not generally proof that only two structural blocks remain. Claude
 retains ownership of that fix.
+
+## EL0 interrupt exclusion for Exec SMP — 2026-10-02
+
+Core adds IRQSave/IRQRestore: SVC 0xa508/0xa509 at runtime and direct DAIF
+access before EL0 activation. Tokens contain only IRQ/FIQ mask bits; restore
+preserves all other SPSR/DAIF bits. Nested pairs cannot block or migrate and
+do not exclude other CPUs. They are a prerequisite for adapting upstream
+Exec critical sections, not a scheduler activation. The runtime proof checks
+nested save/restore in EL1 and EL0, comparing the restored caller state.
+
+Two initial VM runs failed the startup contract: the stage-two loader still
+expected the previous service counts. Inspection found this independent
+verifier after an initial incorrect suspicion about the entry mask. Proof
+version 2 and shared call-count constants now keep kernel and bootstrap in
+agreement, and both binaries are rebuilt. Failure artifacts remain under
+smp-hvf-irqmask and smp-hvf-irqmask-2.
+
+AFS+: reviewed and approved Claude d1bf253 with all 15 delayed_commit tests
+passing. Separate main fix 5c3ba65 repairs the stale MODE_OLDFILE preallocation
+test and two missing/incorrect flight-recorder API identities. Targeted tests,
+format, workspace clippy and documentation checks pass. Claude owns native
+AFS+ qualification; no M1 access by this session.
+
+Final validation: core5ca50a54ce, artifacts/smp-hvf-irqmask-final/verdict.json
+PASS in 21.80 seconds (HVF, two CPUs): runtime nested mask proof, startup,
+timer, GPU IRQ, IRQ chain, secondary busy/idle, IPI and confirmed CPU_OFF.
+Review312 requested. Full Exec scheduling and physical M1 SMP remain untested.

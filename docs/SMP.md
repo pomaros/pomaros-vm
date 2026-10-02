@@ -43,6 +43,11 @@ register setup must not become an Apple backend.
    `SysBase->ThisTask`; scheduler integration must replace these consumers
    together with the Exec platform accessors. The observation records use this CPU anchor on the boot and probe CPUs; it
    is never saved or restored as task state. Guest x18 remains an ordinary register.
+   `AROSAppleRuntimeIRQSave/IRQRestore` provide nested CPU-local IRQ/FIQ
+   exclusion from EL0 through SVC, and from early EL1 directly. Restore changes
+   only those two mask bits. Save/restore pairs must stay on the same CPU, in
+   nesting order, without blocking or scheduling inside the region. This does
+   not exclude other CPUs; shared scheduler lists also require spinlocks.
 4. **Secondary entry and interrupt transport.** Allocate separate stacks,
    install translation tables, cache attributes, vectors and per-CPU state
    before enabling interrupts. The shared GIC separates one-time distributor setup from local
