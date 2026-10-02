@@ -4229,3 +4229,30 @@ two CPUs, startup/timer/GPU IRQ/IRQ chain/IPI/confirmed CPU_OFF, including
 the extended boot and secondary Exec TLS identity checks. Early-kernel gate
 also passes (31 functions, no FP/SIMD or StdCBase dependency). Only these two
 bounded VM runs were needed for this iteration.
+
+
+## Per-core widget and idle-wakeup review fixes — 2026-10-02
+
+Core899ac93e52 reuses Claude’s incremental widget renderer and displays
+active/firmware CPU counts, a line per core, aligned occupancy percentages
+and load bars. States distinguish BOOT, RUN, TEST, OFF, DISABLED and unavailable.
+The HVF screenshot was inspected: both CPUs appear with independent measured
+values. Artifact: artifacts/smp-core-widget/cpu-widget.png.
+
+Review312 follow-up fixes: dispatch no longer copies interrupt-handler depth
+into a destination task’s masks; the idle interrupt exit reapplies masks after
+leaving interrupt context. SMP mask helpers read per-CPU TLS. Unfinished IRQ
+exclusion intervals are diagnosed and closed on bootstrap/unhandled-exception
+continuations; the first real rejected scheduler syscall is logged. Unbound
+TLS access traps. Host policy regression checks the handler/task distinction.
+
+The guest proof wakes from idle, then computes without a syscall while waiting
+for a second timer completion: idle wake compute PASS. One bounded two-CPU
+HVF run passes in 21.79 seconds, including startup, timer, GPU IRQ, IRQ chain,
+secondary activity, IPI roundtrips and confirmed CPU_OFF. Kernel/stage2 build,
+ASan/UBSan policy/accessor checks and early-kernel gate also pass.
+
+Full Exec SMP is not enabled: the second core runs the isolated probe. Next
+is live Exec TLS/task attachment and scheduler/lock/IPI selection in a separate
+SMP build, followed by task migration and concurrent lifecycle checks. No M1
+access was used; native CPU release/AIC transport requires its own integration.

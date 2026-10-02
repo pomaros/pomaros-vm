@@ -18,6 +18,8 @@ int main(void)
         assert(AROSAppleRequiredIRQMasks(&cpu,-1)==0xc0);
         cpu.irq_mask_depth=0;cpu.interrupt_depth=1;
         assert(AROSAppleRequiredIRQMasks(&cpu,-1)==0xc0);
+        /* A dispatched task must not inherit the IRQ handler depth. */
+        assert(AROSAppleRequiredTaskMasks(&cpu,-1)==expected);
         cpu.interrupt_depth=0;
         assert(AROSAppleRequiredIRQMasks(&cpu,-1)==expected);
     }

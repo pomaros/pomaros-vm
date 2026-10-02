@@ -47,11 +47,17 @@ register setup must not become an Apple backend.
    exclusion from EL0 through SVC, and from early EL1 directly. Restore changes
    only those two mask bits and respects Disable nesting, interrupt depth and
    controller readiness. A CPU-local depth preserves exclusion across return
-   paths. Scheduler syscalls are rejected while the depth is nonzero; save/restore
+   paths. Returning from an idle interrupt reapplies the destination task’s
+   mask policy after leaving interrupt context; the task must not inherit the
+   handler’s temporary interrupt depth. Scheduler syscalls are rejected while the depth is nonzero; save/restore
    pairs must stay on the same CPU, in nesting order, without blocking.
    Masking FIQ also masks the native Apple timer: an unbounded critical section
    can stall its CPU. Per-CPU entry/rejection counts, start tick and longest
    completed interval support debugger inspection; they are not a watchdog.
+   The first rejected scheduler call is logged. Returning to the bootstrap or
+   abandoning an exception continuation diagnoses and clears an unfinished
+   exclusion interval. An unbound Exec TLS access traps rather than proceeding
+   with a null CPU anchor.
    This does not exclude other CPUs; shared scheduler lists also require spinlocks.
    The Apple `exec_platform_smp.h` adapter reuses upstream Exec accessors and
    TLS layout through `TLS_PTR_GET`, mapping local exclusions to these runtime
@@ -102,7 +108,9 @@ kernel integration; this host test does not exercise it.
 ## Per-core observation
 
 The AROS alive widget lists CPU IDs from firmware, with separate `OFF`,
-`DISABLED`, `ON`, `TEST` and unavailable states. CPU IDs are logical indices;
+`DISABLED`, `BOOT`, `RUN`, `TEST` and unavailable states. The heading gives
+the active/firmware CPU count. Each row has an aligned percentage and load
+bar; `TEST` identifies a secondary running the isolated probe. CPU IDs are logical indices;
 complete MPIDR affinities are retained separately. If firmware discovery fails,
 only the observed boot CPU is listed and the heading says firmware unknown.
 Eight rows are displayed at a time; larger inventories rotate pages every five
@@ -148,8 +156,12 @@ configured CPU. This probe exercises CPU activation and the widget's source
 of measurements; it does not replace task migration, IPI and driver testing.
 
 Host checks: `python3 tests/exec-tls.py` (IRQ policy and both Exec accessor
-backends), `python3 tests/cpu-monitor.py` and
+backends, including idle-to-task mask restoration), `python3 tests/cpu-monitor.py` and
 `make build/vz-platform-test && build/vz-platform-test`.
+
+The guest timer proof wakes from idle and then spins without making a system
+call until another timer request completes. `[KI] idle wake compute PASS`
+checks that timer delivery survives the return to a compute-bound EL0 task.
 
 AROSTCP SMP safety is a separate acceptance requirement. Its unpublished
 upstream fixes must be integrated and tested before claiming concurrent
