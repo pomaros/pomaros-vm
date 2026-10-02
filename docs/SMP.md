@@ -1,6 +1,6 @@
 # SMP integration
 
-Exec task scheduling is uniprocessor. The launcher defaults to one VZ CPU;
+The default Exec build schedules on one CPU. The launcher defaults to one VZ CPU;
 `--cpus=N` changes the virtual hardware inventory, not Exec scheduling.
 An explicit secondary execution probe can run on a second CPU without
 accessing Exec lists or drivers.
@@ -32,9 +32,34 @@ Desktop children inherit boot-CPU affinity; explicit compute workers use the
 secondary. Exec's shared housekeeper retains its upstream affinity policy.
 Two task phases exercise concurrent calculation, Wait/Signal, register state
 and teardown. Host validation requires overlapping counter intervals on two
-distinct CPUs, AP timer delivery and confirmed PSCI CPU_OFF before unloading
+distinct CPUs, AP timer delivery during each computation phase and confirmed PSCI CPU_OFF before unloading
 the kernel. This bounded test does not qualify task migration, network or
 native Apple drivers for SMP.
+
+The runtime permits EL0 WFE for the shared spinlocks through SCTLR.nTWE;
+the secondary inherits that policy. Wait transfers ownership of its task lock
+to cpu_Switch, which releases it after saving the registers, nesting and quantum.
+An interrupt can signal a waiting task while the local CPU has no current task.
+
+Build the same payload targets listed under the secondary-probe procedure,
+using a separate SMP build directory. For the ordinary-task qualification:
+
+```sh
+python3 tools/package-core.py --build "$HOME/Build/macaros-vm/exec-smp-2" \
+  --efi build/uefi-smp/BOOTAA64.EFI --profile wanderer --virtio-gpu \
+  --desktop-session 12 --smp-exec --output build/exec-smp
+python3 tools/run-qemu.py --esp build/exec-smp --console virtio \
+  --virtio-desktop --msi-controller gicv2m --cpus 2 --require-exec-smp \
+  --require-timer --require-gpu-irq --require-irq-chain --output artifacts/exec-smp
+python3 tools/make-disk.py --esp build/exec-smp --output build/exec-smp.img
+python3 tools/run-vz.py --disk build/exec-smp.img --cpus 2 \
+  --desktop-startup --require-desktop-session 12 --require-exec-smp \
+  --require-gpu-irq --output artifacts/exec-smp-vz
+```
+
+The QEMU runner captures the widget after the measured workload. Percentages
+in that capture include both computation and intervening waits; they are not
+idle measurements. The VZ runner validates the same task evidence in its console.
 
 ## Reuse from upstream
 

@@ -4297,3 +4297,57 @@ Claude's cpu3 observation confirms the Wi-Fi retry fix on the M1 over 28 min:
 three credential messages, no hold starvation after startup, associated link
 and idle widget. The occasional join failure is separate; the cell's 6/14
 score reflects a capture ending before its Wait, not a qualified join failure.
+
+
+### Supervised Exec SMP bring-up findings
+
+The full separate SMP SDK builds successfully. The early-kernel binary gate
+passes all 31 functions. Runtime is not yet qualified. Short HVF runs exposed
+concrete integration issues, each inspected before another boot:
+
+- CPU monitor missed its SMP config include, so the startup CPU_BIND guard
+  refused an absent callback table. Explicit includes fixed it.
+- Apple cpu_Switch did not release the task lock carried by Wait. The IRQ
+  stack ended in Signal -> KrnSpinLock. Release follows the complete saved
+  context, nesting and quantum (94c32b44bc).
+- Signal priority comparisons assumed a current task even on an idle CPU.
+  Null guards preserve the idle-return dispatch path (925e9a3241).
+- EL0 WFE inherited firmware's trap policy. Set SCTLR.nTWE; APs inherit it
+  through the handoff (da14732a4d).
+- Lazy CreatePool constructed a MemHeader without initializing its SMP lock.
+  Debugger observed residual lock value 0x7c00be01 in stdAlloc. Initialize
+  before Allocate, matching AllocMemHeader (99576f283f).
+
+Original exception ELR/ESR/FAR are printed before proof recovery, which can
+otherwise obscure the first fault. Artifacts exec-smp-bind-fixed,
+exec-smp-wait-unlock, exec-smp-idle-signal and exec-smp-el0-wfe retain failures
+and independent supervisor dumps. No native deployment of this experiment.
+
+
+### Ordinary-task milestone qualified — core 99576f283f
+
+Two short runs pass, with the same packaged bundle:
+
+- artifacts/exec-smp-pool-init/verdict.json: QEMU/HVF, 24.91 s; two ordinary
+  tasks compute concurrently on CPUs 0 and 1 in two phases, preserving x18
+  and FPSIMD. AP timer advances 99 ticks within each computation. Wait/Signal,
+  task detachment and confirmed PSCI CPU_OFF pass. GPU IRQ, timer and IRQ
+  chain pass. cpu-widget.png shows 2/2 active and 87.5%/85.6% during workload.
+- artifacts/exec-smp-vz/verdict.json: Virtualization.framework, 19.06 s, same
+  task contract and GPU IRQ pass. AP compute phases see 99/100 timer ticks.
+  Two hold-starved warnings (~1.3 s at seconds 5 and 10) remain visible in
+  this headless run; this is not latency or long-run qualification.
+
+Retained image: build/exec-smp-pool-init.img (64 MiB), SHA256
+e19a728895c0a9c4ab6af106b64612bf65c5fa2cb701a7ff971cfc89a01979ab.
+Retained ESP: build/exec-smp-pool-init; bundle SHA256
+58d3633b536d10f3b9f6373b10eb0c554bbf76711387c93088216cec0e638f11.
+Commands to reproduce are in docs/SMP.md. The 12-second hold is a bounded
+qualification image, not the default interactive distribution.
+
+Scope: ordinary pinned tasks in the VM, not native Apple SMP, arbitrary task
+migration, AROSTCP safety or concurrent driver execution. Desktop children
+inherit BSP affinity; Exec's housekeeper retains upstream affinity. The M1
+has not been rebooted or replaced for this experiment. Native follow-up needs
+Apple CPU release/AIC transport and an independent supervisor, then the same
+worker evidence before enabling extra cores by default.

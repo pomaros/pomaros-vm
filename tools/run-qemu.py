@@ -210,7 +210,7 @@ with (a.output/'host.log').open('w') as log:
             try: proc.wait(timeout=5)
             except subprocess.TimeoutExpired: proc.kill();proc.wait()
 verdict={'result':'PASS' if passed else 'FAIL','reason':reason,'backend':a.accel,
-         'cpus':a.cpus,'secondary_execution_verified':a.require_smp_probe and cpu_probe_matches(text),'widget_image_captured':widget_captured,'exec_smp_verified':passed and a.require_exec_smp and exec_smp_matches(text,a.cpus),
+         'cpus':a.cpus,'secondary_execution_verified':passed and (a.require_smp_probe or a.require_exec_smp),'widget_image_captured':widget_captured,'exec_smp_verified':passed and a.require_exec_smp and exec_smp_matches(text,a.cpus),
          'command_startup_verified':a.require_command_startup and passed,
          'profile':a.profile,'virtio_desktop':a.virtio_desktop,'gpu_scanout_required':a.require_gpu_scanout,'pixels_verified':pixels_verified, 'console':a.console, 'desktop_checked':a.profile == 'wanderer' and passed and not (a.require_smp_probe or a.require_exec_smp),
          'seconds':round(time.monotonic()-started,2),'hardware_virtualization':a.accel=='hvf',

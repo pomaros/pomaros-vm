@@ -4,6 +4,7 @@
 """Qualify actual headless AROS boot under Virtualization.framework."""
 from vz_contract import expected_markers, markers_match, tcp_cycles_match
 from cpu_probe_contract import cpu_probe_matches
+from exec_smp_contract import exec_smp_matches
 import argparse
 import hashlib
 import json
@@ -54,9 +55,12 @@ p.add_argument('--output',type=Path,required=True)
 p.add_argument('--timeout',type=float,default=45)
 p.add_argument('--cpus',type=int,choices=range(1,65),default=1)
 p.add_argument('--require-smp-probe',action='store_true')
+p.add_argument('--require-exec-smp',action='store_true')
 a=p.parse_args()
-if a.require_smp_probe and (a.cpus<2 or not a.require_desktop_session):
-    p.error('--require-smp-probe requires --cpus >= 2 and --require-desktop-session')
+if a.require_smp_probe and a.require_exec_smp:
+    p.error('select one CPU qualification protocol')
+if (a.require_smp_probe or a.require_exec_smp) and (a.cpus<2 or not a.require_desktop_session):
+    p.error('CPU qualification requires --cpus >= 2 and --require-desktop-session')
 if a.require_desktop_clipboard and not (a.desktop_startup and a.require_desktop_session):
     p.error('--require-desktop-clipboard requires a desktop session')
 if a.require_clipboard_sync: a.require_file_commands=True
@@ -187,7 +191,7 @@ with log.open('w') as out:
                     expected_irqs=19
                     command_file_ok=command_file_ok and text.count('clipboard-test private named pasteboard seeded')==1
                 services_ok=fixture.is_file() and fixture.read_bytes()==expected and sorted(p.name for p in shared.iterdir())==names and len(bridge_irqs)==expected_irqs and all(int(n)>0 for n in bridge_irqs) and command_file_ok
-            if (a.require_network_tcp_cycles is None or tcp_cycles_match(text,a.require_network_tcp_cycles)) and services_ok and bridge_irq_ok and network_ok and session_ok and (not a.require_gpu_scanout or pixels_verified) and markers_match(text,marker_counts) and (not a.require_smp_probe or cpu_probe_matches(text)): passed=True;reason='headless-startup-contract';break
+            if (a.require_network_tcp_cycles is None or tcp_cycles_match(text,a.require_network_tcp_cycles)) and services_ok and bridge_irq_ok and network_ok and session_ok and (not a.require_gpu_scanout or pixels_verified) and markers_match(text,marker_counts) and (not a.require_smp_probe or cpu_probe_matches(text)) and (not a.require_exec_smp or exec_smp_matches(text,a.cpus)): passed=True;reason='headless-startup-contract';break
             if proc.poll() is not None: reason='early-exit';break
             time.sleep(.1)
     except Exception as error:
@@ -202,7 +206,7 @@ if a.require_gpu_scanout and not pixels_verified and reason=='timeout' and marke
 boot=subprocess.run(['mtype','-i',str(disk),'::BOOT.LOG'],capture_output=True)
 (a.output/'firmware.log').write_bytes(boot.stdout)
 verdict={'result':'PASS' if passed else 'FAIL','reason':reason,
-         'cpus':a.cpus,'secondary_execution_verified':passed and a.require_smp_probe,'exec_smp_verified':False,
+         'cpus':a.cpus,'secondary_execution_verified':passed and (a.require_smp_probe or a.require_exec_smp),'exec_smp_verified':passed and a.require_exec_smp,
          'sana_device_verified':passed and a.require_sana_device,
          'vsock_stream_verified':passed and a.require_vsock,
          'vsock_device_verified':passed and a.require_vsock_device,
