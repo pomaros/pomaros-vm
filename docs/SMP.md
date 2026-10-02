@@ -18,6 +18,11 @@ proof, and `run-qemu.py --cpus 2 --require-exec-smp --console virtio
 separate from the qualified UP secondary-probe image.
 
 The backend shares upstream scheduler, affinity and spinlock mechanisms.
+Exec and kernel are separate boot modules. A typed callback table published
+through the CPU anchor before Exec initialization carries private lock, IRQ
+exclusion and IPI operations. The kernel owns the shared queues and state;
+Exec forwarding stubs introduce no unresolved boot-module imports.
+
 VM-specific code admits one PSCI secondary with its own EL1 stack, CPU anchor,
 GIC redistributor and timer. SGIs deliver scheduler notifications and queued
 Exec signal hooks. Firmware affinity selects the destination; logical IDs index

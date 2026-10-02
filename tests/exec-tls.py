@@ -21,7 +21,7 @@ with tempfile.TemporaryDirectory() as temp:
         str(root/'tests/irq-mask-policy.c'),'-o',str(policy)],check=True,timeout=30)
     subprocess.run([str(policy)],check=True,timeout=5)
     common=[str(compiler),'--target=aarch64-unknown-aros','-O2','-ffreestanding',
-        '-Wall','-Wextra','-Werror','-D__AROSEXEC_SMP__','-S',str(root/'tests/exec-tls.c')]
+        '-Wall','-Wextra','-Werror','-D__AROSEXEC_SMP__=','-S',str(root/'tests/exec-tls.c')]
     sdk=['-I'+str(build/'bin/apple-aarch64/gen/include'),
          '-I'+str(build/'bin/apple-aarch64/AROS/Developer/include'),
          '-I'+str(core/'compiler/arossupport/include')]
@@ -37,8 +37,8 @@ with tempfile.TemporaryDirectory() as temp:
         subprocess.run(common+extra+sdk+['-o',str(output)],check=True,timeout=30)
         results[backend]=output.read_text().lower()
     apple=results['apple'];native=results['native']
-    assert apple.count('tpidrro_el0')==8, 'Every Apple TLS accessor uses the CPU anchor'
+    assert apple.count('tpidrro_el0')==10, 'Every Apple TLS accessor and IRQ bridge uses the CPU anchor'
     assert not re.search(r'\b(tpidr_el1|daif|daifset|daifclr)\b',apple), 'Privileged access in EL0 adapter'
-    assert 'arosappleruntimeirqsave' in apple and 'arosappleruntimeirqrestore' in apple
+    assert len(re.findall(r'\b(?:br|blr)\b',apple))==2, 'IRQ exclusion calls the kernel callback table'
     assert native.count('tpidr_el1')==8 and 'daifset' in native
     print('PASS Exec TLS: eight EL0 accessors, runtime IRQ bridge, native privileged backend retained')

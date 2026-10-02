@@ -4284,3 +4284,16 @@ working replacement until an ordinary-task run passes the strict contract.
 The planned proof runs two pinned tasks concurrently twice, verifies x18 and
 FPSIMD state, Wait/Signal, teardown, AP timer delivery and physical CPU_OFF.
 The host rejects missing or contradictory worker timing evidence.
+
+
+The module link caught an architectural difference from bsek's native image:
+Exec's private spinlock/IPI calls cannot resolve into a separately loaded
+kernel.resource. Core d35d2a6e60 supplies a typed callback table through the
+CPU anchor, initialized before Exec construction. Exec keeps forwarding stubs;
+the kernel owns the queues and exclusion state. No permissive loader linking
+or duplicated IPI pools were introduced. Runtime acceptance is still pending.
+
+Claude's cpu3 observation confirms the Wi-Fi retry fix on the M1 over 28 min:
+three credential messages, no hold starvation after startup, associated link
+and idle widget. The occasional join failure is separate; the cell's 6/14
+score reflects a capture ending before its Wait, not a qualified join failure.

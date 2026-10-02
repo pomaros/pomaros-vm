@@ -8,6 +8,7 @@ MARKERS = (
     '[SMP] ordinary task wake + concurrent compute PASS',
     '[SMP] ordinary task teardown PASS',
     '[SMP] Exec two-core tasks PASS',
+    '[SMP] load widget ready',
     '[SMP] Exec secondary stopped PASS',
 )
 def exec_smp_matches(text, cpus):
