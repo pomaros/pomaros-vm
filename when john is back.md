@@ -4049,3 +4049,22 @@ command's 14 synthetic scenarios pass using the native-port source. Next:
 cross-build the target in an isolated Apple build directory, package the
 resource and command, and run `DeviceTree / PROPERTIES` on the M1 before
 considering driver-binding changes.
+
+2026-10-02, SMP integration assessment (board task 82, thread 307): upstream
+bsek PRs 1204 and 1318 are merged; waiting for them is unnecessary. Isolated
+core worktree `../aros-core-smp`, branch `codex-smp-integration`, imports
+atomics as `9882ed1733` and StackSwap as `e198d67bb4`, preserving attribution.
+`7dd4536023` changes assembly separators to newlines: Darwin otherwise treats
+semicolons as comments and silently drops atomic stores. All twelve ELF
+primitive functions have byte-identical text before/after that change
+(`artifacts/smp-atomics-fixed/elf-equivalence.txt`). Four host threads pass
+the contention check; this is not guest SMP qualification. No default VM
+CPU count or native image changed, and no physical target was accessed.
+
+The integration blockers and order are in `docs/SMP.md`: VZ firmware CPU/PSCI
+description, Apple per-CPU Exec state, CPU entry, GIC/AIC IPIs, shared-memory
+locking/TLB maintenance and scheduler integration. StackSwap has not been
+guest-built/tested on this branch. Claude was notified on thread 307; the
+native working-tree power/MMU edits were left untouched. Next implementation
+slice: firmware CPU topology and per-CPU state, keeping the UP boot working,
+before starting a second CPU. Native A9 is not achieved by these prerequisites.

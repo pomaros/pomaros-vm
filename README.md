@@ -107,3 +107,6 @@ a bounded VZ desktop session verifies the daemon, text/images and foreground
 session contention. [Network qualification](docs/NETWORK.md) covers DHCP and
 AROSTCP UDP/TCP transfers through the host NAT gateway. Remaining acceptance
 is tracked in [stage 6](docs/STAGE6.md).
+
+The [SMP integration path](docs/SMP.md) describes upstream reuse, firmware CPU
+discovery, per-CPU kernel work and bounded activation checks.
