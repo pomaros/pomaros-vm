@@ -4103,3 +4103,27 @@ live in the isolated integration branch `codex-smp-checks` (no shared native
 checkout changes). Next: separate GIC distributor/local-CPU setup and IPIs,
 then adapt upstream Exec per-CPU scheduler/locks without changing tasks to EL1.
 Bsek owns the unpublished AROSTCP SMP fixes; network acceptance stays open.
+
+
+### 2026-10-02 — Bidirectional interrupts between VM CPUs
+
+Core `24a95faa67` separates GIC CPU initialization from shared distributor
+initialization. The secondary receives SGI14 through a private, full-GPR IRQ
+frame and acknowledges to the boot CPU through SGI15. The boot kernel handles
+the reply through its normal IRQ path. Busy/idle accounting masks local IRQs
+around its foreground updates, retaining the single-writer contract.
+
+`artifacts/smp-hvf-ipi/verdict.json` PASS in25.19s, with timer waits, dispatch
+masks, GPU IRQ completion and IRQ-chain checks required. `artifacts/smp-vz-ipi`
+PASS in17.03s with GPU IRQ completion required. Both require matching IPI
+request/handler/ack counts and confirmed secondary CPU_OFF. The parser now
+requires runtime isolation and IPI evidence; older historical runs predate
+these added requirements. No unbounded stress loops were used.
+
+`83f4ec8cb3` imports bsek's complete upstream `95f5d15b77` with `-x`, original
+authorship and no edits. These `aarch64-native` files are source material for
+Apple integration; importing them does not activate the scheduler in the
+Apple build. Latest upstream fetched: `5bc380c77f`. AROSTCP work remains bsek's.
+Claude is changing native widget redraw to incremental cells; his pending
+merge requires CPU bars to clear their own areas and paged unused rows to be
+cleared. Keep full Exec SMP and native hardware activation explicitly open.

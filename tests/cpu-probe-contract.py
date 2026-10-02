@@ -9,11 +9,11 @@ from cpu_probe_contract import cpu_probe_matches
 
 def sample(cpu, state, busy, idle, transitions):
     return "[SMP] sample " + " ".join(f"{k}=0x{v:x}" for k, v in zip(
-        ("cpu", "affinity", "state", "busy", "idle", "transitions"),
-        (cpu, 0x100, state, busy, idle, transitions))) + "\n"
+        ("cpu", "affinity", "state", "busy", "idle", "transitions", "ipi_sent", "ipi_handled", "ipi_acked"),
+        (cpu, 0x100, state, busy, idle, transitions, transitions, transitions, transitions))) + "\n"
 
 start = "[SMP] EL0 CPU anchor PASS\n[SMP] CPU runtime isolation PASS\n[SMP] secondary execution probe started\n"
-stop = "[SMP] secondary execution probe stopped\n"
+stop = "[SMP] secondary execution probe stopped\n[SMP] IPI roundtrip PASS\n"
 rows = [sample(1, 1, 100, 0, 1), sample(1, 1, 200, 0, 1),
         sample(1, 2, 200, 100, 2), sample(1, 2, 200, 200, 2),
         sample(1, 1, 300, 200, 3), sample(1, 1, 400, 200, 3)]

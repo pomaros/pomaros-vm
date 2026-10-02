@@ -15,7 +15,8 @@ IPI work queues and scheduler/Exec integration. Merged
 [PR 1318](https://github.com/aros-development-team/AROS/pull/1318)
 extends the Raspberry Pi interrupt and CPU-release paths.
 
-The portable atomics and StackSwap changes can be imported independently.
+The integration branch imports the upstream SMP kernel/Exec layer with its
+original authorship, as well as the portable atomics and StackSwap changes.
 The scheduler implementation lives in `arch/aarch64-native`, whereas this
 guest builds `arch/aarch64-apple`. Importing those files alone does not wire
 them into this target. Reuse the generic mechanisms through shared AArch64
@@ -44,9 +45,9 @@ register setup must not become an Apple backend.
    is never saved or restored as task state. Guest x18 remains an ordinary register.
 4. **Secondary entry and interrupt transport.** Allocate separate stacks,
    install translation tables, cache attributes, vectors and per-CPU state
-   before enabling interrupts. Split shared GIC distributor setup from local
-   redistributor/CPU-interface setup; implement targeted SGIs and local timer
-   setup. VZ requires its GICv3 path, not merely QEMU GICv2. For native M1,
+   before enabling interrupts. The shared GIC separates one-time distributor setup from local
+   redistributor/CPU-interface setup and targets GICv3 SGIs by full affinity.
+   Local timer setup and scheduler wakeups must use these per-CPU interfaces. VZ requires its GICv3 path, not merely QEMU GICv2. For native M1,
    coordinate Apple CPU release and AIC/IPI handling independently; removing
    m1n1's `GUEST_NOSMP` alone is not a kernel implementation.
 5. **Scheduler and shared resources.** Connect upstream CPU masks, IPI queues,
@@ -111,14 +112,20 @@ Its EL1 entry installs the identity translation regime and a private stack
 and exception-vector table. It confirms its MPIDR and independent runtime
 state, alternates busy execution
 and WFE periods on boot-CPU commands, and publishes its own counters. It does
-not call Exec, process device interrupts, or run AROS applications. Its widget
+not call Exec, process device interrupts, or run AROS applications. It handles
+reserved SGI 14 through a private IRQ entry and sends SGI 15 back to the boot
+CPU. The IRQ frame preserves every general register, including x18. Startup
+of another GIC CPU interface does not reset the shared distributor or disable
+boot-CPU device interrupts. At shutdown the probe requires at least three
+requests and exactly matching handled/acknowledged counts. Its widget
 row says `TEST`, never scheduler-ready. The secondary must acknowledge PSCI
 CPU_OFF through AFFINITY_INFO before the bounded session releases the kernel;
 a failure retains the kernel rather than returning through reclaimed code.
 
 `tools/run-vz.py` and `tools/run-qemu.py` accept `--require-smp-probe` and
 require monotonic counters, both high and low occupancy intervals, startup
-and confirmed stop, alongside their normal guest boot checks. Their verdict
+confirmed stop and bidirectional IPI completion, alongside their normal guest
+boot checks. Their verdict
 keeps `exec_smp_verified` false. QEMU failures preserve registers for every
 configured CPU. This probe exercises CPU activation and the widget's source
 of measurements; it does not replace task migration, IPI and driver testing.
@@ -143,10 +150,11 @@ python3 tools/package-core.py --build "$HOME/Build/macaros-vm/smp-core" \
   --desktop-session 12 --smp-probe --output build/cpu-probe
 python3 tools/run-qemu.py --esp build/cpu-probe --console virtio \
   --virtio-desktop --msi-controller gicv2m --cpus 2 --require-smp-probe \
+  --require-timer --require-gpu-irq --require-irq-chain \
   --output artifacts/cpu-probe-hvf
 python3 tools/make-disk.py --esp build/cpu-probe --output build/cpu-probe.img
 python3 tools/run-vz.py --disk build/cpu-probe.img --desktop-startup \
-  --require-desktop-session 12 --cpus 2 --require-smp-probe \
+  --require-desktop-session 12 --cpus 2 --require-smp-probe --require-gpu-irq \
   --output artifacts/cpu-probe-vz
 ```
 
@@ -156,3 +164,8 @@ shell and widget. `pixels_verified` and `desktop_checked` remain false; the
 image is retained for visual review. The ordinary QEMU desktop qualification
 keeps its existing pixel checks. Host evidence-parser rejection cases run with
 `python3 tests/cpu-probe-contract.py`.
+
+GICv3 IPI targeting currently admits Aff0 values 0..15; larger range-selector
+values fail explicitly. GICv2 self-IPI remains available, but cross-CPU target
+bits are not inferred from MPIDR. Apple AIC/IPI and native spin-table release
+are separate backends and are not qualified by these VM tests.
