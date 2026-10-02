@@ -7,6 +7,8 @@ import hashlib
 import json
 from pathlib import Path
 import platform
+import re
+import shutil
 import subprocess
 import tempfile
 
@@ -51,6 +53,18 @@ try:
             capture_output=True, text=True, timeout=30)
         (args.output / 'elf-build.log').write_text(elf.stdout + elf.stderr)
         elf.check_returncode()
+        objdump = shutil.which('llvm-objdump') or '/opt/homebrew/opt/llvm/bin/llvm-objdump'
+        disasm = subprocess.check_output([objdump, '-d', str(args.output.resolve() / 'elf.o')], text=True)
+        (args.output / 'elf-disassembly.txt').write_text(disasm)
+        functions = re.findall(r'<((?:INC|DEC|AND|OR)[BWL])>:\n(.*?)(?=\n[0-9a-f]+ <|\Z)', disasm, re.S)
+        if len(functions) != 12:
+            raise RuntimeError('Expected twelve ELF primitive functions')
+        for name, body in functions:
+            if (len(re.findall(r'\bldxr[b h]?\b', body)) != 1 or
+                len(re.findall(r'\bstxr[b h]?\b', body)) != 1 or
+                len(re.findall(r'\bcbnz\b', body)) != 1 or
+                len(re.findall(r'\bdmb\s+ish\b', body)) != 2):
+                raise RuntimeError('Missing exclusive loop/full fences: ' + name)
         exe = args.output.resolve() / 'smp-atomics'
         cmd = ['clang', '-std=gnu11', '-O2', '-Wall', '-Wextra', '-Werror', '-pthread',
                '-I' + str(inc), '-I' + str(core / 'compiler/arossupport/include'),
@@ -66,6 +80,15 @@ try:
         result.check_returncode()
         if not result.stdout.startswith('PASS:'):
             raise RuntimeError('Missing completion verdict')
+        negative = args.output.resolve() / 'smp-atomics-negative'
+        negative_cmd = cmd[:-2] + ['-DNEGATIVE_CONTROL', '-o', str(negative)]
+        subprocess.run(negative_cmd, check=True, capture_output=True, text=True, timeout=30)
+        result = subprocess.run([str(negative)], capture_output=True, text=True, timeout=20)
+        (args.output / 'negative.log').write_text(result.stdout + result.stderr)
+        if result.returncode != 1 or 'FAIL: worker lost its own bit' not in result.stderr:
+            raise RuntimeError('Non-atomic bitwise negative control escaped detection')
+        report['negative_control'] = 'detected lost updates'
+        report['elf_checks'] = '12 exclusive loops, each with two full fences'
         report['result'] = 'PASS'
 except Exception as exc:
     report['error'] = str(exc)

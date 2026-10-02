@@ -15,6 +15,17 @@
 
 enum { WORKERS = 4, ITERATIONS = 100003 };
 static atomic_int ready, go;
+static atomic_int arrived, generation, lost;
+static void rendezvous(void)
+{
+    int g = atomic_load(&generation);
+    if (atomic_fetch_add(&arrived, 1) == WORKERS - 1) {
+        atomic_store(&arrived, 0);
+        atomic_fetch_add(&generation, 1);
+    } else {
+        while (atomic_load(&generation) == g) sched_yield();
+    }
+}
 static int operation;
 #define WIDTH(name, type) \
 static struct { type before, value, after; } name = { (type)0xa5, 0, (type)0x5a };
@@ -22,12 +33,33 @@ WIDTH(byte, uint8_t)
 WIDTH(word, uint16_t)
 WIDTH(longword, uint32_t)
 
+#ifdef NEGATIVE_CONTROL
+/* Defined individual loads/stores, deliberately NOT an atomic RMW. */
+#undef AROS_ATOMIC_OR
+#undef AROS_ATOMIC_AND
+#define BROKEN(v, mask, op) do { \
+    unsigned old = __atomic_load_n(&(v), __ATOMIC_RELAXED); \
+    sched_yield(); \
+    __atomic_store_n(&(v), old op (mask), __ATOMIC_RELAXED); \
+} while (0)
+#define AROS_ATOMIC_OR(v, mask) BROKEN(v, mask, |)
+#define AROS_ATOMIC_AND(v, mask) BROKEN(v, mask, &)
+#endif
+
 #define APPLY(v) do { \
     switch (operation) { \
     case 0: AROS_ATOMIC_INC(v); break; \
     case 1: AROS_ATOMIC_DEC(v); break; \
-    case 2: AROS_ATOMIC_OR(v, mask); break; \
-    case 3: AROS_ATOMIC_AND(v, ~mask); break; \
+    case 2: \
+        AROS_ATOMIC_OR(v, mask); \
+        rendezvous(); \
+        if (!(__atomic_load_n(&(v), __ATOMIC_RELAXED) & mask)) atomic_store(&lost, 1); \
+        rendezvous(); \
+        AROS_ATOMIC_AND(v, ~mask); \
+        rendezvous(); \
+        if (__atomic_load_n(&(v), __ATOMIC_RELAXED) & mask) atomic_store(&lost, 1); \
+        rendezvous(); \
+        break; \
     } \
 } while (0)
 
@@ -36,7 +68,7 @@ static void *worker(void *arg)
     unsigned mask = 1u << (uintptr_t)arg;
     atomic_fetch_add(&ready, 1);
     while (!atomic_load(&go)) sched_yield();
-    for (int i = 0; i < ITERATIONS; ++i) {
+    for (int i = 0; i < (operation == 2 ? 1003 : ITERATIONS); ++i) {
         APPLY(byte.value);
         APPLY(word.value);
         APPLY(longword.value);
@@ -46,19 +78,30 @@ static void *worker(void *arg)
 
 int main(void)
 {
-    for (operation = 0; operation < 4; ++operation) {
+#ifdef NEGATIVE_CONTROL
+    operation = 2;
+#else
+    operation = 0;
+#endif
+    for (; operation < 3; ++operation) {
         pthread_t threads[WORKERS];
-        unsigned initial = operation == 3 ? UINT32_MAX : 0;
+        unsigned initial = 0;
         byte.value = initial; word.value = initial; longword.value = initial;
         atomic_store(&ready, 0); atomic_store(&go, 0);
         for (uintptr_t i = 0; i < WORKERS; ++i)
             assert(!pthread_create(&threads[i], NULL, worker, (void *)i));
         while (atomic_load(&ready) != WORKERS) sched_yield();
         atomic_store(&go, 1);
-        for (int i = 0; i < WORKERS; ++i) assert(!pthread_join(threads[i], NULL));
+        int failed = 0;
+        for (int i = 0; i < WORKERS; ++i) {
+            void *result;
+            assert(!pthread_join(threads[i], &result));
+            if (result) failed = 1;
+        }
+        if (failed || atomic_load(&lost)) { fputs("FAIL: worker lost its own bit\n", stderr); return 1; }
         uint32_t expected = operation == 0 ? WORKERS * ITERATIONS :
             operation == 1 ? 0u - WORKERS * ITERATIONS :
-            operation == 2 ? 15u : ~15u;
+            0u;
         fprintf(stderr, "operation %d: %u/%u/%u expected %u/%u/%u\n", operation,
                 byte.value, word.value, longword.value,
                 (uint8_t)expected, (uint16_t)expected, expected);
