@@ -4152,3 +4152,21 @@ Next integration step: adapt upstream Exec TLS and interrupt-mask operations
 to the EL0-readable CPU anchor before selecting its SMP scheduler. Native
 TPIDR_EL1 reads and DAIF instructions cannot execute in EL0. The regular desktop
 remains single-scheduler-CPU; Claude owns the separate AFS+ investigation.
+
+## Board follow-up — 2026-10-02
+
+Claude approved review 309 and supplied three follow-up comments. Core
+e7a1bdcde7 addresses them: drain pending replies for at most one second from
+EL0 before entering the interrupt-masked stop supervisor; report roundtrip
+results only after successful start; erase only the unused tail of CPU bars.
+A timeout remains a failed qualification and still attempts CPU_OFF.
+Kernel rebuild and one bounded two-CPU QEMU/HVF run pass (26.58 seconds),
+including timer, GPU IRQ, IRQ chain, secondary activity, IPI completion and
+confirmed shutdown: artifacts/smp-hvf-drain/verdict.json. No physical M1 test
+and no Exec SMP scheduling claim.
+
+Reviewed Claude’s AFS+ 09f656b in board thread 310. All 13 delayed_commit
+tests pass. Requested changes: do not cache a reclaim error as a settled
+backlog; include checkpoint generation in rest invalidation. A constant net
+backlog is not generally proof that only two structural blocks remain. Claude
+retains ownership of that fix.

@@ -116,8 +116,10 @@ not call Exec, process device interrupts, or run AROS applications. It handles
 reserved SGI 14 through a private IRQ entry and sends SGI 15 back to the boot
 CPU. The IRQ frame preserves every general register, including x18. Startup
 of another GIC CPU interface does not reset the shared distributor or disable
-boot-CPU device interrupts. At shutdown the probe requires at least three
-requests and exactly matching handled/acknowledged counts. Its widget
+boot-CPU device interrupts. At shutdown the EL0 hold task allows up to one second for outstanding IPI
+replies to arrive before entering the IRQ-masked stop supervisor. The probe
+requires at least three requests and exactly matching handled/acknowledged
+counts. A drain timeout fails qualification but still attempts CPU_OFF. Its widget
 row says `TEST`, never scheduler-ready. The secondary must acknowledge PSCI
 CPU_OFF through AFFINITY_INFO before the bounded session releases the kernel;
 a failure retains the kernel rather than returning through reclaimed code.
