@@ -7,6 +7,30 @@ accessing Exec lists or drivers.
 The integration work follows native milestones A8/A9. Starting a secondary
 CPU is a bring-up check, not A9 acceptance.
 
+## Experimental ordinary-task build
+
+`tools/configure-core.py --smp --source ../aros-core-smp --output PATH`
+selects the isolated `codex-smp-integration` branch and a fresh SMP SDK.
+SMP changes ExecBase's ABI; objects and programs from the UP SDK must not be
+mixed into that image. `package-core.py --smp-exec` selects its bounded task
+proof, and `run-qemu.py --cpus 2 --require-exec-smp --console virtio
+--virtio-desktop` requires its evidence. This experimental configuration is
+separate from the qualified UP secondary-probe image.
+
+The backend shares upstream scheduler, affinity and spinlock mechanisms.
+VM-specific code admits one PSCI secondary with its own EL1 stack, CPU anchor,
+GIC redistributor and timer. SGIs deliver scheduler notifications and queued
+Exec signal hooks. Firmware affinity selects the destination; logical IDs index
+per-CPU records. EL0 task code keeps x18 available to the compiler.
+
+Desktop children inherit boot-CPU affinity; explicit compute workers use the
+secondary. Exec's shared housekeeper retains its upstream affinity policy.
+Two task phases exercise concurrent calculation, Wait/Signal, register state
+and teardown. Host validation requires overlapping counter intervals on two
+distinct CPUs, AP timer delivery and confirmed PSCI CPU_OFF before unloading
+the kernel. This bounded test does not qualify task migration, network or
+native Apple drivers for SMP.
+
 ## Reuse from upstream
 
 Bo Ståle Kopperud's merged [PR 1204](https://github.com/aros-development-team/AROS/pull/1204)
@@ -39,9 +63,9 @@ register setup must not become an Apple backend.
    current task, nesting counters, quantum, interrupt readiness, idle task,
    exception stack and CPU identity. Runtime privilege transitions, interrupt
    readiness/depth, observation continuations and idle state are CPU-local.
-   The Apple `kernel_cpu.c` and `dispatch_proof.c` still use
-   `SysBase->ThisTask`; scheduler integration must replace these consumers
-   together with the Exec platform accessors. The observation records use this CPU anchor on the boot and probe CPUs; it
+   The Apple dispatch paths use the Exec platform accessors, selecting
+   SysBase storage for UP and CPU-local TLS for SMP. Observation records use
+   this CPU anchor on the boot and secondary CPUs; it
    is never saved or restored as task state. Guest x18 remains an ordinary register.
    `AROSAppleRuntimeIRQSave/IRQRestore` provide nested CPU-local IRQ/FIQ
    exclusion from EL0 through SVC, and from early EL1 directly. Restore changes
@@ -62,8 +86,9 @@ register setup must not become an Apple backend.
    The Apple `exec_platform_smp.h` adapter reuses upstream Exec accessors and
    TLS layout through `TLS_PTR_GET`, mapping local exclusions to these runtime
    calls. Each CPU anchor points to separate Exec TLS storage. The adapter is
-   not selected by the UP build; attaching live tasks and enabling the scheduler
-   are separate integration steps. Native privileged access retains TPIDR_EL1.
+   not selected by the UP build. The experimental SMP configuration selects
+   it together with the scheduler and live task attachment. Native privileged
+   access retains TPIDR_EL1.
 4. **Secondary entry and interrupt transport.** Allocate separate stacks,
    install translation tables, cache attributes, vectors and per-CPU state
    before enabling interrupts. The shared GIC separates one-time distributor setup from local

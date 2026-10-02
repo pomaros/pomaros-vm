@@ -12,6 +12,7 @@ import subprocess
 root = Path(__file__).resolve().parents[1]
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--output', type=Path, required=True)
+p.add_argument('--smp', action='store_true', help='isolated experimental Exec SMP build')
 p.add_argument('--source-date-epoch', default=os.environ.get('SOURCE_DATE_EPOCH'),
                help='build timestamp; defaults to the source commit timestamp')
 p.add_argument('--source', type=Path, default=root.parent / 'aros-core-vm')
@@ -44,6 +45,10 @@ subprocess.run(['git', '-C', str(source), 'submodule', 'update', '--init', '--',
 command = [str(source / 'configure'), '--target=apple-aarch64',
            '--enable-vm-guest', '--with-toolchain=llvm', '--with-aros-toolchain=yes',
            '--with-aros-toolchain-install=' + str(toolchain), '--without-x']
+if a.smp:
+    if branch != 'codex-smp-integration':
+        p.error('--smp requires the isolated SMP integration branch')
+    command.append('--enable-target-variant=smp')
 output.mkdir(parents=True)
 (output / 'vm-configure-command.json').write_text(json.dumps(command, indent=2) + '\n')
 with (output / 'vm-configure.log').open('w') as log:

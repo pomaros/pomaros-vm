@@ -4256,3 +4256,31 @@ Full Exec SMP is not enabled: the second core runs the isolated probe. Next
 is live Exec TLS/task attachment and scheduler/lock/IPI selection in a separate
 SMP build, followed by task migration and concurrent lifecycle checks. No M1
 access was used; native CPU release/AIC transport requires its own integration.
+
+
+## Ordinary Exec SMP integration — 2026-10-03 (in progress)
+
+John authorized all four work items and autonomous deployment/reboot. I keep
+native hardware coordination separate: Claude is measuring the Wi-Fi retry
+fix; this integration uses an isolated VM build and no M1 access.
+
+Review 312 is approved. The corrected Wait check tests timer delivery after
+idle; it does not prove the dispatch mask for nesting -1 because Wait returns
+through Enable. A separate compiled production-function test with an old-code
+mutation checks that policy. Short UP VM qualification passed in
+artifacts/smp-review-wait/verdict.json; build/smp-review-wait is retained.
+
+The experimental core branch codex-smp-integration imports bsek's affinity
+support and selects the existing upstream scheduler, locks and IPI work queues.
+Apple-specific code supplies EL0-safe TLS, PSCI admission, GIC SGIs, local timer
+and confirmed CPU_OFF. It keeps the desktop and drivers on the boot CPU;
+only explicit ordinary worker tasks receive AP affinity. This is deliberately
+not a claim that AROSTCP or native Apple drivers are SMP-safe.
+
+A separate SDK/build is mandatory because SMP changes ExecBase's ABI:
+~/Build/macaros-vm/exec-smp-2. The source tranche 8f6ce31e58 is experimental,
+not qualified. The first complete build is in progress. Do not deploy it as a
+working replacement until an ordinary-task run passes the strict contract.
+The planned proof runs two pinned tasks concurrently twice, verifies x18 and
+FPSIMD state, Wait/Signal, teardown, AP timer delivery and physical CPU_OFF.
+The host rejects missing or contradictory worker timing evidence.
