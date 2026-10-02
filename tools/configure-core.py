@@ -23,8 +23,8 @@ toolchain = a.toolchain.resolve()
 if output.exists():
     p.error('output must be a new directory; configured or native builds are never reused')
 branch = subprocess.check_output(['git', '-C', str(source), 'branch', '--show-current'], text=True).strip()
-if branch != 'codex-macaros-vm':
-    p.error('select the isolated codex-macaros-vm source branch')
+if branch not in ('codex-macaros-vm', 'codex-smp-integration'):
+    p.error('select the isolated codex-macaros-vm or codex-smp-integration source branch')
 if not toolchain.is_dir():
     p.error('the prebuilt AROS cross-toolchain directory is missing')
 epoch=a.source_date_epoch

@@ -1,7 +1,9 @@
 # SMP integration
 
-The Apple guest kernel is uniprocessor. `src/main.swift` assigns one VZ CPU;
-increasing that count does not supply per-CPU Exec state or a scheduler.
+Exec task scheduling is uniprocessor. The launcher defaults to one VZ CPU;
+`--cpus=N` changes the virtual hardware inventory, not Exec scheduling.
+An explicit secondary execution probe can run on a second CPU without
+accessing Exec lists or drivers.
 The integration work follows native milestones A8/A9. Starting a secondary
 CPU is a bring-up check, not A9 acceptance.
 
@@ -28,16 +30,18 @@ register setup must not become an Apple backend.
 2. **CPU description.** Consume enabled CPU nodes and MPIDR affinities from
    FDT. Preserve logical CPU IDs separately from hardware affinity values.
    QEMU supplies firmware CPU/PSCI data. VZ's `boot/arosboot/vz_platform.c`
-   constructs a tree from UEFI/ACPI but does not emit CPU nodes or a CPU-start
-   interface: extend firmware discovery, including enabled MADT CPU entries
-   and the firmware-advertised PSCI conduit, before publishing these bindings.
+   constructs CPU nodes from enabled MADT GICC entries and publishes the PSCI
+   conduit advertised by FADT ARM_BOOT_ARCH. The parser rejects duplicate
+   affinities, malformed entries, absent PSCI support and excess CPUs.
    Do not infer a conduit from the fact that the host is a Mac.
-3. **Per-CPU kernel/Exec state.** Reuse upstream's TPIDR_EL1-based design:
+3. **Per-CPU kernel/Exec state.** Adapt upstream's per-CPU design to an EL0-readable TPIDRRO_EL0 anchor:
    current task, nesting counters, quantum, interrupt readiness, idle task,
-   exception stack and CPU identity. The Apple `kernel_cpu.c` and
-   `dispatch_proof.c` use `SysBase->ThisTask`; `idle_active` and runtime
-   interrupt readiness are global. Audit these consumers and exception paths
-   together. Guest x18 remains an ordinary register.
+   exception stack and CPU identity. Runtime privilege transitions, interrupt
+   readiness/depth, observation continuations and idle state are CPU-local.
+   The Apple `kernel_cpu.c` and `dispatch_proof.c` still use
+   `SysBase->ThisTask`; scheduler integration must replace these consumers
+   together with the Exec platform accessors. The observation records use this CPU anchor on the boot and probe CPUs; it
+   is never saved or restored as task state. Guest x18 remains an ordinary register.
 4. **Secondary entry and interrupt transport.** Allocate separate stacks,
    install translation tables, cache attributes, vectors and per-CPU state
    before enabling interrupts. Split shared GIC distributor setup from local
@@ -68,9 +72,87 @@ This checks the actual production header selection, compiles twelve primitive
 functions for AArch64 ELF, and runs four macOS threads contending on byte,
 word and long counters/masks. It checks wraparound and adjacent guards.
 The host test substitutes only AROS scalar typedefs, not the atomic macros.
+The bitwise phase checks each worker's bit between synchronized OR/AND phases;
+a deliberately broken load/store RMW negative control must fail. ELF
+disassembly must contain an exclusive loop and two fences in every primitive.
 Its result explicitly does **not** validate the AROS scheduler, memory-order
 litmus properties, secondary CPU startup or native hardware.
 
 Source hashes, binary hash and compiler/runtime logs accompany the verdict.
 StackSwap still needs a guest build and execution check as part of the
 kernel integration; this host test does not exercise it.
+
+
+## Per-core observation
+
+The AROS alive widget lists CPU IDs from firmware, with separate `OFF`,
+`DISABLED`, `ON`, `TEST` and unavailable states. CPU IDs are logical indices;
+complete MPIDR affinities are retained separately. If firmware discovery fails,
+only the observed boot CPU is listed and the heading says firmware unknown.
+Eight rows are displayed at a time; larger inventories rotate pages every five
+seconds. A percentage is computed from busy/idle counter deltas between
+samples, not from total uptime or the number of configured virtual CPUs.
+
+The executing CPU owns its accounting record. Exception entry counts as busy;
+the scheduler's WFI entry counts as idle. Readers make bounded snapshot
+attempts and show unavailable on contention. Offline CPUs have no invented
+zero-percent load. This measures execution versus idle residence, not host
+CPU use, power consumption or scheduler correctness.
+
+## Isolated secondary execution probe
+
+`tools/package-core.py --smp-probe --desktop-session 12` writes
+`AROS/CPUPROBE.CFG`. The EFI ACPI adapter publishes the explicit opt-in in
+`/chosen`. Expose at least two CPUs with `--cpus=2` in the launcher or
+qualification runner. The ordinary desktop does not opt in.
+
+The boot CPU starts one firmware-enabled secondary through PSCI CPU_ON.
+Its EL1 entry installs the identity translation regime and a private stack
+and exception-vector table. It confirms its MPIDR and independent runtime
+state, alternates busy execution
+and WFE periods on boot-CPU commands, and publishes its own counters. It does
+not call Exec, process device interrupts, or run AROS applications. Its widget
+row says `TEST`, never scheduler-ready. The secondary must acknowledge PSCI
+CPU_OFF through AFFINITY_INFO before the bounded session releases the kernel;
+a failure retains the kernel rather than returning through reclaimed code.
+
+`tools/run-vz.py` and `tools/run-qemu.py` accept `--require-smp-probe` and
+require monotonic counters, both high and low occupancy intervals, startup
+and confirmed stop, alongside their normal guest boot checks. Their verdict
+keeps `exec_smp_verified` false. QEMU failures preserve registers for every
+configured CPU. This probe exercises CPU activation and the widget's source
+of measurements; it does not replace task migration, IPI and driver testing.
+
+Host checks: `python3 tests/cpu-monitor.py` and
+`make build/vz-platform-test && build/vz-platform-test`.
+
+AROSTCP SMP safety is a separate acceptance requirement. Its unpublished
+upstream fixes must be integrated and tested before claiming concurrent
+network operation; a secondary execution probe provides no such evidence.
+
+## Running the bounded CPU probe
+
+Use the isolated `codex-smp-integration` core and its configured build. Build
+`apple-wanderer-payloads`, `kernel-hidd-pci`, `kernel-hidd-vmpci`,
+`kernel-hidd-virtiogfx` and `workbench-c` with their dependencies. Build the
+EFI adapter against the same source. Example:
+
+```sh
+python3 tools/package-core.py --build "$HOME/Build/macaros-vm/smp-core" \
+  --efi build/uefi-smp/BOOTAA64.EFI --profile wanderer --virtio-gpu \
+  --desktop-session 12 --smp-probe --output build/cpu-probe
+python3 tools/run-qemu.py --esp build/cpu-probe --console virtio \
+  --virtio-desktop --msi-controller gicv2m --cpus 2 --require-smp-probe \
+  --output artifacts/cpu-probe-hvf
+python3 tools/make-disk.py --esp build/cpu-probe --output build/cpu-probe.img
+python3 tools/run-vz.py --disk build/cpu-probe.img --desktop-startup \
+  --require-desktop-session 12 --cpus 2 --require-smp-probe \
+  --output artifacts/cpu-probe-vz
+```
+
+The CPU probe protocol captures `cpu-widget.png` during the live QEMU session.
+It does not apply the empty-desktop pixel classifier to a session containing a
+shell and widget. `pixels_verified` and `desktop_checked` remain false; the
+image is retained for visual review. The ordinary QEMU desktop qualification
+keeps its existing pixel checks. Host evidence-parser rejection cases run with
+`python3 tests/cpu-probe-contract.py`.

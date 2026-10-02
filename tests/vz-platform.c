@@ -104,10 +104,32 @@ int main(void) {
     gtdt[9]^=1;assert(!parse_interrupts(madt,gtdt,&irq));gtdt[9]^=1;
     memcpy(madt+84,madt+68,16);put(madt+4,100,4);sum(madt,100,9);
     assert(!parse_interrupts(madt,gtdt,&irq));
-    uint8_t irq_xsdt[60]={0};
+    uint8_t cpu_madt[244]={0},fadt[276]={0};
+    memcpy(cpu_madt,madt,84);put(cpu_madt+4,sizeof(cpu_madt),4);
+    memcpy(fadt,"FACP",4);put(fadt+4,sizeof(fadt),4);put(fadt+129,3,2);
+    for (unsigned i=0;i<2;i++) {
+        unsigned at=84+80*i;cpu_madt[at]=11;cpu_madt[at+1]=80;
+        put(cpu_madt+at+12,1,4);put(cpu_madt+at+68,i?0x100:0,8);
+    }
+    sum(cpu_madt,sizeof(cpu_madt),9);sum(fadt,sizeof(fadt),9);
+    assert(parse_cpus(cpu_madt,fadt,&irq) && irq.cpu_count==2 && irq.psci_hvc);
+    assert(irq.mpidr[1]==0x100);
+    assert(make_tree(tree,sizeof(tree),&state,0x1000,&irq,NULL,NULL)==0);
+    assert(fdt_path_offset(tree,"/cpus/cpu@100")>0);
+    assert(!strcmp(fdt_getprop(tree,fdt_path_offset(tree,"/psci"),"method",NULL),"hvc"));
+    put(cpu_madt+164+68,0,8);sum(cpu_madt,sizeof(cpu_madt),9);
+    assert(!parse_cpus(cpu_madt,fadt,&irq));
+    put(cpu_madt+164+68,0x100,8);put(cpu_madt+164+12,0,4);sum(cpu_madt,sizeof(cpu_madt),9);
+    assert(parse_cpus(cpu_madt,fadt,&irq) && irq.cpu_count==1);
+    put(cpu_madt+164+12,1,4);sum(cpu_madt,sizeof(cpu_madt),9);
+    put(fadt+129,0,2);sum(fadt,sizeof(fadt),9);assert(!parse_cpus(cpu_madt,fadt,&irq));
+    put(fadt+129,1,2);sum(fadt,sizeof(fadt),9);assert(parse_cpus(cpu_madt,fadt,&irq) && !irq.psci_hvc);
+    cpu_madt[9]^=1;assert(!parse_cpus(cpu_madt,fadt,&irq));cpu_madt[9]^=1;
+    uint8_t irq_xsdt[68]={0};
     memcpy(irq_xsdt,"XSDT",4);put(irq_xsdt+4,sizeof(irq_xsdt),4);
-    put(irq_xsdt+36,(uintptr_t)mcfg,8);put(irq_xsdt+44,(uintptr_t)madt,8);
+    put(irq_xsdt+36,(uintptr_t)mcfg,8);put(irq_xsdt+44,(uintptr_t)cpu_madt,8);
     put(irq_xsdt+52,(uintptr_t)gtdt,8);
+    put(irq_xsdt+60,(uintptr_t)fadt,8);
     put(madt+4,84,4);sum(madt,84,9);sum(irq_xsdt,sizeof(irq_xsdt),9);
     put(rsdp+24,(uintptr_t)irq_xsdt,8);sum(rsdp,36,32);
     assert(find_interrupts((uintptr_t)rsdp,&irq));

@@ -6,6 +6,8 @@ import Virtualization
 let bundledLaunch = CommandLine.arguments.count==1 || CommandLine.arguments[1].hasPrefix("--")
 let suppliedOptions=Array(CommandLine.arguments.dropFirst(bundledLaunch ? 1:3))
 let launchOptions=Array(Set((bundledLaunch ? ["--network","--host-services"] : []) + suppliedOptions))
+let cpuOptions=suppliedOptions.filter { $0.hasPrefix("--cpus=") }
+let requestedCPUs=cpuOptions.first.flatMap { Int($0.dropFirst(7)) } ?? 1
 
 @available(macOS 13.0, *)
 final class Application: NSObject, NSApplicationDelegate, NSWindowDelegate, VZVirtualMachineDelegate, VZVirtioSocketListenerDelegate {
@@ -88,7 +90,7 @@ final class Application: NSObject, NSApplicationDelegate, NSWindowDelegate, VZVi
       try FileManager.default.createDirectory(at: state, withIntermediateDirectories: true)
       let config = VZVirtualMachineConfiguration()
       config.platform = VZGenericPlatformConfiguration()
-      config.cpuCount = 1
+      config.cpuCount = requestedCPUs
       config.memorySize = 512 * 1024 * 1024
       let boot = VZEFIBootLoader()
       let nvram = state.appendingPathComponent("nvram.bin")
@@ -345,12 +347,16 @@ final class Application: NSObject, NSApplicationDelegate, NSWindowDelegate, VZVi
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 }
 let options = launchOptions
+if cpuOptions.count > 1 || (!cpuOptions.isEmpty && Int(cpuOptions[0].dropFirst(7)) == nil)
+  || requestedCPUs < 1 || requestedCPUs > 64 {
+  fputs("--cpus requires one count between 1 and 64; guest SMP support is separate\n",stderr);exit(2)
+}
 if options.contains("--input-probe") && options.contains("--headless") && (!options.contains("--gpu-window") || !options.contains("--usb-input")) {
   fputs("--input-probe requires a VZ window and USB input\n",stderr);exit(2)
 }
 if (!bundledLaunch && CommandLine.arguments.count < 3) || suppliedOptions.count != Set(suppliedOptions).count
-  || options.contains(where: { $0 != "--headless" && $0 != "--gpu" && $0 != "--gpu-window" && $0 != "--usb-input" && $0 != "--input-probe" && $0 != "--network" && $0 != "--vsock-probe" && $0 != "--host-services" && $0 != "--clipboard-test" && $0 != "--force-stop" && $0 != "--window-close-test" && $0 != "--transport-cut-test" }) {
-  fputs("usage: macaros-vm DISK_IMAGE STATE_DIRECTORY [--headless] [--gpu] [--gpu-window] [--usb-input] [--input-probe] [--network] [--vsock-probe] [--host-services] [--clipboard-test] [--force-stop] [--window-close-test] [--transport-cut-test]\n", stderr)
+  || options.contains(where: { !$0.hasPrefix("--cpus=") && $0 != "--headless" && $0 != "--gpu" && $0 != "--gpu-window" && $0 != "--usb-input" && $0 != "--input-probe" && $0 != "--network" && $0 != "--vsock-probe" && $0 != "--host-services" && $0 != "--clipboard-test" && $0 != "--force-stop" && $0 != "--window-close-test" && $0 != "--transport-cut-test" }) {
+  fputs("usage: macaros-vm DISK_IMAGE STATE_DIRECTORY [--cpus=N] [--headless] [--gpu] [--gpu-window] [--usb-input] [--input-probe] [--network] [--vsock-probe] [--host-services] [--clipboard-test] [--force-stop] [--window-close-test] [--transport-cut-test]\n", stderr)
   exit(2)
 }
 if #available(macOS 13.0, *) {

@@ -4068,3 +4068,38 @@ guest-built/tested on this branch. Claude was notified on thread 307; the
 native working-tree power/MMU edits were left untouched. Next implementation
 slice: firmware CPU topology and per-CPU state, keeping the UP boot working,
 before starting a second CPU. Native A9 is not achieved by these prerequisites.
+
+
+## 2026-10-02 — CPU observation and secondary execution
+
+Isolated core `codex-smp-integration` through `4157201477` includes native
+trackpad changes through `3bc3e2e51a`. CPU rows follow the trackpad grid;
+one-second load intervals survive its additional redraws. Firmware CPU
+identity is full MPIDR affinity, never a low-byte CPU count. VZ ACPI bridge
+publishes CPU/PSCI nodes from MADT/FADT; launcher and runners accept CPU count.
+
+Two hardware-virtualization backends ran the bounded secondary probe:
+`artifacts/smp-vz-1/verdict.json` PASS (15.84s, before runtime-state migration),
+`artifacts/smp-hvf-percpu/verdict.json` PASS (21.8s, final CPU-local runtime).
+The latter includes EL0 anchor, runtime isolation, busy/idle deltas and PSCI
+CPU_OFF acknowledgement. `cpu-widget.png` was inspected: CPU0 ON and CPU1
+TEST with measured percentages and bars, below the complete trackpad grid.
+The probe never calls Exec or drivers on the secondary. **Exec scheduling is
+still UP; no SMP networking or native M1 activation is claimed.**
+
+The first HVF run caught a native merge regression: an Apple MIDR exposed in
+the VM selected CYC_OVRD deep idle, which trapped. `6849b1bfc1` forbids native
+power registers in a VM regardless of CPU identity. QEMU empty-desktop image
+qualification also rejected the intentionally open shell after the bounded
+session; CPU probe mode now captures the live widget with a separate scope,
+and never reports automatic desktop pixel validation.
+
+`4157201477` moves IRQ/FIQ readiness, interrupt depth, EL0 transitions/return
+continuations, runtime proof pointer and idle state to CPU-local records.
+TPIDRRO_EL0 points at each record and is not task context; x18 stays ordinary.
+Host topology/accounting sanitizer test, ACPI fixture test, CPU-evidence
+negative controls and UART fixture pass. Matching UART/timer fixture changes
+live in the isolated integration branch `codex-smp-checks` (no shared native
+checkout changes). Next: separate GIC distributor/local-CPU setup and IPIs,
+then adapt upstream Exec per-CPU scheduler/locks without changing tasks to EL1.
+Bsek owns the unpublished AROSTCP SMP fixes; network acceptance stays open.

@@ -33,6 +33,7 @@ p.add_argument('--network-echo-request', type=Path)
 p.add_argument('--network-tcp-request', type=Path)
 p.add_argument('--startup-sequence', type=Path)
 p.add_argument('--desktop-session', help='1..3600 seconds or forever; omitted for boot proof')
+p.add_argument('--smp-probe', action='store_true', help='isolated secondary execution test, not Exec SMP')
 p.add_argument('--clipboard-probe',action='store_true')
 p.add_argument('--input-probe',action='store_true')
 p.add_argument('--usb-desktop', action='store_true')
@@ -82,6 +83,8 @@ if a.clipboard_probe and not (a.host_services and a.profile=='wanderer' and a.de
     p.error('--clipboard-probe requires a desktop host-service session')
 if a.input_probe and (not a.usb_desktop or a.desktop_session is None):
     p.error('--input-probe requires --usb-desktop and --desktop-session')
+if a.smp_probe and (a.desktop_session is None or not a.desktop_session.isdecimal() or int(a.desktop_session)<8):
+    p.error('--smp-probe requires a bounded desktop session of at least eight seconds')
 if a.desktop_session is not None:
     if a.profile != 'wanderer' or not a.virtio_gpu:
         p.error('--desktop-session requires wanderer and --virtio-gpu')
@@ -325,13 +328,15 @@ entries = bundle['verify_bundle'](data)
 (output / 'EFI/BOOT').mkdir(parents=True)
 if a.desktop_session is not None:
     (output/'AROS/SESSION.CFG').write_text(a.desktop_session+'\n')
+if a.smp_probe:
+    (output/'AROS/CPUPROBE.CFG').write_text('1\n')
 destination = output / 'AROS/GEN0.BND'
 destination.write_bytes(data)
 subprocess.run(['python3', str(root / 'tools/boot_generation.py'), 'create',
                 '--bundle', str(destination), '--sequence', '1', '--slot', '0',
                 '--state', 'accepted', '--output', str(output / 'AROS/BOOT0.ID')], check=True)
 shutil.copyfile(efi, output / 'EFI/BOOT/BOOTAA64.EFI')
-inputs = ([output/'AROS/SESSION.CFG'] if a.desktop_session is not None else []) + ([pci_probe] if a.pci_hidd else []) + [path for _, path in pci_files] + [stage2, efi, probe, ramdisk] + [path for _, path in components] + programs
+inputs = ([output/'AROS/CPUPROBE.CFG'] if a.smp_probe else []) + ([output/'AROS/SESSION.CFG'] if a.desktop_session is not None else []) + ([pci_probe] if a.pci_hidd else []) + [path for _, path in pci_files] + [stage2, efi, probe, ramdisk] + [path for _, path in components] + programs
 manifest = {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in inputs}
 (output / 'provenance.json').write_text(json.dumps({
     'profile': a.profile, 'soak_probe': a.soak_probe, 'work_volume': a.work_volume, 'work_probe': a.work_probe, 'shutdown_probe': a.shutdown_probe, 'clipboard_probe': a.clipboard_probe, 'clipboard_sync': a.clipboard_sync, 'file_commands': a.file_commands, 'command_startup': a.command_startup, 'vsock_device': a.vsock_device, 'host_services': a.host_services, 'network_tcp': bool(a.network_tcp_request), 'network_dns': a.network_dns, 'network_probe': a.network_probe, 'network_stack': a.network_stack, 'virtionet_device': a.virtionet_device, 'input_probe': a.input_probe, 'desktop_session': a.desktop_session, 'usb_desktop': a.usb_desktop, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,

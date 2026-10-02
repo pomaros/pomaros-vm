@@ -23,14 +23,13 @@ static int session_policy(char *text, size_t bytes) {
     if(value<1 || value>3600)return 0;
     text[bytes-1]=0;return 1;
 }
-static EFI_STATUS read_session_policy(EFI_HANDLE image, struct EFI_SYSTEM_TABLE *system,
-                                      char policy[16]) {
+static EFI_STATUS read_policy_file(EFI_HANDLE image, struct EFI_SYSTEM_TABLE *system,
+                                      EFI_CHAR16 *path, char policy[16], int probe) {
     static const struct EFI_GUID loaded_guid={0x5b1b31a1,0x9562,0x11d2,{0x8e,0x3f,0,0xa0,0xc9,0x69,0x72,0x3b}};
     static const struct EFI_GUID fs_guid={0x964e5b22,0x6459,0x11d2,{0x8e,0x39,0,0xa0,0xc9,0x69,0x72,0x3b}};
     struct EFI_LOADED_IMAGE_PROTOCOL *loaded=NULL;
     struct EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *fs=NULL;
     struct EFI_FILE_PROTOCOL *root=NULL,*file=NULL;
-    EFI_CHAR16 path[]={'A','R','O','S','\\','S','E','S','S','I','O','N','.','C','F','G',0};
     policy[0]=0;
     EFI_STATUS status=system->boot_services->handle_protocol(image,&loaded_guid,(void **)&loaded);
     if(EFI_ERROR(status))return status;
@@ -46,6 +45,7 @@ static EFI_STATUS read_session_policy(EFI_HANDLE image, struct EFI_SYSTEM_TABLE 
     status=file->read(file,&bytes,policy);
     file->close(file);
     if(EFI_ERROR(status))return status;
+    if (probe) return bytes==2 && policy[0]=='1' && policy[1]=='\n'?EFI_SUCCESS:EFI_LOAD_ERROR;
     return session_policy(policy,bytes)?EFI_SUCCESS:EFI_LOAD_ERROR;
 }
 
@@ -179,10 +179,44 @@ struct VZInterrupts {
     uint64_t distributor, redistributors, msi_frame;
     uint32_t msi_flags, msi_base, msi_count;
     uint32_t redistributor_bytes, timer[2], flags[2];
+    unsigned cpu_count, psci_hvc, probe;
+    uint64_t mpidr[64];
 };
+/* ACPI 6.6 5.2.9 / 5.2.12.14: FADT ARM_BOOT_ARCH and enabled GICC
+ * affinities. Keep the complete Aff3:Aff0 identity, not a low-byte CPU index.
+ * https://uefi.org/specs/ACPI/6.6/05_ACPI_Software_Programming_Model.html */
+static int parse_cpus(const uint8_t *madt, const uint8_t *fadt, struct VZInterrupts *out)
+{
+    if (!madt || !fadt || !signature(madt,"APIC",4) || !signature(fadt,"FACP",4) ||
+        table_size(madt)<44 || table_size(fadt)<131) return 0;
+    unsigned boot=(unsigned)little(fadt+129,2);
+    if (!(boot&1) || (boot&~3U)) return 0;
+    out->cpu_count=0;out->psci_hvc=(boot>>1)&1;
+    uint32_t size=table_size(madt);
+    for (uint32_t at=44;at<size;) {
+        if (size-at<2) return 0;
+        unsigned length=madt[at+1];
+        if (length<2 || length>size-at) return 0;
+        if (madt[at]==11) {
+            if (length<80) return 0;
+            if (little(madt+at+12,4)&1) {
+                uint64_t mpidr=little(madt+at+68,8);
+                if (mpidr&~UINT64_C(0xff00ffffff) || out->cpu_count==64) return 0;
+                for (unsigned i=0;i<out->cpu_count;i++)
+                    if (out->mpidr[i]==mpidr) return 0;
+                out->mpidr[out->cpu_count++]=mpidr;
+            }
+        }
+        at+=length;
+    }
+    return out->cpu_count!=0;
+}
 static int parse_interrupts(const uint8_t *madt, const uint8_t *gtdt,
     struct VZInterrupts *out) {
-    struct VZInterrupts value={0};
+    struct VZInterrupts value;
+    /* EFI has no C runtime; prevent aggregate zeroing from emitting memset. */
+    volatile uint8_t *zero=(volatile uint8_t *)&value;
+    for (unsigned i=0;i<sizeof(value);i++) zero[i]=0;
     if(!madt || !gtdt || !signature(madt,"APIC",4) || !signature(gtdt,"GTDT",4)) return 0;
     uint32_t size=table_size(madt), timer_size=table_size(gtdt);
     if(size<44 || timer_size<96) return 0;
@@ -236,7 +270,8 @@ static int parse_interrupts(const uint8_t *madt, const uint8_t *gtdt,
         value.flags[i]=(flags&1)?1:4;
     }
     if(value.timer[0]==value.timer[1]) return 0;
-    *out=value;
+    volatile uint8_t *destination=(volatile uint8_t *)out;
+    for (unsigned i=0;i<sizeof(value);i++) destination[i]=zero[i];
     return 1;
 }
 static int find_interrupts(uint64_t rsdp, struct VZInterrupts *out) {
@@ -246,15 +281,16 @@ static int find_interrupts(uint64_t rsdp, struct VZInterrupts *out) {
     const uint8_t *xsdt=(const uint8_t *)(uintptr_t)little(r+24,8);
     if(!xsdt || !signature(xsdt,"XSDT",4)) return 0;
     uint32_t size=table_size(xsdt);
-    const uint8_t *madt=NULL,*gtdt=NULL;
+    const uint8_t *madt=NULL,*gtdt=NULL,*fadt=NULL;
     if(!size || (size-36)%8) return 0;
     for(uint32_t at=36;at<size;at+=8) {
         const uint8_t *t=(const uint8_t *)(uintptr_t)little(xsdt+at,8);
         if(!t) return 0;
         if(signature(t,"APIC",4)) { if(madt) return 0; madt=t; }
         if(signature(t,"GTDT",4)) { if(gtdt) return 0; gtdt=t; }
+        if(signature(t,"FACP",4)) { if(fadt) return 0; fadt=t; }
     }
-    return parse_interrupts(madt,gtdt,out);
+    return parse_interrupts(madt,gtdt,out) && parse_cpus(madt,fadt,out);
 }
 static int find_console(uint64_t ecam,struct VMConsole *state) {
     /* VZ exposes one port-zero console as a function-zero PCI endpoint.
@@ -327,7 +363,35 @@ static int make_tree(void *memory, int capacity, const struct VMConsole *console
         else
             FDT_STEP(fdt_property_string(memory,"aros,desktop-hold-seconds",session));
     }
+    if (irq && irq->probe) FDT_STEP(fdt_property_string(memory,"aros,smp-probe","1"));
     FDT_STEP(fdt_end_node(memory));
+    if (irq && irq->cpu_count) {
+        FDT_STEP(fdt_begin_node(memory,"cpus"));
+        FDT_STEP(fdt_property_u32(memory,"#address-cells",2));
+        FDT_STEP(fdt_property_u32(memory,"#size-cells",0));
+        for (unsigned i=0;i<irq->cpu_count;i++) {
+            char name[21]="cpu@";
+            unsigned n=4;int started=0;
+            for (int shift=60;shift>=0;shift-=4) {
+                unsigned digit=(unsigned)(irq->mpidr[i]>>shift)&15;
+                if (digit || started || !shift) {
+                    name[n++]="0123456789abcdef"[digit];started=1;
+                }
+            }
+            name[n]=0;
+            FDT_STEP(fdt_begin_node(memory,name));
+            FDT_STEP(fdt_property_string(memory,"device_type","cpu"));
+            FDT_STEP(fdt_property_string(memory,"compatible","arm,armv8"));
+            FDT_STEP(fdt_property_string(memory,"enable-method","psci"));
+            FDT_STEP(fdt_property_u64(memory,"reg",irq->mpidr[i]));
+            FDT_STEP(fdt_end_node(memory));
+        }
+        FDT_STEP(fdt_end_node(memory));
+        FDT_STEP(fdt_begin_node(memory,"psci"));
+        FDT_STEP(fdt_property_string(memory,"compatible","arm,psci-0.2"));
+        FDT_STEP(fdt_property_string(memory,"method",irq->psci_hvc?"hvc":"smc"));
+        FDT_STEP(fdt_end_node(memory));
+    }
     if(irq) {
         fdt64_t windows[4]={cpu_to_fdt64(irq->distributor),cpu_to_fdt64(65536),
             cpu_to_fdt64(irq->redistributors),cpu_to_fdt64(irq->redistributor_bytes)};
@@ -415,8 +479,12 @@ static int make_tree(void *memory, int capacity, const struct VMConsole *console
 #undef FDT_STEP
 }
 EFI_STATUS arosboot_vz_platform(EFI_HANDLE image,struct EFI_SYSTEM_TABLE *system,struct AROSBootInfo *info) {
-    char session[16];
-    EFI_STATUS policy_status=read_session_policy(image,system,session);
+    char session[16],probe[16];
+    EFI_CHAR16 session_path[]={'A','R','O','S','\\','S','E','S','S','I','O','N','.','C','F','G',0};
+    EFI_CHAR16 probe_path[]={'A','R','O','S','\\','C','P','U','P','R','O','B','E','.','C','F','G',0};
+    EFI_STATUS policy_status=read_policy_file(image,system,session_path,session,0);
+    if(EFI_ERROR(policy_status))return policy_status;
+    policy_status=read_policy_file(image,system,probe_path,probe,1);
     if(EFI_ERROR(policy_status))return policy_status;
     uint32_t ecam_last=0;
     uint64_t rsdp=0,ecam=find_ecam(system,&rsdp,&ecam_last);
@@ -425,6 +493,8 @@ EFI_STATUS arosboot_vz_platform(EFI_HANDLE image,struct EFI_SYSTEM_TABLE *system
     if(!ecam || (ecam&0xfffff) || !find_interrupts(rsdp,&interrupts) ||
         !find_pci_resources(system,&pci) || pci.last_bus>ecam_last ||
         ecam>UINT64_MAX-(((uint64_t)pci.last_bus+1)<<20)) return EFI_NOT_FOUND;
+    interrupts.probe=probe[0]=='1';
+    if (interrupts.probe && interrupts.cpu_count<2) return EFI_LOAD_ERROR;
     pci.ecam=ecam;
     uint64_t ecam_end=ecam+(((uint64_t)pci.last_bus+1)<<20);
     if(interrupts.msi_frame && interrupts.msi_frame<ecam_end &&
@@ -448,20 +518,20 @@ EFI_STATUS arosboot_vz_platform(EFI_HANDLE image,struct EFI_SYSTEM_TABLE *system
         arosboot_free_owned(system->boot_services,console);
         return EFI_NOT_FOUND;
     }
-    status=arosboot_allocate_owned(system->boot_services,4096,4096,
+    status=arosboot_allocate_owned(system->boot_services,16384,4096,
         AROS_BOOT_ALLOCATION_FDT,AROS_BOOT_ALLOCATION_FLAG_OWNED|AROS_BOOT_ALLOCATION_FLAG_RETAIN,
         AROS_BOOT_ALLOCATION_NO_MODULE,&memory);
     if(EFI_ERROR(status)) {
         arosboot_free_owned(system->boot_services,console);
         return status;
     }
-    system->boot_services->set_mem(memory,4096,0);
-    if(make_tree(memory,4096,console,rsdp,&interrupts,&pci,session)) {
+    system->boot_services->set_mem(memory,16384,0);
+    if(make_tree(memory,16384,console,rsdp,&interrupts,&pci,session)) {
         arosboot_free_owned(system->boot_services,memory);
         arosboot_free_owned(system->boot_services,console);
         return EFI_LOAD_ERROR;
     }
-    info->fdt_physical=(uintptr_t)memory;info->fdt_size=4096;
+    info->fdt_physical=(uintptr_t)memory;info->fdt_size=16384;
     info->flags|=AROS_BOOTINFO_FLAG_FDT;
     /* The shared DMA record must reach RAM before the firmware MMU is retired. */
     for(uintptr_t p=(uintptr_t)console;p<(uintptr_t)console+4096;p+=16)

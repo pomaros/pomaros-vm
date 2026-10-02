@@ -11,6 +11,7 @@ import shutil
 import socket
 import subprocess
 import time
+from cpu_probe_contract import cpu_probe_matches
 p = argparse.ArgumentParser()
 p.add_argument('--esp',type=Path,required=True)
 p.add_argument('--output',type=Path,required=True)
@@ -18,6 +19,8 @@ p.add_argument('--accel',choices=['hvf','tcg'],default='hvf')
 p.add_argument('--console',choices=['pl011','virtio'],default='pl011')
 p.add_argument('--profile',choices=['core','wanderer'],default='wanderer')
 p.add_argument('--timeout',type=float,default=60)
+p.add_argument('--cpus',type=int,choices=range(1,65),default=1)
+p.add_argument('--require-smp-probe',action='store_true',help='bounded CPU probe protocol; captures live widget instead of checking an empty desktop')
 p.add_argument('--virtio-desktop',action='store_true')
 p.add_argument('--require-gpu-scanout',action='store_true')
 p.add_argument('--require-gpu-irq',action='store_true')
@@ -33,6 +36,8 @@ p.add_argument('--gic-version',choices=['2','3'],default='3')
 p.add_argument('--dtb',type=Path)
 p.add_argument('--firmware',type=Path,default=Path('/opt/homebrew/share/qemu/edk2-aarch64-code.fd'))
 a = p.parse_args()
+if a.require_smp_probe and (a.cpus<2 or a.console!='virtio' or not a.virtio_desktop):
+    p.error('--require-smp-probe requires --cpus >= 2 and --console virtio --virtio-desktop')
 if a.virtio_desktop and (a.profile != 'wanderer' or a.console != 'virtio'):
     p.error('--virtio-desktop requires wanderer profile and virtio console')
 if a.require_gpu_irq and not a.virtio_desktop:p.error('--require-gpu-irq requires --virtio-desktop')
@@ -51,7 +56,7 @@ qmp = a.output/'qmp.sock'
 acpi='on' if a.console=='virtio' else 'off'
 firmware_serial = a.output/'firmware-serial.log' if a.console=='virtio' else serial
 command = ['qemu-system-aarch64','-accel',a.accel,'-M',f'virt,acpi={acpi},gic-version={a.gic_version}'+(f',msi={a.msi_controller}' if a.msi_controller!='auto' else ''),
-           '-cpu','host' if a.accel=='hvf' else 'cortex-a72','-m','512',
+           '-cpu','host' if a.accel=='hvf' else 'cortex-a72','-m','512','-smp',str(a.cpus),
            '-bios',str(a.firmware),'-drive',f'format=raw,file=fat:rw:{esp}',
            '-device','ramfb','-display','none','-no-reboot','-serial',f'file:{firmware_serial}',
            '-qmp',f'unix:{qmp},server=on,wait=off']
@@ -69,6 +74,7 @@ if a.dtb:
 (a.output/'command.json').write_text(json.dumps(command,indent=2)+'\n')
 pixels_verified=False
 capture_attempted=False
+widget_captured=False
 passed = False
 reason = 'timeout'
 started=time.monotonic()
@@ -100,6 +106,25 @@ with (a.output/'host.log').open('w') as log:
                 except Exception as error:
                     (a.output/'capture-error.txt').write_text(str(error))
                     reason='gpu-capture-failed';break
+            if a.require_smp_probe and not widget_captured and text.count('[SMP] sample cpu=')>=5:
+                # Capture while the bounded session still owns the widget.
+                try:
+                    sock=socket.socket(socket.AF_UNIX);sock.settimeout(3);sock.connect(str(qmp))
+                    with sock,sock.makefile('rwb') as stream:
+                        stream.readline()
+                        for name,args in [('qmp_capabilities',{}),('screendump',{'filename':str(a.output/'cpu-widget.png'),'format':'png','device':'gpu','head':0})]:
+                            stream.write(json.dumps({'execute':name,'arguments':args}).encode()+b'\n');stream.flush()
+                            while True:
+                                reply=json.loads(stream.readline())
+                                if 'error' in reply:raise RuntimeError(reply)
+                                if 'return' in reply:break
+                    decoder=runpy.run_path(str(Path(__file__).resolve().parents[1]/'tests/check-aros-render-frame.py'))
+                    w,h,rows=decoder['decode'](a.output/'cpu-widget.png')
+                    if (w,h)!=(1024,768):raise ValueError('unexpected widget framebuffer dimensions')
+                    widget_captured=True
+                except Exception as error:
+                    (a.output/'capture-error.txt').write_text(str(error))
+                    reason='widget-capture-failed';break
             if '[B2Q] AROS startup contract PASS' in text:
                 timer_ok = (text.count('[VM] timer.device three waits PASS') == 1 and
                             text.count('[KI] dispatch masks: disabled 0x00000000000000c0 plain 0x0000000000000040 PASS') == 1)
@@ -110,6 +135,7 @@ with (a.output/'host.log').open('w') as log:
                 passed=passed and (not a.require_gpu_irq or text.count('[VM] virtio graphics IRQ completion PASS')==1)
                 passed=passed and (not a.virtio_desktop or text.count('[VM] virtio graphics driver registered')==1)
                 passed=passed and (not a.require_command_startup or (text.count('[VM] command startup without service PASS')==1 and text.count('[VMExchange] main argc=')==1))
+                passed=passed and (not a.require_smp_probe or (cpu_probe_matches(text) and widget_captured and text.count("[KI] alive window open")==1))
                 reason='startup-contract' if passed else 'proof-missing';break
             if proc.poll() is not None:
                 reason='early-exit';break
@@ -128,7 +154,16 @@ with (a.output/'host.log').open('w') as log:
                             if 'error' in reply: raise RuntimeError(reply)
                             if 'return' in reply: break
                     (a.output/'registers.txt').write_text(str(reply['return']))
-                    for filename,command_line in [('instructions.txt','x /20i $pc'),('stack.txt','x /32gx $sp')]:
+                    for cpu in range(a.cpus):
+                        for command_line in [f'cpu {cpu}', 'info registers']:
+                            f.write(json.dumps({'execute':'human-monitor-command','arguments':{'command-line':command_line}}).encode()+b'\n');f.flush()
+                            while True:
+                                reply=json.loads(f.readline())
+                                if 'error' in reply: raise RuntimeError(reply)
+                                if 'return' in reply: break
+                        (a.output/f'registers-cpu-{cpu}.txt').write_text(str(reply['return']))
+                    # Restore CPU 0 so these dumps match registers.txt.
+                    for filename,command_line in [('selected-cpu.txt','cpu 0'),('instructions.txt','x /20i $pc'),('stack.txt','x /32gx $sp')]:
                         f.write(json.dumps({'execute':'human-monitor-command','arguments':{'command-line':command_line}}).encode()+b'\n');f.flush()
                         while True:
                             reply=json.loads(f.readline())
@@ -160,17 +195,19 @@ with (a.output/'host.log').open('w') as log:
                 execute('qmp_capabilities')
                 execute('screendump',{'filename':str(a.output/'desktop.png'),'format':'png', **({'device':'gpu','head':0} if a.virtio_desktop else {})})
                 execute('quit')
-            check = subprocess.run(['python3', str(Path(__file__).resolve().parents[1]/'tests/check-aros-render-frame.py'), '--profile', 'wanderer-virtio' if a.virtio_desktop else 'wanderer', str(a.output/'desktop.png')])
-            if check.returncode: passed=False;reason='desktop-render'
-            else: pixels_verified=True
+            check = None if a.require_smp_probe else subprocess.run(['python3', str(Path(__file__).resolve().parents[1]/'tests/check-aros-render-frame.py'), '--profile', 'wanderer-virtio' if a.virtio_desktop else 'wanderer', str(a.output/'desktop.png')])
+            if check is not None:
+                if check.returncode: passed=False;reason='desktop-render'
+                else: pixels_verified=True
     finally:
         if proc.poll() is None:
             proc.terminate()
             try: proc.wait(timeout=5)
             except subprocess.TimeoutExpired: proc.kill();proc.wait()
 verdict={'result':'PASS' if passed else 'FAIL','reason':reason,'backend':a.accel,
+         'cpus':a.cpus,'secondary_execution_verified':a.require_smp_probe and cpu_probe_matches(text),'widget_image_captured':widget_captured,'exec_smp_verified':False,
          'command_startup_verified':a.require_command_startup and passed,
-         'profile':a.profile,'virtio_desktop':a.virtio_desktop,'gpu_scanout_required':a.require_gpu_scanout,'pixels_verified':pixels_verified, 'console':a.console, 'desktop_checked':a.profile == 'wanderer' and passed,
+         'profile':a.profile,'virtio_desktop':a.virtio_desktop,'gpu_scanout_required':a.require_gpu_scanout,'pixels_verified':pixels_verified, 'console':a.console, 'desktop_checked':a.profile == 'wanderer' and passed and not a.require_smp_probe,
          'seconds':round(time.monotonic()-started,2),'hardware_virtualization':a.accel=='hvf',
          'gic_version':int(a.gic_version),'msi_controller':a.msi_controller,'gpu_irq_verified':passed and a.require_gpu_irq,'timer_required':a.require_timer,'platform_required':a.require_platform,'pci_hidd_required':a.require_pci_hidd,'msi_frame_required':a.require_msi_frame,'msi_irq_required':a.require_msi_irq,'irq_chain_required':a.require_irq_chain,
          'bundle_sha256':hashlib.sha256((esp/'AROS/GEN0.BND').read_bytes()).hexdigest()}
