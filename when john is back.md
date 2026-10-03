@@ -4365,3 +4365,42 @@ The preparer option is --retain-disabled-cpus; m1n1 and final guest are retained
 under sibling run/m1n1-native-cpu-inventory and run/native-widget-inventory.
 Old failed generated repro-a/b-20261001 builds were removed to recover disk
 headroom; their source snapshots, logs and comparison artifacts remain.
+
+
+### Native M1 two-core Exec proof and live widget — 2026-10-03
+
+The physical M1 is running the experimental native SMP image from sibling
+run/native-smp-input/guest.bin, core 84d6264333 on codex-native-smp in
+../aros-core-smp. Fresh SDK: ~/Build/aros-native-smp, native fixed-x18 ABI;
+VM-qualified codex-smp-integration/99576f283f remains unchanged.
+
+Two pinned ordinary tasks pass concurrent computation twice, x17/FPSIMD
+preservation, 100 AP timer interrupts in each phase, Wait/Signal and teardown.
+Bounded proof also parks CPU1 and retains the kernel; persistent proof keeps
+it running. Strict verdicts are in sibling artifacts/runs/20261003-native-smp-vhe
+and artifacts/runs/20261003-native-smp-live-usb. Fresh USB screenshot confirms
+2/8 active, CPU0 0.5%, CPU1 0.0% idle; six cores offline.
+
+First native fault was the SIMD save in the exception frame: ESR0x1fe00000,
+ELR0xb3fd20ddc, kernel-relative0x26ddc, stp q0,q1,[sp,#0x140]. M1 forces
+VHE; CPTR_EL2=0 trapped FP/SIMD. Fixed VHE CPTR/CNTHCTL controls and guest
+SCTLR_EL12 alias. Added owned EL2 fault records and two-timer-interrupt
+readiness before task admission. Original failures retained, no blind reset
+loop. Firmware secondary release slots require reserved-RAM validation.
+
+Live image is RAM-only, basic desktop plus freshly built USB/capture tools;
+no network/storage startup. It does not qualify eight cores, migration,
+AROSTCP, concurrent drivers or long-run stability. Do not mix UP modules
+into it. Rollback RAM image: sibling run/native-widget-inventory/guest.bin
+with its compose.json. Reboot-debugusb, wait for the fresh main proxy, then
+native-run.py --execute with the matching manifest; no disk writes needed.
+Next: review native SMP changes, retain the evidence, then broaden admission
+and driver safety separately. No public/upstream push.
+
+
+Interactive follow-up: John reported severe lag with desktop-aic=0. GPIO
+attention ignored that setting, registered a non-deliverable handler and
+selected200ms polling. Fixed the guard (native backport5f4c59a00b) and deployed
+run/native-smp-input with desktop-aic=1. SPI IRQ617 and GPIO330 are registered;
+real SPI IRQs and the same native two-core proof pass. Human responsiveness
+feedback pending. Low CPU usage was never a responsiveness test.
