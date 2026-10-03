@@ -4351,3 +4351,17 @@ inherit BSP affinity; Exec's housekeeper retains upstream affinity. The M1
 has not been rebooted or replaced for this experiment. Native follow-up needs
 Apple CPU release/AIC transport and an independent supervisor, then the same
 worker evidence before enabling extra cores by default.
+
+
+### Native M1 widget deployment — 2026-10-03
+
+John's widget is on the physical M1. Updated its inner m1n1 to preserve the
+seven non-started CPU nodes with status=disabled. Same native cpu3 AROS pack;
+one reboot, fresh KIS console and USB screenshot receipt. It displays 1/8
+ACTIVE, CPU0 BOOT0.5%, CPU1..7 OFF. Evidence lives in sibling integration
+artifacts/runs/20261003-native-widget-inventory/verdict.json (PASS inventory
+only). Native SMP remains unimplemented; the VM two-core result is separate.
+The preparer option is --retain-disabled-cpus; m1n1 and final guest are retained
+under sibling run/m1n1-native-cpu-inventory and run/native-widget-inventory.
+Old failed generated repro-a/b-20261001 builds were removed to recover disk
+headroom; their source snapshots, logs and comparison artifacts remain.
