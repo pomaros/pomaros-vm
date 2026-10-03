@@ -4435,3 +4435,28 @@ Rollback: run/native-smp-pointer/guest.bin + matching manifest (two cores).
 The first load-test attempt used unsupported SetTaskPri(NULL), corrected to
 FindTask(NULL); original exception, exact kernel and disassembly retained in
 artifacts/runs/20261003-native-smp-load. No production SMP completion claim.
+
+
+### Native memory serialization and BSP heartbeat — 2026-10-03
+
+Current M1 is run/native-smp-heartbeat2/guest.bin + compose.json, isolated
+coreda9b720c32, rebuilt production EFI. Eight cores, LCD150, reduced trackpad
+sensitivity retained. Page bitmap/stats and map/protection records use crossCPU
+locks with IRQ/FIQ masking; allocation/free outside table lock. Host actual
+allocator16000 threaded cycles PASS. Native512 private-page code-generation/
+execution/free cycles PASS, arena277→277 and table pages2→2.
+
+BSP now has100Hz physical-timer scheduler heartbeat, independent of virtual
+timer.device deadlines. Two equal-priority BSP compute workers overlap with
+register preservation;100ticks observed, second starts4539us after first.
+Full native verdict artifacts/runs/20261003-native-smp-heartbeat2/verdict.json
+requires --persistent --load --memory --timeslice. QEMU EL1/EL2 startup PASS.
+First heartbeat image reset before online mask; no original fault PC. EFI
+handoff lacked forced-VHE CNTHCTL bits10/11; corrected, same kernel then passes.
+First memory spin rendezvous failed; replaced by Wait/Signal (memory2 PASS).
+Original failure artifacts retained. No endless retries, no storage writes.
+
+Remaining: new concurrent MMIO table creation, live-shared-page permissions,
+concurrent driver/network/AROSTCP safety, all-core park and stress. Driver/
+desktop affinity remains BSP; VM-qualified branch/app untouched. Rollback
+run/native-smp-memory2 + matching manifest has memory fixes and eight cores.
