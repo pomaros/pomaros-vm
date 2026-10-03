@@ -4370,7 +4370,7 @@ headroom; their source snapshots, logs and comparison artifacts remain.
 ### Native M1 two-core Exec proof and live widget — 2026-10-03
 
 The physical M1 is running the experimental native SMP image from sibling
-run/native-smp-input/guest.bin, core 84d6264333 on codex-native-smp in
+run/native-smp-display/guest.bin, core 84d6264333 on codex-native-smp in
 ../aros-core-smp. Fresh SDK: ~/Build/aros-native-smp, native fixed-x18 ABI;
 VM-qualified codex-smp-integration/99576f283f remains unchanged.
 
@@ -4404,3 +4404,12 @@ selected200ms polling. Fixed the guard (native backport5f4c59a00b) and deployed
 run/native-smp-input with desktop-aic=1. SPI IRQ617 and GPIO330 are registered;
 real SPI IRQs and the same native two-core proof pass. Human responsiveness
 feedback pending. Low CPU usage was never a responsiveness test.
+
+
+LCD follow-up (2026-10-03): the minimal SMP image omitted dcp.resource and
+Panel startup. Restored both from the fresh SMP SDK, with LoadResident and
+InputInject. Current RAM image is run/native-smp-display/guest.bin with its
+matching compose.json. Actual widget clicks passed 150 → 100 → 150 nits,
+both status0, and the persistent two-core scorer still passes. Left at150.
+Evidence: sibling artifacts/runs/20261003-native-smp-display, including
+brightness-verdict.json. No storage writes; no power-cycle qualification.
