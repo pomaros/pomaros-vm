@@ -4413,3 +4413,25 @@ matching compose.json. Actual widget clicks passed 150 → 100 → 150 nits,
 both status0, and the persistent two-core scorer still passes. Left at150.
 Evidence: sibling artifacts/runs/20261003-native-smp-display, including
 brightness-verdict.json. No storage writes; no power-cycle qualification.
+
+
+### Native eight-core follow-up — 2026-10-03
+
+Current physical M1: sibling run/native-smp-eight/guest.bin + compose.json,
+experimental native coreb66cffa61c on codex-native-smp. Eight active CPUs in
+widget; LCD150nits and half-gain trackpad retained. VM-qualified branch and
+VM application unchanged. Two-core/four-core/eight-core bounded load tests
+passed: four/eight/sixteen unpinned tasks, observed migration, teardown and
+50 BSP timer samples. Eight-core max20,007us for20ms requests. Evidence in
+sibling artifacts/runs/20261003-native-smp-eight/verdict.json and screenshot.
+PerCPU stack/state/ticks/EL2 fault ownership; sequential admission only after
+two timer interrupts. All-core parking is not qualified; leave kernel owned.
+
+Desktop/driver affinity remains BSP. Audit found page arena and mapping/
+protection rely on local Forbid: crossCPU locking and BBM/TLB correctness
+must precede arbitrary concurrent LoadSeg/driver use. AROSTCP safety remains
+bsek work; no network/storage startup in this RAM image, no disk writes.
+Rollback: run/native-smp-pointer/guest.bin + matching manifest (two cores).
+The first load-test attempt used unsupported SetTaskPri(NULL), corrected to
+FindTask(NULL); original exception, exact kernel and disassembly retained in
+artifacts/runs/20261003-native-smp-load. No production SMP completion claim.
