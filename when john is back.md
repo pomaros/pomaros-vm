@@ -4460,3 +4460,18 @@ Remaining: new concurrent MMIO table creation, live-shared-page permissions,
 concurrent driver/network/AROSTCP safety, all-core park and stress. Driver/
 desktop affinity remains BSP; VM-qualified branch/app untouched. Rollback
 run/native-smp-memory2 + matching manifest has memory fixes and eight cores.
+
+## Nettoyage des anciens builds — 2026-10-09
+
+À la demande de John, suppression des dossiers générés `bin/*/gen` et
+`bin/*/Ports` dans huit builds inactifs : `core`, `clean-core`,
+`repro-v3-a-20261001`, `repro-v3-b-20261001` et les paires `build-a`/`build-b`
+de `repro-current-20261001` et `repro-irq-current-20261001`. Aucun compilateur
+ou QEMU actif lors du contrôle. Sources de reproduction, archives téléchargées,
+binaires AROS, configurations et journaux conservés ; empreintes des fichiers
+protégés vérifiées après nettoyage. Les intermédiaires supprimés seront
+régénérés si ces anciens builds sont réutilisés. Les builds `smp-core` et
+`exec-smp-2` sont conservés avec leurs caches.
+
+Espace libre mesuré avant/après : 9,7 → 23,3 Gio (gain observé 13,6 Gio).
+Preuve : `../aros-apple-silicon/artifacts/runs/20261009-vm-cleanup/result.json`.
