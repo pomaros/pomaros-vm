@@ -231,7 +231,7 @@ final class Application: NSObject, NSApplicationDelegate, NSWindowDelegate, VZVi
             let timer=DispatchSource.makeTimerSource(queue:.main)
             self.qualificationTimer=timer
             timer.schedule(deadline:.now(),repeating:0.1)
-            timer.setEventHandler { [weak self] in
+            timer.setEventHandler { [weak self = self] in
               guard let self else { return }
               let cut=self.state.appendingPathComponent("transport-cut.request")
               if launchOptions.contains("--transport-cut-test"),
