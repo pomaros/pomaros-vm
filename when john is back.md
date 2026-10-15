@@ -4460,3 +4460,21 @@ Remaining: new concurrent MMIO table creation, live-shared-page permissions,
 concurrent driver/network/AROSTCP safety, all-core park and stress. Driver/
 desktop affinity remains BSP; VM-qualified branch/app untouched. Rollback
 run/native-smp-memory2 + matching manifest has memory fixes and eight cores.
+
+
+## Merged-source SMP documentation reconciliation — 2026-10-15
+
+Board task 1: docs/SMP.md now compares the historical isolated VM experiment
+with aros-core-merge/claude/upstream-merge-x18 at 81d1a9a562. Verified upstream
+ancestry for atomics 33fb2a3300 and affinity b46e7c4c9d. Inspected native
+kernel_execsmp.c and its last modifying commit 95f5d15b77, plus native and
+Apple build lists: native selects it, Apple does not. Documented remaining
+Apple/VM scheduler, TLS/module boundary, PSCI/GIC/timer integration and fresh
+SDK/runtime qualification. The historical aros-core-smp checkout is absent;
+old image results are not evidence for the merged commit. Noted the atomics
+test's historical two-fence expectation differs from upstream INC/DEC.
+
+Verification: local git source/ancestry inspection and git diff --check.
+Documentation only; no build or guest run, no configure-core.py change and no
+push. Next: implement/qualify the merged VM activation in its isolated core
+worktree, retaining separate QEMU/HVF and VZ verdicts and ordinary guest x18.
