@@ -32,6 +32,8 @@ p.add_argument('--network-stack', action='store_true')
 p.add_argument('--network-echo-request', type=Path)
 p.add_argument('--network-tcp-request', type=Path)
 p.add_argument('--startup-sequence', type=Path)
+p.add_argument('--extra-file', action='append', default=[], metavar='REL=PATH',
+               help='any other file at REL under the SYS: root of the image (repeatable); recorded in the provenance inputs')
 p.add_argument('--desktop-session', help='1..3600 seconds or forever; omitted for boot proof')
 p.add_argument('--smp-exec', action='store_true', help='ordinary Exec tasks on two CPUs; requires the isolated SMP ABI build')
 p.add_argument('--smp-probe', action='store_true', help='isolated secondary execution test, not Exec SMP')
@@ -162,6 +164,11 @@ subprocess.run([str(root / 'tools/build-abi-probe'), '--sdk', str(sdk),
                 '--profile', 'platform' if a.profile == 'headless' else 'cli', str(probe)], check=True)
 pci_probe = output / 'PCIPROBE'
 pci_files = []
+for spec in a.extra_file:
+    rel, separator, source = spec.partition('=')
+    if not separator or not rel or not source:
+        p.error(f'--extra-file expects REL=PATH, got {spec!r}')
+    pci_files.append((rel, Path(source).resolve()))
 if a.pci_hidd:
     subprocess.run([str(root / 'tools/build-abi-probe'), '--sdk', str(sdk),
         '--crosstools', str(a.toolchain.resolve()), '--profile', 'pci', str(pci_probe)], check=True)
