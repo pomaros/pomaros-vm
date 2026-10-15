@@ -4478,3 +4478,18 @@ Verification: local git source/ancestry inspection and git diff --check.
 Documentation only; no build or guest run, no configure-core.py change and no
 push. Next: implement/qualify the merged VM activation in its isolated core
 worktree, retaining separate QEMU/HVF and VZ verdicts and ordinary guest x18.
+
+
+## 2026-10-16 — expanded USB desktop seed capacity
+
+Review40's larger Wanderer made the legacy 1.44 MiB FAT12 seed exceed capacity
+before its existing expansion to 16 MiB. The desktop packager now defers the
+five USB library/device/class files through its existing expanded-image path.
+The Wanderer seed executable and WANDER.REQ marker remain unchanged; profiles
+without expanded USB desktop packaging retain their prior behavior.
+
+Actual attempt033 failure is retained. Attempt034 packaging succeeds. mtype
+round-trip checks confirm all five USB files, Wanderer bytes and its requirement
+marker exactly match their inputs in the final SYS image. Machine evidence is
+artifacts/tiles-review40-seed-capacity/result.json. Guest proof is run separately
+in the core validation lane; packaging success alone is not guest acceptance.

@@ -249,6 +249,13 @@ if desktop_services:
     pci_files += [(name,sdk/'AROS'/name) for name in ['Tools/Editor','C/CPUInfo']]
 expanded_system = a.network_stack or a.profile=='wanderer'
 def deferred_file(rel):
+    # The expanded desktop image has room for USB drivers; retaining them in
+    # the 1.44 MiB seed makes ordinary Wanderer growth exhaust FAT12 capacity.
+    # Keep the seed's Wanderer executable/requirement marker unchanged.
+    if expanded_system and a.usb_desktop and rel in {
+            'Libs/poseidon.library', 'Devs/USBHardware/pcixhci.device',
+            'Classes/USB/hub.class', 'Classes/USB/hubss.class', 'Classes/USB/hid.class'}:
+        return True
     return (a.soak_probe and rel=='VMSOAK') or (a.work_volume and rel in {'VMWORK','C/Mount','C/LoadResource','L/fat-handler','Devs/WORK.mount','Devs/Drivers/bus.hidd','Devs/Drivers/storage.hidd','Devs/virtio.device'}) or (a.profile=='wanderer' and rel in {'C/Assign','C/MakeDir'}) or (a.network_stack and (rel.startswith('System/Network/') or rel in {'VMNET','Libs/rexxsyslib.library','Libs/commodities.library','Libs/keymap.library','Devs/Networks/virtionet.device'})) or (desktop_services and rel in {
         'C/VMExchange','C/VMSync','Devs/clipboard.device','Devs/vmbridge.device','VMCLIP','Tools/Editor','C/CPUInfo'})
 ramdisk = output / 'SYS.img'
