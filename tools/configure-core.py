@@ -5,6 +5,7 @@
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 import subprocess
@@ -17,6 +18,8 @@ p.add_argument('--source-date-epoch', default=os.environ.get('SOURCE_DATE_EPOCH'
                help='build timestamp; defaults to the source commit timestamp')
 p.add_argument('--source', type=Path, default=root.parent / 'aros-core-vm')
 p.add_argument('--toolchain', type=Path, default=Path.home() / 'Source/aros-project/aros-crosstools')
+p.add_argument('--source-branch', action='append', default=[],
+               help='an additional core branch accepted as the isolated VM source')
 a = p.parse_args()
 source = a.source.resolve()
 output = a.output.resolve()
@@ -24,8 +27,9 @@ toolchain = a.toolchain.resolve()
 if output.exists():
     p.error('output must be a new directory; configured or native builds are never reused')
 branch = subprocess.check_output(['git', '-C', str(source), 'branch', '--show-current'], text=True).strip()
-if branch not in ('codex-macaros-vm', 'codex-smp-integration'):
-    p.error('select the isolated codex-macaros-vm or codex-smp-integration source branch')
+if branch not in ('codex-macaros-vm', 'codex-smp-integration', *a.source_branch):
+    p.error('select the isolated codex-macaros-vm or codex-smp-integration source branch, '
+            'or name the branch with --source-branch')
 if not toolchain.is_dir():
     p.error('the prebuilt AROS cross-toolchain directory is missing')
 epoch=a.source_date_epoch
@@ -42,9 +46,16 @@ subprocess.run(['git', '-C', str(source), 'submodule', 'update', '--init', '--',
                 'workbench/c/R/catalogs', 'workbench/libs/asl/catalogs',
                 'workbench/libs/muimaster/catalogs', 'workbench/tools/Edit/catalogs',
                 'workbench/system/Wanderer/Catalogs'], check=True)
+# The core's runtime search path is lib/clang/<TARGET_LLVM_VER>/lib/aros, and
+# configure defaults that version to config/llvm_def, not to the installed
+# clang; name the toolchain's own version so both agree.
+clang_version = subprocess.check_output([str(toolchain / 'bin' / 'clang'), '--version'],
+                                        text=True).split('\n')[0]
+clang_version = re.search(r'clang version (\d+\.\d+\.\d+)', clang_version).group(1)
 command = [str(source / 'configure'), '--target=apple-aarch64',
            '--enable-vm-guest', '--with-toolchain=llvm', '--with-aros-toolchain=yes',
-           '--with-aros-toolchain-install=' + str(toolchain), '--without-x']
+           '--with-aros-toolchain-install=' + str(toolchain),
+           '--with-llvm-version=' + clang_version, '--without-x']
 if a.smp:
     if branch != 'codex-smp-integration':
         p.error('--smp requires the isolated SMP integration branch')

@@ -7,6 +7,60 @@ accessing Exec lists or drivers.
 The integration work follows native milestones A8/A9. Starting a secondary
 CPU is a bring-up check, not A9 acceptance.
 
+## Merged-source comparison — 2026-10-15
+
+Source reviewed: `../aros-core-merge`, branch `claude/upstream-merge-x18`,
+commit `81d1a9a562`. The upstream prerequisites below are already ancestors
+of that commit; reuse them rather than importing duplicate implementations:
+
+- `33fb2a3300` (`aarch64: make the atomic primitives real`) selects the
+  AArch64 atomic headers and repairs the exclusive-loop instructions and
+  operands. Its bitwise AND/OR operations include memory barriers; increment
+  and decrement do not have the same two-fence contract. The historical
+  prerequisite test described below must be reconciled with this source
+  before treating it as a gate for the merged tree.
+- `b46e7c4c9d` (`exec: a new task inherits its parent's CPU affinity`) copies
+  the parent's CPU mask under its task lock and fixes replacement-mask
+  ownership. Reuse this policy for desktop children and explicit workers;
+  it does not itself admit another CPU to the Apple scheduler.
+- `95f5d15b77` (`aarch64: implement the SMP kernel and exec layer`) supplies
+  `arch/aarch64-native/kernel/kernel_execsmp.c`, including per-CPU bootstrap
+  task construction, alongside the native scheduler, spinlocks and IPI layer.
+  The native `mmakefile.src` selects `kernel_execsmp` for `raspi-aarch64`.
+  The Apple kernel build list does not select it, and the Apple Exec build
+  list selects only `supervisor` and `superstate_helper`. Its presence in the
+  merged repository therefore does not establish an active Apple/VM SMP path.
+
+The earlier ordinary-task qualification and commands in this document refer
+to the isolated `codex-smp-integration` experiment and its recorded artifacts,
+not a qualification of this merged commit. The current workspace no longer
+has the historical `../aros-core-smp` checkout; do not run those source-path
+examples unchanged. Keep the experiment's results as evidence of that exact
+image, and qualify a fresh SDK/image for the merged source separately.
+
+Remaining VM activation work, against the merged baseline:
+
+1. Select or adapt the shared scheduler, `kernel_execsmp`, CPU-mask, spinlock
+   and IPI mechanisms for the Apple build. Preserve the separate Exec/kernel
+   module boundary; connect private operations through the existing
+   experiment's typed callback design rather than assuming the Pi's combined
+   `core.elf` linkage. Reconcile bootstrap-task and live-task TLS attachment.
+2. Port and review the VM-specific EL0-safe per-CPU anchor and IRQ exclusion,
+   PSCI admission/stop, per-CPU GIC interface, SGIs and local timer wiring.
+   Preserve ordinary guest x18 and full task/FPSIMD state. Native Pi privileged
+   TLS/interrupt operations cannot simply be executed by EL0 tasks.
+3. Configure a separate SMP SDK with the merged source explicitly selected;
+   rebuild all ABI-dependent modules. Keep desktop/drivers on the boot CPU
+   until their locks, page-table/TLB operations and concurrent access are
+   audited. The configure tool's branch handling is a separate integration
+   change; documentation alone does not enable the target.
+4. Re-run UP regression and bounded two-CPU task proofs on QEMU/HVF and VZ
+   separately: concurrent pinned workers, timer delivery, Wait/Signal,
+   register preservation, teardown and confirmed PSCI CPU_OFF. Retain exact
+   source/binary hashes and strict verdicts before claiming merged-tree SMP.
+   Migration, broader lifecycle stress, network/AROSTCP and concurrent driver
+   safety remain additional acceptance work; native Apple admission is separate.
+
 ## Experimental ordinary-task build
 
 `tools/configure-core.py --smp --source ../aros-core-smp --output PATH`

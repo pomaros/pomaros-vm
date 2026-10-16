@@ -32,6 +32,8 @@ p.add_argument('--network-stack', action='store_true')
 p.add_argument('--network-echo-request', type=Path)
 p.add_argument('--network-tcp-request', type=Path)
 p.add_argument('--startup-sequence', type=Path)
+p.add_argument('--extra-file', action='append', default=[], metavar='REL=PATH',
+               help='any other file at REL under the SYS: root of the image (repeatable); recorded in the provenance inputs')
 p.add_argument('--desktop-session', help='1..3600 seconds or forever; omitted for boot proof')
 p.add_argument('--smp-exec', action='store_true', help='ordinary Exec tasks on two CPUs; requires the isolated SMP ABI build')
 p.add_argument('--smp-probe', action='store_true', help='isolated secondary execution test, not Exec SMP')
@@ -162,6 +164,11 @@ subprocess.run([str(root / 'tools/build-abi-probe'), '--sdk', str(sdk),
                 '--profile', 'platform' if a.profile == 'headless' else 'cli', str(probe)], check=True)
 pci_probe = output / 'PCIPROBE'
 pci_files = []
+for spec in a.extra_file:
+    rel, separator, source = spec.partition('=')
+    if not separator or not rel or not source:
+        p.error(f'--extra-file expects REL=PATH, got {spec!r}')
+    pci_files.append((rel, Path(source).resolve()))
 if a.pci_hidd:
     subprocess.run([str(root / 'tools/build-abi-probe'), '--sdk', str(sdk),
         '--crosstools', str(a.toolchain.resolve()), '--profile', 'pci', str(pci_probe)], check=True)
@@ -249,6 +256,13 @@ if desktop_services:
     pci_files += [(name,sdk/'AROS'/name) for name in ['Tools/Editor','C/CPUInfo']]
 expanded_system = a.network_stack or a.profile=='wanderer'
 def deferred_file(rel):
+    # The expanded desktop image has room for USB drivers; retaining them in
+    # the 1.44 MiB seed makes ordinary Wanderer growth exhaust FAT12 capacity.
+    # Keep the seed's Wanderer executable/requirement marker unchanged.
+    if expanded_system and a.usb_desktop and rel in {
+            'Libs/poseidon.library', 'Devs/USBHardware/pcixhci.device',
+            'Classes/USB/hub.class', 'Classes/USB/hubss.class', 'Classes/USB/hid.class'}:
+        return True
     return (a.soak_probe and rel=='VMSOAK') or (a.work_volume and rel in {'VMWORK','C/Mount','C/LoadResource','L/fat-handler','Devs/WORK.mount','Devs/Drivers/bus.hidd','Devs/Drivers/storage.hidd','Devs/virtio.device'}) or (a.profile=='wanderer' and rel in {'C/Assign','C/MakeDir'}) or (a.network_stack and (rel.startswith('System/Network/') or rel in {'VMNET','Libs/rexxsyslib.library','Libs/commodities.library','Libs/keymap.library','Devs/Networks/virtionet.device'})) or (desktop_services and rel in {
         'C/VMExchange','C/VMSync','Devs/clipboard.device','Devs/vmbridge.device','VMCLIP','Tools/Editor','C/CPUInfo'})
 ramdisk = output / 'SYS.img'
