@@ -81,6 +81,9 @@ def prepare(a):
     if guest['backend']!=('vz' if a.product=='vm' else 'qemu') or guest.get('desktop_session')!='desktop':raise ValueError('requires a qualified production desktop package for this backend')
     for required in ('HOST-LICENSE','AROS-LICENSE','AROS-LEGAL','Licenses/libfdt'):
         if not(resources/required).exists():raise ValueError('missing guest/host notice: '+required)
+    if a.public_preview:
+        for required in ('Licenses/Unicode/UNICODE-LICENSE-V3.txt','Licenses/LLVM/LLVM-COMPILER-RT-LICENSE.txt','Licenses/Components/NOTICE.md'):
+            if not (resources/required).is_file():raise ValueError('missing public component notice: '+required)
     if a.product=='qemu' and not list(resources.glob('*licenses*')):raise ValueError('missing QEMU firmware license inventory')
     a.output.mkdir(parents=True)
     app=a.output/original.name;run(['ditto','--rsrc','--extattr',original,app])
@@ -110,7 +113,8 @@ def prepare(a):
                   app_version=version,release_tag=a.release_tag,
                   input_source_url=source_lock['CORE_URL'],input_source_branch=source_lock['CORE_BRANCH'],
                   source_access='Corresponding AROS source: '+source_lock['CORE_URL']+' at '+source_lock['CORE_REVISION']+'. Recipients need access to this exact source and applicable component sources before redistribution.',
-                  external_qemu_required=a.product=='qemu')
+                  external_qemu_required=a.product=='qemu',
+                  notice_files={str(path.relative_to(resources)):sha(path) for path in sorted((resources/'Licenses').rglob('*')) if path.is_file()})
     write_json(app/'Contents/Resources/DISTRIBUTION.json',snapshot)
     entitlements=a.repo/'distribution-entitlements.plist'
     run(['codesign','--force','--sign',a.identity,'--options','runtime','--timestamp','--entitlements',entitlements,app],evidence/'codesign-sign.log')
@@ -144,6 +148,9 @@ distribution signing does not relabel older compiled guest code as a newer revis
 Host launcher/tool code: MIT, John Knipper. Guest AROS and its components include
 AROS Public License, GPL, LGPL and additional component terms; full texts and
 notices are in Contents/Resources/AROS-* and the bundled component notices.
+This software is based in part on the work of the FreeType Team.
+This software is based in part on the work of the Independent JPEG Group.
+Unicode, compiler-rt and external component notices are bundled in Licenses/.
 libfdt: BSD/GPL choice,
 notices in Contents/Resources/Licenses/libfdt. QEMU firmware licenses, when applicable,
 are in Contents/Resources/edk2-licenses.txt. QEMU itself remains an external dependency.

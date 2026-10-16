@@ -47,6 +47,9 @@ That mode requires the current public core lock and a matching app version;
 it refuses historical-source overrides. Product and core snapshots, exact
 submodules, external component sources and notices must accompany the same
 GitHub release. Review the actual payload/source inventory before upload.
+Original FreeType/JPEG/other source-cache notices, explicit FreeType/IJG credits,
+Unicode V3 and LLVM compiler-rt licence texts are carried in the app and guest
+documentation. The staging manifest hashes those notice files.
 This tool signs and submits to Apple; the release coordinator publishes the
 reviewed source assets and binaries separately.
 
