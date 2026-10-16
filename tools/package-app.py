@@ -59,8 +59,8 @@ def main():
         identifier='org.pomaros.vm'+('' if a.profile_name=='Default' else '.'+a.profile_name.lower().replace('_','-'))
         info={'CFBundleIdentifier':identifier,'CFBundleName':'PomAROS VM',
               'CFBundleDisplayName':'PomAROS VM','CFBundleExecutable':'PomAROSVM',
-              'CFBundlePackageType':'APPL','CFBundleShortVersionString':'0.1.0',
-              'CFBundleVersion':'1','PomAROSVMProfileName':a.profile_name,'LSMinimumSystemVersion':'13.0','NSHighResolutionCapable':True}
+              'CFBundlePackageType':'APPL','CFBundleShortVersionString':'0.1.1',
+              'CFBundleVersion':'2','PomAROSVMProfileName':a.profile_name,'LSMinimumSystemVersion':'13.0','NSHighResolutionCapable':True}
         (contents/'Info.plist').write_bytes(plistlib.dumps(info,sort_keys=True))
         provenance={'source_revision':subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],text=True).strip(),
                     'guest':manifest,'launcher_sha256':hashlib.sha256(launcher.read_bytes()).hexdigest(),

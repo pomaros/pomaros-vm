@@ -22,6 +22,10 @@ ROOTS = 'C Classes Devs Extras Fonts L Libs Locale Prefs S Storage System Tools 
 EXCLUDED = {'Zed', 'ZedAros', 'Ferail', 'Feraille', 'Moonstone', 'Developer',
             'AppleCPU', 'AppleCopy', 'AppleDisk', 'AppleFiles', 'ApplePCIeDiag',
             'AppleWrite', 'PkgRecv', 'GPIO', 'Install-grub', 'Install-grub2'}
+# Public font payloads use only these reviewed families and their notices.
+FONT_SOURCE_FAMILIES = {'barlow', 'bellefair', 'bitstream', 'opensans', 'spectral', 'work-sans'}
+FONT_FILE_PATTERN = re.compile(r'(?:Barlow-|Bellefair-|OpenSans-|Spectral-|WorkSans-|Vera)[A-Za-z0-9-]+\.ttf$')
+FONT_SELECTOR_PREFIXES = ('Barlow ', 'Bellefair ', 'Open Sans ', 'Spectral ', 'Vera ', 'Work Sans ')
 REQUIRED = ['Libs/jfif.library', 'Libs/png.library', 'Libs/z1.library', 'Libs/freetype2.library', 'Libs/kms.library', 'C/DeviceTree', 'C/CPUInfo', 'C/LoadKeymap', 'C/ConClip', 'System/FixFonts', 'System/Network/AROSTCP/C/AROSTCP', 'C/Copy', 'C/List', 'C/Execute', 'C/AddDataTypes',
             'C/Assign', 'C/MakeDir', 'C/Mount', 'C/LoadResource',
             'L/pipe-handler', 'L/afs-handler', 'L/sfs-handler', 'C/IPrefs', 'C/VMExchange', 'C/VMSync', 'System/Wanderer/Wanderer',
@@ -83,6 +87,12 @@ DEVICE_FILES = {'ahi.device', 'clipboard.device', 'console.device',
     'DOSDrivers/PIPE', 'DOSDrivers/AUDIO', 'AHI/void.audio'}
 
 def permitted(path):
+    if path.parts[0] == 'Fonts':
+        name = path.name.removesuffix('.info')
+        if len(path.parts)>1 and path.parts[1]=='TrueType' and path.suffix.lower() in {'.ttf','.otf'} and not FONT_FILE_PATTERN.fullmatch(name):
+            return False
+        if path.suffix.lower() in {'.font','.otag'} and not name.startswith(FONT_SELECTOR_PREFIXES):
+            return False
     if path.parts[0] == 'Devs' and len(path.parts) > 1:
         rel = Path(*path.parts[1:]).as_posix()
         if path.parts[1] not in DEVICE_TREES and not any(
@@ -198,15 +208,15 @@ def package(a):
     installed_icons = install_iconset(system)
     print(f'distribution iconset installed={len(installed_icons)} '
           f'name={(system / "Prefs/Env-Archive/SYS/iconset.var").read_text().strip()}')
-    shutil.copy2(ROOT / 'distribution/ReadMe', system / 'ReadMe')
+    shutil.copy2(ROOT / ('distribution/ReadMe.qemu' if a.backend=='qemu' else 'distribution/ReadMe'), system / 'ReadMe')
     (system / 'Prefs/Env-Archive/SYS').mkdir(exist_ok=True)
     (system / 'Prefs/Env-Archive/SYS/theme.var').write_text('THEMES:AROSDefault\n')
     (system / 'Prefs/Presets/theme.default').write_text('THEMES:AROSDefault\n')
     for family in sorted((source / 'workbench/fonts/truetype').iterdir()):
-        if not family.is_dir():
+        if not family.is_dir() or family.name not in FONT_SOURCE_FAMILIES:
             continue
         for notice in sorted(family.iterdir()):
-            if notice.is_file() and notice.name.lower().startswith(('license', 'copying', 'ofl')):
+            if notice.is_file() and notice.name.lower().startswith(('license', 'copying', 'copyright', 'legal', 'ofl')):
                 destination = system / 'Documentation/Fonts' / family.name / notice.name
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(notice, destination)
@@ -303,6 +313,10 @@ Echo >>VMWORK0:distribution-startup.log "Desktop setup complete"
          '--sequence', '1', '--slot', '0', '--state', 'accepted', '--output', esp / 'AROS/BOOT0.ID'])
     # Disk-local marker lets boot-only tooling reject partial distribution updates.
     (esp / 'AROS/DISTRIB.TAG').write_text('{"distribution": true, "system": "WORK:System"}\n')
+    # Recheck after the bootstrap image merge: it cannot bypass font admission.
+    for font in (system/'Fonts').rglob('*'):
+        if font.is_file() and not permitted(font.relative_to(system)):
+            raise ValueError('bootstrap merge introduced an unreviewed font: '+str(font))
     for requirement in [*required, 'Devs/DOSDrivers/PIPE']:
         if not (system / requirement).is_file():
             raise ValueError('missing staged runtime requirement: ' + requirement)
@@ -314,6 +328,8 @@ Echo >>VMWORK0:distribution-startup.log "Desktop setup complete"
     manifest = json.loads((base / 'provenance.json').read_text())
     manifest.update(base_package=str(base), bootstrap_ramdisk_sha256=hashlib.sha256((esp/'SYS.img').read_bytes()).hexdigest(), startup_sha256=hashlib.sha256(startup.encode()).hexdigest(), distribution=True, distribution_location='WORK:System',
                     bundle_sha256=hashlib.sha256(data).hexdigest(), distribution_files=inventory,
+                    font_source_families=sorted(FONT_SOURCE_FAMILIES),
+                    excluded_font_files=[str(p.relative_to(sdk)) for p in sorted((sdk/'Fonts').rglob('*')) if p.is_file() and not permitted(p.relative_to(sdk))],
                     excluded_products=['Zed', 'Ferail', 'Moonstone', 'hosted macOS drivers', 'Developer SDK'])
     (esp / 'provenance.json').write_text(json.dumps(manifest, indent=2) + '\n')
     print('distribution package PASS files=' + str(len(inventory)) + ' bytes=' + str(sum(x['bytes'] for x in inventory.values())))

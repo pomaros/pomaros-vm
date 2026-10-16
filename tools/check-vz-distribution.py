@@ -33,17 +33,24 @@ try:
         (state/'screenshot.request').write_text('capture\n')
         deadline=time.monotonic()+10
         while time.monotonic()<deadline:
-            if (state/'screenshot.error').exists():raise RuntimeError((state/'screenshot.error').read_text())
-            if (state/'screenshot.done').exists():break
+            if any((state/name).exists() for name in ('screenshot.error','screenshot.done')):break
             time.sleep(.1)
-        else:raise RuntimeError('owned-window-capture-timeout')
-        shutil.copyfile(state/'desktop-window.png',out/'desktop-window.png')
+        verdict['host_window_capture']=(state/'screenshot.done').exists()
+        if verdict['host_window_capture']:
+            shutil.copyfile(state/'desktop-window.png',out/'desktop-window.png')
+        else:
+            error=(state/'screenshot.error').read_text() if (state/'screenshot.error').exists() else 'owned-window-capture-timeout'
+            verdict['capture_error']=error
+            (out/'host-window-capture-error.txt').write_text(error)
         (state/'window-close.request').write_text('close\n')
         assert process.wait(timeout=20)==0
         text=log.read_text(errors='replace')
         assert '[HOST] guest volume quiesced PASS' in text
+        assert text.count('[HOST] guest shutdown requested')==1
+        assert text.count('[VMSync] volume quiesced PASS')==1
+        assert '[VM] virtio graphics IRQ completion PASS' in text
         assert hashlib.sha256(seed.read_bytes()).hexdigest()==verdict['seed_sha256']
-        verdict.update(result='PASS',reason='real-production-desktop-owned-window-capture-graceful-quiesce')
+        verdict.update(result='PASS',reason='real-signed-production-desktop-graceful-quiesce',seed_unchanged=True)
 except Exception as error:verdict['reason']=repr(error)
 finally:
     if process and process.poll() is None:

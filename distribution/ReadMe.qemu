@@ -1,0 +1,14 @@
+PomAROS QEMU - AROS development preview
+
+Open System, Tools, Utilities and Prefs for the standard AROS applications.
+QEMU 11 is an external macOS prerequisite, not part of this guest system.
+
+This backend has no host clipboard/file bridge or coordinated guest flush/quit
+transport. Closing the window or quitting QEMU can interrupt cached writes.
+Use an isolated development disk; this preview is not qualified for personal
+persistent data. Do not assume that a normal QEMU exit flushed guest files.
+
+Installing the application preserves existing profiles; it does not update an
+already initialized guest disk. The immutable seed is used for a new profile.
+The guest includes only portable/virtual-device drivers and reviewed fonts.
+See the bundled licence notices and corresponding-source release assets.

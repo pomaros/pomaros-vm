@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 John Knipper
-"""Prepare signed internal apps, verify runtime identity, and notarize DMGs."""
+"""Prepare signed apps, verify runtime identity, and notarize distributions."""
 import argparse
 import hashlib
 import json
@@ -73,6 +73,11 @@ def prepare(a):
     original_provenance=json.loads((resources/'provenance.json').read_text())
     guest=original_provenance['guest']
     source_lock=guest_source_lock(a.guest_source_lock or a.repo/'CORE.lock',guest)
+    if a.public_preview:
+        if a.guest_source_lock or not a.release_tag or not re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+-preview\.[0-9]+',a.release_tag):
+            raise ValueError('public preview requires its release tag and current public core lock')
+        if source_lock['CORE_URL']!='https://github.com/pomaros/aros-core.git':
+            raise ValueError('public preview requires the curated public corresponding core source')
     if guest['backend']!=('vz' if a.product=='vm' else 'qemu') or guest.get('desktop_session')!='desktop':raise ValueError('requires a qualified production desktop package for this backend')
     for required in ('HOST-LICENSE','AROS-LICENSE','AROS-LEGAL','Licenses/libfdt'):
         if not(resources/required).exists():raise ValueError('missing guest/host notice: '+required)
@@ -82,6 +87,9 @@ def prepare(a):
     info_path=app/'Contents/Info.plist';info=plistlib.loads(info_path.read_bytes())
     if a.product=='vm':
         info['CFBundleIdentifier']='org.pomaros.vm';info['PomAROSVMProfileName']='Default'
+    version=info['CFBundleShortVersionString']
+    if a.public_preview and not a.release_tag.startswith('v'+version+'-preview.'):
+        raise ValueError('release tag differs from the packaged app version')
     info_path.write_bytes(plistlib.dumps(info,sort_keys=True))
     executable=app/'Contents/MacOS'/info['CFBundleExecutable']
     # There are no bundled dylibs/frameworks/helpers. Reject new nested code
@@ -98,7 +106,8 @@ def prepare(a):
                   input_guest_revision=guest['source_revision'],input_compiled_guest_revision=guest['build_environment'].get('compiled_guest_source_revision',guest['source_revision']),
                   input_provenance_sha256=sha(resources/'provenance.json'),seed_sha256=sha(resources/'System.img'),
                   input_launcher_sha256=sha(executable),team_id=a.team_id,
-                  signing_identity=a.identity,distribution='internal-development',
+                  signing_identity=a.identity,distribution='public-preview' if a.public_preview else 'internal-development',
+                  app_version=version,release_tag=a.release_tag,
                   input_source_url=source_lock['CORE_URL'],input_source_branch=source_lock['CORE_BRANCH'],
                   source_access='Corresponding AROS source: '+source_lock['CORE_URL']+' at '+source_lock['CORE_REVISION']+'. Recipients need access to this exact source and applicable component sources before redistribution.',
                   external_qemu_required=a.product=='qemu')
@@ -113,7 +122,8 @@ def prepare(a):
     (a.output/'Applications').symlink_to('/Applications')
     prerequisite=('No QEMU or external hypervisor application is required. Apple Silicon and macOS 13 or later are required.' if a.product=='vm' else
         'Install QEMU 11 separately (for example: brew install qemu). The launcher uses /opt/homebrew/bin/qemu-system-aarch64. Apple Silicon macOS is required. QEMU is NOT bundled. Safe guest flush/quit is NOT implemented; window close can interrupt cached writes. This development build is not qualified for personal persistent data. Host clipboard/file bridge and audio are unavailable.')
-    text=f'''PomAROS {'VM' if a.product=='vm' else 'QEMU'} 0.1.0 — internal development distribution
+    release_notice=('Public development preview '+a.release_tag+'. Corresponding source archives and component materials accompany this release. Use the exact release assets and revisions recorded below; this preview is not a production-data release.' if a.public_preview else 'Internal artifact for John Knipper. No public release or redistribution is authorized here.')
+    text=f'''PomAROS {'VM' if a.product=='vm' else 'QEMU'} {version} — {'public development preview' if a.public_preview else 'internal development distribution'}
 
 Drag the application to Applications, then open it. It starts in a normal window.
 {prerequisite}
@@ -121,7 +131,7 @@ Drag the application to Applications, then open it. It starts in a normal window
 Existing personal profiles are never overwritten by installing this application.
 The app creates its own persistent profile under ~/Library/Application Support/.
 
-Internal artifact for John Knipper. No public release or redistribution is authorized here.
+{release_notice}
 PomAROS product launcher/tool sources are public at https://github.com/pomaros.
 Corresponding AROS source: {source_lock['CORE_URL']}
 Exact source revision: {source_lock['CORE_REVISION']}
@@ -146,6 +156,8 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('action',choices=['prepare','zip','dmg','submit','info','staple'])
     p.add_argument('--product',choices=['vm','qemu'],default='vm');p.add_argument('--repo',type=Path,default=ROOT)
+    p.add_argument('--public-preview',action='store_true',help='authorized preview with public matching source and release assets')
+    p.add_argument('--release-tag',help='tag for the associated public preview source assets')
     p.add_argument('--guest-source-lock',type=Path,help='actual original core lock for a retained historical guest payload')
     p.add_argument('--app',type=Path);p.add_argument('--distribution',type=Path);p.add_argument('--output',type=Path)
     p.add_argument('--identity',default=IDENTITY);p.add_argument('--team-id',default='C43N3NG7Z5')

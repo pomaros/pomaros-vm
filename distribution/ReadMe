@@ -16,6 +16,6 @@ The Mac clipboard synchronizes with AROS clipboard unit 0. Individual programs
 provide their own Copy/Paste commands. VMExchange transfers files through the
 profile's Shared folder; text and supported images can use the clipboard.
 
-This application uses the Distribution profile and leaves the existing Default
-profile intact. Zed, Ferail and third-party hosted PomAROS applications are not
+Installing the application preserves existing profiles; it does not update an
+already initialized guest disk. The immutable seed is used for a new profile. Zed, Ferail and third-party hosted PomAROS applications are not
 part of this distribution. See the LICENSE files for AROS licensing.
