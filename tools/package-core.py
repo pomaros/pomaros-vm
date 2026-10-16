@@ -146,14 +146,18 @@ if dirty:
     p.error('commit or resolve core source changes before recording a package')
 stage2 = sdk / 'gen/arch/aarch64-apple/bootstrap/aros-apple-stage2-test.bin'
 modules = json.loads((root / f'boot/{a.profile}-modules.json').read_text())
+# Public VM packages cannot contain physical Apple Silicon device drivers.
+native_only = {'pmgr.resource', 'dart.resource', 'rtkit.resource', 'spmi.resource',
+               'smc.resource', 'applepcie.resource',
+               'applenvme.device', 'spihid.hidd'}
+if any(name in native_only or Path(rel).name in native_only for name, rel in modules.items()):
+    p.error('native-only Apple modules are forbidden in VM boot manifests')
 if a.virtio_gpu:
     vm_modules = {}
     for name, rel in modules.items():
         if name == 'efifbgfx.hidd':
             name, rel = 'virtiogfx.hidd', 'Devs/Drivers/virtiogfx.hidd'
         vm_modules[name] = rel
-        if name == 'rtkit.resource':
-            vm_modules['openfirmware.resource'] = 'Devs/openfirmware.resource'
         if name == 'hiddclass.hidd':
             for bus in ['pci', 'pciecam', 'vmpci']:
                 vm_modules[bus+'.hidd'] = 'Devs/Drivers/'+bus+'.hidd'

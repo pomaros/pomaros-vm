@@ -3,6 +3,9 @@
 # Copyright (c) 2026 John Knipper
 """Exercise production argument admission without guest products or VM execution."""
 import ast
+import json
+import tempfile
+from types import SimpleNamespace
 from pathlib import Path
 import sys
 import unittest
@@ -43,6 +46,40 @@ class Backend(unittest.TestCase):
             with self.subTest(flag=flag), contextlib.redirect_stderr(io.StringIO()):
                 with self.assertRaises(SystemExit):
                     self.admit('--backend', 'qemu', flag)
+
+class BootBoundary(unittest.TestCase):
+    def package_modules(self, root, profile):
+        begin = next(i for i, node in enumerate(tree.body) if isinstance(node, ast.Assign)
+                     and any(isinstance(t, ast.Name) and t.id == 'modules' for t in node.targets))
+        end = next(i for i, node in enumerate(tree.body) if isinstance(node, ast.Assign)
+                   and any(isinstance(t, ast.Name) and t.id == 'components' for t in node.targets))
+        code = compile(ast.Module(body=tree.body[begin:end], type_ignores=[]), str(source), 'exec')
+        import argparse
+        scope = dict(root=root, a=SimpleNamespace(profile=profile, virtio_gpu=True),
+                     json=json, Path=Path, p=argparse.ArgumentParser())
+        exec(code, scope)
+        return scope['modules']
+
+    def test_shipped_manifests_keep_vm_devices_without_native_drivers(self):
+        for profile in ('headless', 'wanderer'):
+            with self.subTest(profile=profile):
+                modules = self.package_modules(ROOT, profile)
+                self.assertIn('openfirmware.resource', modules)
+                self.assertIn('appleboot.device', modules)
+                if profile == 'wanderer':
+                    self.assertIn('virtiogfx.hidd', modules)
+                    self.assertIn('vmpci.hidd', modules)
+
+    def test_reject_native_module_by_name_or_path(self):
+        import contextlib, io
+        with tempfile.TemporaryDirectory(prefix='pomaros-boot-boundary-') as directory:
+            root=Path(directory); (root/'boot').mkdir()
+            for manifest in ({'pmgr.resource':'Devs/safe.device'},
+                             {'innocent.device':'Devs/applenvme.device'}):
+                (root/'boot/wanderer-modules.json').write_text(json.dumps(manifest))
+                with self.subTest(manifest=manifest), contextlib.redirect_stderr(io.StringIO()):
+                    with self.assertRaises(SystemExit):
+                        self.package_modules(root, 'wanderer')
 
 if __name__ == '__main__':
     unittest.main()
