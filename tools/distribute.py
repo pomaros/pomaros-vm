@@ -113,8 +113,10 @@ appropriate corresponding source access before binaries are shared externally.
 The immutable guest payload retains its actual source identity in provenance.json;
 distribution signing does not relabel older compiled guest code as a newer revision.
 
-Host launcher/tool code: MIT, John Knipper. Guest AROS: AROS Public License and
-the notices in the app's Contents/Resources/AROS-* files. libfdt: BSD/GPL choice,
+Host launcher/tool code: MIT, John Knipper. Guest AROS and its components include
+AROS Public License, GPL, LGPL and additional component terms; full texts and
+notices are in Contents/Resources/AROS-* and the bundled component notices.
+libfdt: BSD/GPL choice,
 notices in Contents/Resources/Licenses/libfdt. QEMU firmware licenses, when applicable,
 are in Contents/Resources/edk2-licenses.txt. QEMU itself remains an external dependency.
 See the app's bundled notices for full terms; distribution-provenance.json records inputs.
@@ -143,6 +145,7 @@ def main():
         if acceptance.get('result')!='PASS' or acceptance.get('launcher_sha256')!=sha(executable):raise ValueError('runtime acceptance does not match this exact signed executable')
         shutil.copyfile(a.acceptance,a.distribution/'Runtime-acceptance.json')
         evidence=a.output.parent/(a.output.stem+'-archive-evidence');evidence.mkdir(exist_ok=True)
+        verify_app(app,a.team_id,evidence,a.repo/'distribution-entitlements.plist')
         if a.action=='zip':run(['ditto','-c','-k','--keepParent','--sequesterRsrc',app,a.output],evidence/'zip.log')
         else:
             run(['hdiutil','create','-ov','-format','UDZO','-volname','PomAROS '+('VM' if a.product=='vm' else 'QEMU'),'-srcfolder',a.distribution,a.output],evidence/'hdiutil-create.log')
