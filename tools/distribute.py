@@ -149,6 +149,7 @@ def main():
         verify_app(app,a.team_id,evidence,a.repo/'distribution-entitlements.plist')
         if a.action=='zip':run(['ditto','-c','-k','--keepParent','--sequesterRsrc',app,a.output],evidence/'zip.log')
         else:
+            run(['xcrun','stapler','validate',app],evidence/'nested-app-ticket.log')
             run(['hdiutil','create','-ov','-format','UDZO','-volname','PomAROS '+('VM' if a.product=='vm' else 'QEMU'),'-srcfolder',a.distribution,a.output],evidence/'hdiutil-create.log')
             run(['codesign','--force','--sign',a.identity,'--timestamp',a.output],evidence/'dmg-sign.log')
             run(['codesign','--verify','--strict','--verbose=2',a.output],evidence/'dmg-sign-verify.log')
