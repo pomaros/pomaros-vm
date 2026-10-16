@@ -58,7 +58,10 @@ fresh build verification.
 
 A QEMU desktop packaging attempt from the partial audit build refused missing
 `pci.hidd`. The shared distribution dependency graph has since been expanded
-to build the required PCI/virtio/USB/network components. Fresh full packaging,
+to build the required PCI/virtio/USB/network components and base commands.
+The earlier partial audit had built `workbench-c` separately; the canonical
+distribution graph explicitly includes it so clean builds do not inherit those
+commands from an earlier step. Fresh full packaging,
 real VZ/HVF desktop input, networking, persistent files and clean shutdown still
 need acceptance against the pinned consolidated build. Audio and production SMP
 are not qualified by this migration.

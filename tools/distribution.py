@@ -23,6 +23,7 @@ EXCLUDED = {'Zed', 'ZedAros', 'Ferail', 'Feraille', 'Moonstone', 'Developer',
             'AppleCPU', 'AppleCopy', 'AppleDisk', 'AppleFiles', 'ApplePCIeDiag',
             'AppleWrite', 'PkgRecv', 'GPIO', 'Install-grub', 'Install-grub2'}
 REQUIRED = ['Libs/jfif.library', 'Libs/png.library', 'Libs/z1.library', 'Libs/freetype2.library', 'Libs/kms.library', 'C/DeviceTree', 'C/CPUInfo', 'C/LoadKeymap', 'C/ConClip', 'System/FixFonts', 'System/Network/AROSTCP/C/AROSTCP', 'C/Copy', 'C/List', 'C/Execute', 'C/AddDataTypes',
+            'C/Assign', 'C/MakeDir', 'C/Mount', 'C/LoadResource',
             'L/pipe-handler', 'L/afs-handler', 'L/sfs-handler', 'C/IPrefs', 'C/VMExchange', 'C/VMSync', 'System/Wanderer/Wanderer',
             'Tools/Editor', 'Tools/Calculator', 'Utilities/Clock',
             'Utilities/MultiView', 'Utilities/More', 'Prefs/ScreenMode',
