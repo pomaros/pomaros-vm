@@ -234,6 +234,21 @@ final class Application: NSObject, NSApplicationDelegate, NSWindowDelegate, VZVi
             timer.schedule(deadline:.now(),repeating:0.1)
             timer.setEventHandler { [weak self = self] in
               guard let self else { return }
+              let screenshot=self.state.appendingPathComponent("screenshot.request")
+              if FileManager.default.fileExists(atPath:screenshot.path) {
+                try? FileManager.default.removeItem(at:screenshot)
+                Task { @MainActor in
+                  do {
+                    guard let window=self.window else { throw NSError(domain:"PomAROSCapture",code:1) }
+                    try await captureOwnedWindow(windowID:CGWindowID(window.windowNumber),to:self.state.appendingPathComponent("desktop-window.png"))
+                    try "done\n".write(to:self.state.appendingPathComponent("screenshot.done"),atomically:true,encoding:.utf8)
+                    print("[HOST] own window capture PASS");fflush(stdout)
+                  } catch {
+                    try? error.localizedDescription.write(to:self.state.appendingPathComponent("screenshot.error"),atomically:true,encoding:.utf8)
+                    print("[HOST] own window capture FAIL: \(error.localizedDescription)");fflush(stdout)
+                  }
+                }
+              }
               let cut=self.state.appendingPathComponent("transport-cut.request")
               if launchOptions.contains("--transport-cut-test"),
                  FileManager.default.fileExists(atPath:cut.path) {

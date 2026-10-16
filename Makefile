@@ -30,8 +30,8 @@ test: all build/vz-platform-test build/gic-contract-test build/pci-ecam-access-t
 clean:
 	rm -rf build
 
-build/pomaros-vm: Makefile src/main.swift src/VMStorage.swift src/HostServices.swift src/ClipboardCodec.swift src/ClipboardStore.swift entitlements.plist | build
-	SWIFT_DETERMINISTIC_HASHING=1 swiftc -target arm64-apple-macos13.0 -O -whole-module-optimization -num-threads 1 -module-cache-path build/swift-module-cache -warnings-as-errors -framework AppKit -framework Virtualization src/main.swift src/VMStorage.swift src/HostServices.swift src/ClipboardCodec.swift src/ClipboardStore.swift -o $@
+build/pomaros-vm: Makefile src/main.swift src/VMStorage.swift src/HostServices.swift src/ClipboardCodec.swift src/ClipboardStore.swift src/WindowCapture.swift entitlements.plist | build
+	SWIFT_DETERMINISTIC_HASHING=1 swiftc -target arm64-apple-macos13.0 -O -whole-module-optimization -num-threads 1 -module-cache-path build/swift-module-cache -warnings-as-errors -framework AppKit -framework Virtualization -framework ScreenCaptureKit src/main.swift src/VMStorage.swift src/HostServices.swift src/ClipboardCodec.swift src/ClipboardStore.swift src/WindowCapture.swift -o $@
 	codesign --force --sign - --entitlements entitlements.plist $@
 
 build/vz-platform-test: tests/vz-platform.c boot/arosboot/vz_platform.c include/vm-console.h $(FDT_SOURCES) | build

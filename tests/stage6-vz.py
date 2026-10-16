@@ -7,6 +7,7 @@ root=Path(__file__).resolve().parents[1]
 parser=argparse.ArgumentParser(description="Bounded VZ image, forced stream cut and window close qualification")
 parser.add_argument('--app',type=Path,default=root/'artifacts/stage6-release/PomAROS VM.app')
 parser.add_argument('--output',type=Path,required=True)
+parser.add_argument('--prebuilt-probes',type=Path,help='reuse previously compiled probes with their exact source/toolchain/hash manifest')
 a=parser.parse_args();out=a.output.resolve()
 if out.exists():parser.error('output must be new')
 if os.environ.get('MTOOLS_SKIP_CHECK') not in (None,'0'):parser.error('normal mtools filesystem admission must stay enabled')
@@ -27,12 +28,23 @@ installations=[argument[len(prefix):] for argument in configure if argument.star
 if len(installations)!=1:parser.error('SDK configure must identify one guest toolchain')
 toolchain=Path(installations[0]).resolve()
 source=Path(configure[0]).parent
-if subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD'],text=True).strip()!=guest_identity['source_revision'] or subprocess.check_output(['git','-C',str(source),'status','--porcelain'],text=True):parser.error('probe source must be clean at the app core revision')
 probe_environment=dict(os.environ,AROS_CORE_SOURCE=str(source))
-for profile in ('stage6-transport','stage6-image'):
-  output=out/profile
-  with (out/(profile+'-build.log')).open('w') as log:
-    subprocess.run([str(root/'tools/build-abi-probe'),'--sdk',str(sdk),'--crosstools',str(toolchain),'--profile',profile,str(output)],cwd=root,stdout=log,stderr=subprocess.STDOUT,check=True,env=probe_environment)
+profiles=('stage6-transport','stage6-image')
+clang_sha=hashlib.sha256((toolchain/'bin/clang').read_bytes()).hexdigest()
+if a.prebuilt_probes:
+  probes=json.loads((a.prebuilt_probes/'probes.json').read_text())
+  if probes['source_revision']!=guest_identity['source_revision'] or probes['toolchain_clang_sha256']!=clang_sha:parser.error('prebuilt probe source/toolchain differs from app SDK')
+  for profile in profiles:
+    binary=a.prebuilt_probes/profile
+    if hashlib.sha256(binary.read_bytes()).hexdigest()!=probes['files'][profile]:parser.error('prebuilt probe hash mismatch')
+    shutil.copyfile(binary,out/profile)
+else:
+  if subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD'],text=True).strip()!=guest_identity['source_revision'] or subprocess.check_output(['git','-C',str(source),'status','--porcelain'],text=True):parser.error('probe source must be clean at the app core revision')
+  for profile in profiles:
+    with (out/(profile+'-build.log')).open('w') as log:
+      subprocess.run([str(root/'tools/build-abi-probe'),'--sdk',str(sdk),'--crosstools',str(toolchain),'--profile',profile,str(out/profile)],cwd=root,stdout=log,stderr=subprocess.STDOUT,check=True,env=probe_environment)
+  probes={'source_revision':guest_identity['source_revision'],'toolchain_clang_sha256':clang_sha,'files':{profile:hashlib.sha256((out/profile).read_bytes()).hexdigest() for profile in profiles}}
+(out/'probes.json').write_text(json.dumps(probes,indent=2)+'\n')
 state=out/'state';state.mkdir()
 disk=state/'system.img';shutil.copyfile(seed,disk)
 offset=str(disk)+'@@67108864'
@@ -58,7 +70,12 @@ try:
     until(['[STAGE6] ready for forced transport cut'],30)
     (state/'transport-cut.request').write_text('cut\n')
     until(['[HOST] test transport cut active=1','[STAGE6] held session cut PASS','[STAGE6] new host session after cut PASS','[STAGE6] file exchange after cut PASS','[HOST] file service reconnected after cut PASS','[HOST] clipboard service reconnected after cut PASS','[STAGE6] MultiView JPEG window and nonflat pixels PASS','[KI] desktop stable','[VM] desktop two HID bindings PASS','[VM] virtio graphics IRQ completion PASS'],35)
-    subprocess.run(['swift',str(root/'tools/capture-window.swift'),str(proc.pid),str(out/'desktop-window.png')],check=True)
+    (state/'screenshot.request').write_text('capture\n')
+    capture_limit=time.monotonic()+10
+    while time.monotonic()<capture_limit and not any((state/name).exists() for name in ('screenshot.done','screenshot.error')):time.sleep(.1)
+    verdict['host_window_capture']=(state/'screenshot.done').exists()
+    if verdict['host_window_capture']:shutil.copyfile(state/'desktop-window.png',out/'desktop-window.png')
+    elif (state/'screenshot.error').exists():(out/'host-window-capture-error.txt').write_text((state/'screenshot.error').read_text())
     (state/'window-close.request').write_text('close\n')
     assert proc.wait(timeout=20)==0
   data=log.read_text(errors='replace')

@@ -8,7 +8,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import struct
+import subprocess
 import sys
+import tempfile
 import zlib
 from collections import Counter
 from pathlib import Path
@@ -300,7 +302,49 @@ def verify_widget(width: int, height: int, rows: list[bytes]) -> str:
     return result + ' monitor-widget=frame,static-glyphs,blank-rows'
 
 
-def verify_widget_negative_controls(width: int, height: int, rows: list[bytes]) -> None:
+def verify_wallpaper_widget(width: int, height: int, rows: list[bytes],
+                            reference: tuple[int, int, list[bytes]]) -> str:
+    left, top, bottom = recognize_widget(width, height, rows)
+    stripped = [bytearray(row) for row in rows]
+    for y in range(top, bottom):
+        stripped[y][left*3:] = bytes(WANDERER_DESKTOP) * (width-left)
+    if count_region(stripped, 0, width, 15, height, REQUESTER_TITLE) > 64:
+        raise ValueError('requester or CLI title outside monitor widget')
+    black = count_region(stripped, 302, 722, 344, 419, (0, 0, 0))
+    alert = count_region(stripped, 0, width, 329, 444, (0, 0, 0))
+    if black > 512 or alert > 1024:
+        raise ValueError('software-failure/requester geometry present')
+    # Production uses its configured JPEG backdrop, not the flat RAM fixture.
+    # Compare 32x32 blocks outside the exact verified monitor and icon column.
+    # A two-source-pixel neighbourhood admits the two bitmap scalers' rounding;
+    # it cannot admit an arbitrary flat grey/black requester over the backdrop.
+    sw, sh, source = reference
+    if (sw, sh) != (1600, 1200):
+        raise ValueError('unexpected configured wallpaper dimensions')
+    worst = 0.0; blocks = 0
+    for y0 in range(20, height-31, 32):
+        for x0 in range(0, width, 32):
+            if not (128 <= x0 and x0+32 <= left or y0 >= 528):
+                continue
+            total = 0.0
+            for y in range(y0, y0+32, 4):
+                for x in range(x0, x0+32, 4):
+                    actual = pixel(rows, x, y)
+                    sx, sy = x*sw//width, y*sh//height
+                    total += min(sum(abs(a-b) for a,b in zip(actual,pixel(source,xx,yy)))/3
+                                 for yy in range(max(0,sy-2),min(sh,sy+3))
+                                 for xx in range(max(0,sx-2),min(sw,sx+3)))
+            error = total/64
+            if error > 8:
+                raise ValueError(f'configured wallpaper differs in block {x0},{y0}: error={error:.2f}')
+            worst=max(worst,error); blocks+=1
+    if blocks != 352:
+        raise ValueError('wallpaper coverage contract differs')
+    return f'wallpaper-blocks={blocks} max-error={worst:.3f} monitor=frame,glyphs,blank-rows no-requester'
+
+
+def verify_widget_negative_controls(width: int, height: int, rows: list[bytes],
+                                    verifier=verify_widget) -> None:
     # Exercise both sides of the exception on the actual submitted frame.
     left = width - 632
     for x0 in (left - 80, left + 200):
@@ -310,7 +354,7 @@ def verify_widget_negative_controls(width: int, height: int, rows: list[bytes]) 
                 for x in range(x0, x0 + 40):
                     alert[y][x*3:x*3+3] = bytes(color)
             try:
-                verify_widget(width, height, alert)
+                verifier(width, height, alert)
             except ValueError as error:
                 expected = 'blank-row contract' if x0 > left else (
                     'requester or CLI title' if color == REQUESTER_TITLE else 'software-failure/requester geometry')
@@ -323,24 +367,51 @@ def verify_widget_negative_controls(width: int, height: int, rows: list[bytes]) 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile",
-                        choices=("graphics", "intuition", "wanderer", "wanderer-virtio", "wanderer-widget"),
+                        choices=("graphics", "intuition", "wanderer", "wanderer-virtio", "wanderer-widget", "wanderer-wallpaper"),
                         default="graphics")
     parser.add_argument("--serial-log", type=Path)
+    parser.add_argument('--wallpaper', type=Path)
+    parser.add_argument('--wallpaper-sha256')
     parser.add_argument("image", type=Path)
     args = parser.parse_args()
     try:
         width, height, rows = decode(args.image)
         if width < 640 or height < 480:
             raise ValueError("framebuffer is smaller than the G2 fixture")
-        if args.profile == "wanderer-widget":
+        if args.profile in ("wanderer-widget", "wanderer-wallpaper"):
             if args.serial_log is None:
                 raise ValueError('monitor widget requires the matching serial log')
             serial = args.serial_log.read_text(errors='replace')
             if not all(marker in serial for marker in ('[KI] alive window open', '[KI] desktop stable')):
                 raise ValueError('monitor widget serial markers missing')
             verify_wanderer_classifier((1024, 768))
-            result = verify_widget(width, height, rows)
-            verify_widget_negative_controls(width, height, rows)
+            if args.profile == 'wanderer-wallpaper':
+                if args.wallpaper is None or not args.wallpaper_sha256 or hashlib.sha256(args.wallpaper.read_bytes()).hexdigest()!=args.wallpaper_sha256:
+                    raise ValueError('configured wallpaper must match the immutable distribution inventory')
+                with tempfile.TemporaryDirectory(prefix='pomaros-wallpaper-') as directory:
+                    decoded=Path(directory)/'source.png'
+                    subprocess.run(['/usr/bin/sips','-s','format','png',str(args.wallpaper),'--out',str(decoded)],check=True,capture_output=True)
+                    reference=decode(decoded)
+                verifier=lambda w,h,r: verify_wallpaper_widget(w,h,r,reference)
+            else:
+                verifier=verify_widget
+            result = verifier(width, height, rows)
+            verify_widget_negative_controls(width, height, rows, verifier)
+            if args.profile == 'wanderer-wallpaper':
+                # These controls start from the proven real positive above.
+                for name,color in (('generic-requester',REQUESTER_TITLE),('software-alert',(0,0,0))):
+                    control=[bytearray(row) for row in rows]
+                    for y in range(350,390):
+                        for x in range(280,744):control[y][x*3:x*3+3]=bytes(color)
+                    try:verifier(width,height,control)
+                    except ValueError:pass
+                    else:raise ValueError('production classifier accepted '+name)
+                missing=[bytearray(row) for row in rows]
+                for y in range(20,height):missing[y][:392*3]=bytes(WANDERER_DESKTOP)*392
+                try:verifier(width,height,missing)
+                except ValueError as error:
+                    if 'configured wallpaper differs' not in str(error):raise
+                else:raise ValueError('production classifier accepted missing wallpaper')
         elif args.profile in ("wanderer", "wanderer-virtio"):
             expected_size = (1024, 768) if args.profile == "wanderer-virtio" else (800, 600)
             verify_wanderer_classifier(expected_size)
@@ -354,7 +425,7 @@ def main() -> int:
             f"profile={args.profile} width={width} height={height} {result}"
         )
         return 0
-    except (OSError, ValueError, zlib.error, struct.error) as exc:
+    except (OSError, ValueError, zlib.error, struct.error, subprocess.SubprocessError) as exc:
         print(f"aros-render-frame result=FAIL reason={exc}", file=sys.stderr)
         return 1
 
