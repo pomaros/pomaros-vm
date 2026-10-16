@@ -25,7 +25,10 @@ was adapted to the common core's IRQ-save/restore locking API; no OS code was
 changed for that fixture. Evidence is in ignored
 `artifacts/pomaros-migration/common-host-tests.json` and adjacent logs.
 
-The consolidated candidate `b027ee4ecd` is undergoing fresh guest build checks.
+The supported configure helper passes on a fresh default build directory at
+locked candidate `b027ee4ecd`, with source epoch `1792165783`, UTC and unrestricted
+guest x18. Evidence: `artifacts/pomaros-migration/pinned-configure.log`.
+The consolidated candidate is undergoing fresh guest build checks.
 Each shipped package must identify its actual core revision and inputs; previous
 candidate host checks do not establish guest acceptance for that revision.
 
