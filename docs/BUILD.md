@@ -764,3 +764,15 @@ harness is separate from its interactive launcher.
 
 `python3 tests/package-backend.py` checks the actual argument admission phase
 for both backends and rejects unsupported QEMU host-service requests.
+
+## Shared source pin
+
+`CORE.lock` pins the common source URL, branch, revision and guest register
+policy. Fetch that private source into `../aros-core-pomaros` and select its
+exact clean revision before configuring. The helper validates this pin before
+creating any build directory. Experimental builds require an explicit
+`--core-lock FILE` with their actual source identity; product packages must use
+the product pin. Packages reject a source that changed after configuration.
+
+`make test-host` includes source/ABI admission controls; a correct pin alone
+does not establish guest build or runtime qualification. See [STATUS.md](STATUS.md).
