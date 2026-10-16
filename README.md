@@ -31,7 +31,9 @@ and persistent system files in `WORK:System`. See the
 
 ## Use the application
 
-Open the packaged `PomAROS VM.app` to start the AROS desktop. The application
+Open the packaged `PomAROS VM.app` to start the AROS desktop in a normal window.
+Saved window/fullscreen state is not restored; fullscreen is an explicit user
+choice during a session. The application
 includes its guest system; first launch creates a personal profile in
 `~/Library/Application Support/PomAROS VM/Default/`. Network access uses the
 Mac's connection through VZ NAT, so AROS needs no Wi-Fi configuration.

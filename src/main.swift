@@ -180,6 +180,7 @@ final class Application: NSObject, NSApplicationDelegate, NSWindowDelegate, VZVi
           contentRect: NSRect(x: 0, y: 0, width: 1024, height: 768),
           styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered,
           defer: false)
+        window.isRestorable = false
         window.title = "PomAROS VM — release input: Ctrl+Option+Esc"
         // Local monitor runs before the VZ view handles the reserved chord.
         // No global event tap or Accessibility permission is required.
@@ -360,6 +361,7 @@ if (!bundledLaunch && CommandLine.arguments.count < 3) || suppliedOptions.count 
   exit(2)
 }
 if #available(macOS 13.0, *) {
+  UserDefaults.standard.set(false, forKey: "NSQuitAlwaysKeepsWindows")
   let app = NSApplication.shared
   app.setActivationPolicy(launchOptions.contains("--headless") && !launchOptions.contains("--gpu-window") ? .prohibited : .regular)
   do {
