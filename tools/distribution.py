@@ -154,6 +154,14 @@ def install_iconset(system):
 
 def package(a):
     sdk, source = config(a.build)
+    configure = json.loads((a.build / 'vm-configure-command.json').read_text())
+    prefix = '--with-aros-toolchain-install='
+    installations = [argument[len(prefix):] for argument in configure if argument.startswith(prefix)]
+    if len(installations) != 1:
+        raise ValueError('configure identity must name one installed guest toolchain')
+    toolchain = Path(installations[0]).resolve()
+    if not (toolchain / 'bin/clang').is_file():
+        raise ValueError('configured guest toolchain is unavailable: ' + str(toolchain))
     if a.output.exists():
         raise ValueError('output must be new; existing distributions and user disks are never overwritten')
     required = [name for name in REQUIRED if a.backend == 'vz' or name not in {'C/VMExchange', 'C/VMSync'}]
@@ -163,7 +171,7 @@ def package(a):
     a.output.mkdir(parents=True)
     base = a.output / 'base'
     run(['python3', ROOT / 'tools/package-core.py', '--build', a.build, '--efi', a.efi,
-         '--output', base, '--profile', 'wanderer', '--virtio-gpu', '--usb-desktop',
+         '--toolchain', toolchain, '--output', base, '--profile', 'wanderer', '--virtio-gpu', '--usb-desktop',
          '--work-volume', '--backend', a.backend, '--network-stack', '--desktop-session', 'desktop']
          + (['--host-services'] if a.backend == 'vz' else []))
     esp = a.output / 'esp'
