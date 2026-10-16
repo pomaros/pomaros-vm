@@ -4,7 +4,7 @@ PomAROS VM builds and boots its full AROS desktop using Apple's Virtualization.f
 
 ## Verified on 2026-10-16
 
-The shared core pin is `9f346ab00d644bd40e0f53e2624c3f625d28f182`. The guest SDK was built fresh with frozen LLVM 20.1.0, using release epoch `1792169063` and UTC. The full distribution graph and all 44 required-file admissions pass. Both backend distributions and their signed development applications package successfully.
+The archived qualification below used shared core pin `9f346ab00d644bd40e0f53e2624c3f625d28f182`. The guest SDK was built fresh with frozen LLVM 20.1.0, using release epoch `1792169063` and UTC. The full distribution graph and all 44 required-file admissions pass. Both backend distributions and their signed development applications package successfully.
 
 Actual guest objects were compiled at `48e445615380448d74ec02c9958a71201ce4904c`. Subsequent shared-source changes add a hosted-only ELF protection correction, extract the unchanged monitor renderer into a shared header, and add a Darwin-only SystemMonitor utility. The standalone loader tokens and the entire guest coldstart translation unit retain identical preprocessed code. Qualified artifacts and runs keep their original source metadata at `3c382bc`; this source-pin update does not relabel those runs or rebuild unchanged guest objects. No earlier compiler's guest objects were imported.
 
@@ -39,5 +39,7 @@ Final post-staple DMG SHA-256: `1632467a6f62d732a55312b5ac7ee7c0068e5520924678c0
 These are internal development artifacts for John. No public binary download or GitHub Release was uploaded. The new public curated source does not contain the historical private source commits identified by these archived binaries. Recipients of those binaries still need their exact corresponding APL/GPL/LGPL and other component sources before redistribution. A future public-source build must be qualified separately; no archived binary was relabeled.
 
 ## Public-source migration
+
+`CORE.lock` selects public `pomaros/aros-core` revision `89db046157d415e98c05ca18316ca7ae63b07023`, branch `main`. Fresh-source build and runtime acceptance are recorded separately from the archived binaries below. The initial compile preflight built the boot and Wanderer graphs and passed a strict 20-resident windowed QEMU/HVF headless startup. Its full distribution attempt exposed a removed native updater dependency; the final public source replaces that UI backend with an explicit unavailable-target status. Final-source configuration and canonical rebuild are in progress; full desktop acceptance is pending.
 
 Future builds acquire the curated official-history `pomaros/aros-core` fork through `CORE.lock` into the separate `../aros-core` checkout. The VM boot manifests exclude physical Apple PMGR, DART, RTKit, SPMI, SMC, PCIe, NVMe and SPI-HID drivers. `appleboot.device` remains because it supplies the VM RAM-backed system volume. The source acquisition and native-module admission checks do not establish a successful new guest build or boot. The runtime evidence above belongs to the unchanged archived artifacts.
