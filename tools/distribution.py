@@ -204,6 +204,8 @@ def package(a):
                 shutil.copy2(notice, destination)
     for name in ['LICENSE', 'LICENSE.GPL', 'LICENSE.LGPL', 'LICENSE.Author', 'LEGAL']:
         shutil.copy2(source / name, system / name)
+    run(['python3', ROOT / 'tools/package-notices.py', '--source', source,
+         '--output', system / 'Documentation/Licenses/libfdt'])
     # This runs only after the existing storage readiness barrier. Explicit
     # assigns replace bootstrap RAM paths; modules already resident stay loaded.
     setup = '''FailAt 21

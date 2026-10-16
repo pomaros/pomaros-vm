@@ -55,3 +55,10 @@ identities above. Historical names and file hashes are provenance, rather than
 active product settings. OS source is shared with the other PomAROS products
 in the sibling `aros-core-pomaros` checkout; its exact revision belongs in each
 package's provenance. No native product repository is populated by this migration.
+
+
+Binary packages carry the unmodified libfdt BSD license, original public
+vendor source/header notices and import provenance under `Licenses/libfdt`
+(application resources) and `Documentation/Licenses/libfdt` (distribution
+runtime). `tools/package-notices.py` copies only that vendor import from the
+matching source; it does not embed a private OS source checkout.

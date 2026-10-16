@@ -70,6 +70,8 @@ def main():
         guest_source=Path(manifest['configure_command'][0]).parent
         for name in ['LICENSE','LICENSE.GPL','LICENSE.LGPL','LICENSE.Author','LEGAL']:
             shutil.copy2(guest_source/name,resources/('AROS-'+name))
+        subprocess.run(['python3',str(root/'tools/package-notices.py'),'--source',str(guest_source),
+                        '--output',str(resources/'Licenses/libfdt')],check=True)
         subprocess.run(['codesign','--force','--sign','-','--entitlements',str(root/'entitlements.plist'),str(a.output)],check=True)
         subprocess.run(['codesign','--verify','--strict',str(a.output)],check=True)
     except BaseException:
