@@ -17,6 +17,8 @@ p = argparse.ArgumentParser()
 p.add_argument('--esp',type=Path,required=True)
 p.add_argument('--output',type=Path,required=True)
 p.add_argument('--accel',choices=['hvf','tcg'],default='hvf')
+p.add_argument('--windowed',action='store_true',help='normal Cocoa host window, never fullscreen')
+p.add_argument('--supervise',action='store_true',help='prove QMP register access while paused before guest execution')
 p.add_argument('--console',choices=['pl011','virtio'],default='pl011')
 p.add_argument('--profile',choices=['core','wanderer'],default='wanderer')
 p.add_argument('--timeout',type=float,default=60)
@@ -62,7 +64,7 @@ firmware_serial = a.output/'firmware-serial.log' if a.console=='virtio' else ser
 command = ['qemu-system-aarch64','-accel',a.accel,'-M',f'virt,acpi={acpi},gic-version={a.gic_version}'+(f',msi={a.msi_controller}' if a.msi_controller!='auto' else ''),
            '-cpu','host' if a.accel=='hvf' else 'cortex-a72','-m','512','-smp',str(a.cpus),
            '-bios',str(a.firmware),'-drive',f'format=raw,file=fat:rw:{esp}',
-           '-device','ramfb','-display','none','-no-reboot','-serial',f'file:{firmware_serial}',
+           '-device','ramfb','-display','cocoa,full-screen=off' if a.windowed else 'none','-no-reboot','-serial',f'file:{firmware_serial}',
            '-qmp',f'unix:{qmp},server=on,wait=off']
 if a.console=='virtio':
     command += ['-chardev',f'file,id=vmconsole,path={serial}',
@@ -75,6 +77,7 @@ if a.require_gpu_scanout or a.virtio_desktop:
 if a.dtb:
     shutil.copyfile(a.dtb,a.output/'input.dtb')
     command += ['-dtb',str(a.output/'input.dtb')]
+if a.supervise: command += ['-S']
 (a.output/'command.json').write_text(json.dumps(command,indent=2)+'\n')
 pixels_verified=False
 capture_attempted=False
@@ -82,9 +85,34 @@ widget_captured=False
 passed = False
 reason = 'timeout'
 started=time.monotonic()
+text=''
+supervisor_ready=False
 with (a.output/'host.log').open('w') as log:
     proc = subprocess.Popen(command,stdout=log,stderr=subprocess.STDOUT)
     try:
+        if a.supervise:
+            deadline=time.monotonic()+10
+            while not qmp.exists() and time.monotonic()<deadline:
+                if proc.poll() is not None: raise RuntimeError('QEMU exited before QMP preflight')
+                time.sleep(.05)
+            sock=socket.socket(socket.AF_UNIX);sock.settimeout(3);sock.connect(str(qmp))
+            with sock,sock.makefile('rwb') as stream:
+                stream.readline()
+                for name,args in [('qmp_capabilities',{}),('query-status',{}),
+                                  ('human-monitor-command',{'command-line':'info registers'})]:
+                    stream.write(json.dumps({'execute':name,'arguments':args}).encode()+b'\n');stream.flush()
+                    while True:
+                        reply=json.loads(stream.readline())
+                        if 'error' in reply: raise RuntimeError(reply)
+                        if 'return' in reply: break
+                    if name=='query-status' and reply['return']['running']:
+                        raise RuntimeError('guest ran before supervisor preflight')
+                registers=reply['return']
+                if 'PC=' not in registers: raise RuntimeError('QMP preflight register read incomplete')
+                (a.output/'initial-registers.txt').write_text(registers)
+                supervisor_ready=True
+                stream.write(b'{"execute":"cont"}\n');stream.flush()
+                while 'return' not in json.loads(stream.readline()): pass
         while time.monotonic()-started < a.timeout:
             text = serial.read_text(errors='replace') if serial.exists() else ''
             if 'FAIL:' in text or 'Synchronous Exception' in text:
@@ -204,12 +232,15 @@ with (a.output/'host.log').open('w') as log:
             if check is not None:
                 if check.returncode: passed=False;reason='desktop-render'
                 else: pixels_verified=True
+    except Exception as error:
+        passed=False;reason='runner-error: '+str(error)
     finally:
         if proc.poll() is None:
             proc.terminate()
             try: proc.wait(timeout=5)
             except subprocess.TimeoutExpired: proc.kill();proc.wait()
 verdict={'result':'PASS' if passed else 'FAIL','reason':reason,'backend':a.accel,
+         'host_windowed':a.windowed,'guest_headless_probe':a.profile=='core','supervisor_preflight':supervisor_ready,
          'cpus':a.cpus,'secondary_execution_verified':passed and (a.require_smp_probe or a.require_exec_smp),'widget_image_captured':widget_captured,'exec_smp_verified':passed and a.require_exec_smp and exec_smp_matches(text,a.cpus),
          'command_startup_verified':a.require_command_startup and passed,
          'profile':a.profile,'virtio_desktop':a.virtio_desktop,'gpu_scanout_required':a.require_gpu_scanout,'pixels_verified':pixels_verified, 'console':a.console, 'desktop_checked':a.profile == 'wanderer' and passed and not (a.require_smp_probe or a.require_exec_smp),

@@ -16,6 +16,7 @@ import subprocess
 import time
 root=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser()
+p.add_argument('--windowed',action='store_true',help='normal host firmware/GPU window, even for a headless guest probe')
 p.add_argument('--require-desktop-session',type=int,metavar='SECONDS')
 p.add_argument('--require-host-services',action='store_true')
 p.add_argument('--require-desktop-clipboard',action='store_true')
@@ -124,7 +125,7 @@ pixels_verified=False
 capture_count=0
 passed=False;reason='timeout';start=time.monotonic()
 with log.open('w') as out:
-    proc=subprocess.Popen([str(root/'build/pomaros-vm'),str(disk),str(a.output/'state'),'--headless','--force-stop',f'--cpus={a.cpus}']+(['--gpu-window'] if a.require_gpu_scanout or a.require_input else ['--gpu'] if a.require_gpu or a.desktop_startup else [])+(['--usb-input'] if a.usb_input else [])+(['--input-probe'] if a.require_input else [])+(['--network'] if a.require_network_config or a.require_desktop_network else [])+(['--vsock-probe'] if a.require_vsock else [])+(['--host-services'] if a.require_host_services or a.require_desktop_clipboard or a.require_desktop_work else [])+(['--clipboard-test'] if a.require_clipboard_sync or a.require_desktop_clipboard or a.require_desktop_work else []),stdout=out,stderr=subprocess.STDOUT)
+    proc=subprocess.Popen([str(root/'build/pomaros-vm'),str(disk),str(a.output/'state'),'--headless','--force-stop',f'--cpus={a.cpus}']+(['--gpu-window'] if a.windowed or a.require_gpu_scanout or a.require_input else ['--gpu'] if a.require_gpu or a.desktop_startup else [])+(['--usb-input'] if a.usb_input else [])+(['--input-probe'] if a.require_input else [])+(['--network'] if a.require_network_config or a.require_desktop_network else [])+(['--vsock-probe'] if a.require_vsock else [])+(['--host-services'] if a.require_host_services or a.require_desktop_clipboard or a.require_desktop_work else [])+(['--clipboard-test'] if a.require_clipboard_sync or a.require_desktop_clipboard or a.require_desktop_work else []),stdout=out,stderr=subprocess.STDOUT)
     try:
         while time.monotonic()-start<a.timeout:
             text=log.read_text(errors='replace')
@@ -197,6 +198,23 @@ with log.open('w') as out:
     except Exception as error:
         reason='runner-error: '+str(error)
     finally:
+        if not passed and proc.poll() is None:
+            # VZ exposes no public guest register API. Preserve host/process
+            # and view evidence before stop; kernel trap registers stay serial.
+            try:
+                sample=subprocess.run(['/usr/bin/sample',str(proc.pid),'1','1','-file',str(a.output/'host-sample.txt')],
+                                      capture_output=True,timeout=5)
+                (a.output/'host-sample.log').write_bytes(sample.stdout+sample.stderr)
+            except Exception as error:
+                (a.output/'host-sample-error.txt').write_text(str(error))
+            window=re.search(r'window-id=(\d+)',log.read_text(errors='replace'))
+            if window:
+                try:
+                    shot=subprocess.run(['/usr/sbin/screencapture','-x','-o','-l',window[1],str(a.output/'failure-window.png')],
+                                        capture_output=True,timeout=5)
+                    (a.output/'failure-capture.log').write_bytes(shot.stdout+shot.stderr)
+                except Exception as error:
+                    (a.output/'failure-capture-error.txt').write_text(str(error))
         if proc.poll() is None:
             proc.terminate()
             try: proc.wait(timeout=5)
@@ -225,7 +243,8 @@ verdict={'result':'PASS' if passed else 'FAIL','reason':reason,
          'gpu_irq_verified':passed and a.require_gpu_irq,
          'network_stack_address_verified':passed and a.require_network_stack,
          'network_config_verified':passed and a.require_network_config,'network_packets_verified':passed and a.require_network_packets,'network_irq_verified':passed and a.require_network_irq,'input_events_withheld':a.no_input_events,'desktop_session_seconds':a.require_desktop_session,'desktop_session_verified':passed and a.require_desktop_session is not None,
-         'backend':'Virtualization.framework','host_shutdown_mode':'force-stop','graphics':a.require_gpu or a.desktop_startup,'usb_input_exposed':a.usb_input,'xhci_mapping_required':a.usb_input and a.require_pci_hidd,'input_verified':passed and a.require_input,'usb_hid_bindings_verified':passed and a.require_usb_desktop,'xhci_driver_required':a.require_xhci_driver,'xhci_enumeration_required':a.require_xhci_enumeration,'usb_child_descriptors_verified':passed and a.require_xhci_enumeration,'usb_transfers_verified':False,'desktop_startup':a.desktop_startup,'desktop_pixels_verified':False,'gpu_query_required':a.require_gpu,'gpu_scanout_required':a.require_gpu_scanout,'pixels_verified':pixels_verified,'storage_phase':a.storage_phase,'filesystem_phase':a.filesystem_phase,
+         'backend':'Virtualization.framework','host_windowed':a.windowed or a.require_gpu_scanout or a.require_input,
+         'independent_guest_register_api':False,'host_shutdown_mode':'force-stop','graphics':a.windowed or a.require_gpu or a.desktop_startup,'usb_input_exposed':a.usb_input,'xhci_mapping_required':a.usb_input and a.require_pci_hidd,'input_verified':passed and a.require_input,'usb_hid_bindings_verified':passed and a.require_usb_desktop,'xhci_driver_required':a.require_xhci_driver,'xhci_enumeration_required':a.require_xhci_enumeration,'usb_child_descriptors_verified':passed and a.require_xhci_enumeration,'usb_transfers_verified':False,'desktop_startup':a.desktop_startup,'desktop_pixels_verified':False,'gpu_query_required':a.require_gpu,'gpu_scanout_required':a.require_gpu_scanout,'pixels_verified':pixels_verified,'storage_phase':a.storage_phase,'filesystem_phase':a.filesystem_phase,
          'pci_hidd_required':a.require_pci_hidd,'msi_frame_required':a.require_msi_frame,'msi_irq_required':a.require_msi_irq,'virtio_device_required':a.require_virtio_device,
          'seconds':round(time.monotonic()-start,2),
          'input_disk_sha256':hashlib.sha256(a.disk.read_bytes()).hexdigest(),

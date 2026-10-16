@@ -776,3 +776,16 @@ the product pin. Packages reject a source that changed after configuration.
 
 `make test-host` includes source/ABI admission controls; a correct pin alone
 does not establish guest build or runtime qualification. See [STATUS.md](STATUS.md).
+
+## Windowed core regression and supervisor
+
+`tools/run-qemu.py --windowed --supervise` opens a normal Cocoa window, starts
+paused and verifies independent QMP register access before resuming. Failures
+preserve stopped registers, current instructions and stack. The guest `core`
+profile is a headless ABI probe regardless of the visible host firmware window.
+
+`tools/run-vz.py --windowed` exposes the normal firmware/GPU view even for a
+headless core guest. Before stopping a failed run it attempts a host process
+sample and window capture; kernel trap registers remain in serial output. VZ
+provides no public independent guest-register API. A failed capture is recorded
+rather than counted as guest or pixel acceptance.

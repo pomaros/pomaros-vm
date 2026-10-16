@@ -28,7 +28,22 @@ changed for that fixture. Evidence is in ignored
 The supported configure helper passes on a fresh default build directory at
 locked candidate `b027ee4ecd`, with source epoch `1792165783`, UTC and unrestricted
 guest x18. Evidence: `artifacts/pomaros-migration/pinned-configure.log`.
-The consolidated candidate is undergoing fresh guest build checks.
+The candidate's `apple-wanderer-payloads` build completes with exit 0. Its
+full distribution graph is still being built; this alone does not make a
+complete desktop package.
+
+A fresh headless core bundle from that build passes real QEMU/HVF (7.85 s)
+and Virtualization.framework (2.36 s) runs, both in normal host windows. The
+guest probe remains headless. Both runs pass DOS takeover, portable ABI,
+emulated TLS, streams, W^X/unload, timer waits, IRQ chain and retained FDT/PCI
+checks. Their guest bundle is byte-identical:
+`6abba4b73af8c513404ff88b633498c39b2db630e3f9bbb207fb3aba734ca829`.
+QMP register access is proved while paused before the HVF workload. VZ has no
+public independent guest-register API; its kernel serial context and host/view
+capture are retained on failure. Both VMs stopped and their reservations were
+released. Evidence: `artifacts/common-core-regression.json`, `artifacts/core-hvf/`
+and `artifacts/core-vz/`. These checks establish core boot/ABI rather than
+desktop, network, persistent files or safe window-close acceptance.
 Each shipped package must identify its actual core revision and inputs; previous
 candidate host checks do not establish guest acceptance for that revision.
 
