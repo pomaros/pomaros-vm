@@ -15,14 +15,15 @@ import time
 
 root=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser(description=__doc__)
-p.add_argument('--source',type=Path,default=root.parent/'aros-core-pomaros')
+p.add_argument('--source',type=Path,default=root.parent/'aros-core')
 p.add_argument('--output',type=Path,required=True,help='new directory for frozen source, builds, logs and verdicts')
 p.add_argument('--jobs',type=int,default=4,help='jobs per build; two builds run concurrently')
 a=p.parse_args();a.source=a.source.resolve();a.output=a.output.resolve()
 if a.output.exists() or not 1<=a.jobs<=32:p.error('output must be new; jobs must be 1..32')
 def git(*args):return subprocess.check_output(['git','-C',str(a.source),*args],text=True).strip()
 if git('status','--porcelain'):p.error('source must be clean')
-if git('branch','--show-current')!='pomaros-common':p.error('requires isolated VM source branch')
+lock=dict(line.split('=',1) for line in (root/'CORE.lock').read_text().splitlines() if line and not line.startswith('#'))
+if git('rev-parse','HEAD')!=lock['CORE_REVISION']:p.error('requires the exact CORE.lock source revision')
 revision=git('rev-parse','HEAD');epoch=git('show','-s','--format=%ct','HEAD')
 origin=git('remote','get-url','origin')
 a.output.mkdir(parents=True)
@@ -104,7 +105,8 @@ def inventory(label):
 
 try:
     with (a.output/'clone.log').open('w') as log:
-        subprocess.run(['git','clone','--local','--branch','pomaros-common',str(a.source),str(source)],stdout=log,stderr=subprocess.STDOUT,check=True)
+        subprocess.run(['git','clone','--local','--no-checkout',str(a.source),str(source)],stdout=log,stderr=subprocess.STDOUT,check=True)
+    subprocess.run(['git','-C',str(source),'checkout','--detach',revision],stdout=subprocess.DEVNULL,check=True)
     frozen=subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD'],text=True).strip()
     if frozen!=revision:raise RuntimeError('source changed while freezing')
     # Preserve embedded DOS repository identity, but never push from the snapshot.

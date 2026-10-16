@@ -20,11 +20,11 @@ clone of the qualified build. Changed kernel objects and the bootstrap were
 rebuilt. This is an incremental native build, not a clean OS build.
 
 `include/vm-console.h` is original MIT code, imported with its license into
-the private core. Its control handshake follows the OASIS console protocol.
+the common AROS core. Its control handshake follows the OASIS console protocol.
 
 ## Portable early boot
 
-The private core owns `arch/aarch64-all/boot/fdt` and `arch/aarch64-all/irq`.
+The common AROS core owns `arch/aarch64-all/boot/fdt` and `arch/aarch64-all/irq`.
 The reader and GIC adapter are APL 1.1. The former contains libfdt v1.7.2,
 commit `2d10aa2afe35527728db30b35ec491ecb6959e5c`, selected under its BSD-2-Clause
 option; notices and the BSD license accompany the files. The EFI build links
@@ -53,7 +53,7 @@ The host repository is maintained at `pomaros/pomaros-vm`. Its Git history
 retains the original private VM tooling lineage, including source import
 identities above. Historical names and file hashes are provenance, rather than
 active product settings. OS source is shared with the other PomAROS products
-in the sibling `aros-core-pomaros` checkout; its exact revision belongs in each
+in the sibling `aros-core` checkout; its exact revision belongs in each
 package's provenance. No native product repository is populated by this migration.
 
 
@@ -61,4 +61,12 @@ Binary packages carry the unmodified libfdt BSD license, original public
 vendor source/header notices and import provenance under `Licenses/libfdt`
 (application resources) and `Documentation/Licenses/libfdt` (distribution
 runtime). `tools/package-notices.py` copies only that vendor import from the
-matching source; it does not embed a private OS source checkout.
+matching source; it does not embed an OS source checkout.
+
+## Curated public source
+
+Current source acquisition uses [pomaros/aros-core](https://github.com/pomaros/aros-core),
+with official AROS history and reviewed common Hosted/VM/QEMU changes. Native-only
+Apple drivers remain outside this public fork. `CORE.lock` records its exact
+revision. Historical import identities above remain historical facts; they are
+not rewritten to claim that old private commits exist in the curated public history.

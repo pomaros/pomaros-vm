@@ -13,7 +13,7 @@ root=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser();p.add_argument('--tree',type=Path,action='append',default=[])
 p.add_argument('--output',type=Path)
 a=p.parse_args()
-core=Path(os.environ.get('AROS_CORE_SOURCE',root.parent/'aros-core-pomaros'))
+core=Path(os.environ.get('AROS_CORE_SOURCE',root.parent/'aros-core'))
 fdt=core/'arch/aarch64-all/boot/fdt'
 rows=[]
 def run(args,**kw): return subprocess.run(args,check=True,text=True,capture_output=True,**kw).stdout.strip()

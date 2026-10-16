@@ -142,7 +142,7 @@ if [ "$profile" = desktop-clipboard ]; then
     set -- -DVM_CLIPBOARD_DESKTOP
 fi
 if [ "$profile" = stage6-transport ]; then
-    set -- "${AROS_CORE_SOURCE:-$project_root/../aros-core-pomaros}/workbench/tools/VMExchange/client.c"
+    set -- "${AROS_CORE_SOURCE:-$project_root/../aros-core}/workbench/tools/VMExchange/client.c"
 fi
 if [ "$profile" = platform ]; then
     set -- "$project_root/tests/command-startup.c"
@@ -154,10 +154,10 @@ fi
     --target=aarch64-unknown-aros \
     -mcmodel=large -fno-pic -fno-pie -femulated-tls \
     -O2 -Wall -Wextra -Werror \
-    -I"${AROS_CORE_SOURCE:-$project_root/../aros-core-pomaros}/workbench/tools/VMExchange" \
-    -I"${AROS_CORE_SOURCE:-$project_root/../aros-core-pomaros}/rom/hidds/pci" \
-    -I"${AROS_CORE_SOURCE:-$project_root/../aros-core-pomaros}/rom/devs/virtio" \
-    -I"${AROS_CORE_SOURCE:-$project_root/../aros-core-pomaros}/rom/hidds/virtiogfx" \
+    -I"${AROS_CORE_SOURCE:-$project_root/../aros-core}/workbench/tools/VMExchange" \
+    -I"${AROS_CORE_SOURCE:-$project_root/../aros-core}/rom/hidds/pci" \
+    -I"${AROS_CORE_SOURCE:-$project_root/../aros-core}/rom/devs/virtio" \
+    -I"${AROS_CORE_SOURCE:-$project_root/../aros-core}/rom/hidds/virtiogfx" \
     -isystem "$include_dir" -isystem "$generated_include_dir" \
     -isystem "$posix_include_dir" -isystem "$stdc_include_dir" \
     -nostartfiles -nodefaultlibs \

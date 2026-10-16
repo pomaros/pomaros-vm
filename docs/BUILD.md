@@ -9,9 +9,10 @@ The supported configuration builds into a new directory with
 `tools/configure-core.py`, followed by the payload target and
 `tools/package-core.py` as shown below. The packager consumes only products
 from that build and refuses missing components. No native object directory or
-seed bundle is needed. Core source lives in `../aros-core-pomaros`, on the
-private `pomaros-common` branch; qualified revisions are recorded in
-`STATUS.md`.
+seed bundle is needed. Core source comes from the public `pomaros/aros-core` fork into
+`../aros-core`, detached at `CORE.lock`. Use `python3 tools/fetch-core.py`
+before configuring. Qualification of new public-source builds is distinct from
+the archived private-lineage evidence in `STATUS.md`.
 
 Guest C and assembly target AArch64 ELF without `-ffixed-x18`. EFI targets
 AArch64 PE/COFF with the firmware calling convention; host code follows the
@@ -767,8 +768,9 @@ for both backends and rejects unsupported QEMU host-service requests.
 ## Shared source pin
 
 `CORE.lock` pins the common source URL, branch, revision and guest register
-policy. Fetch that private source into `../aros-core-pomaros` and select its
-exact clean revision before configuring. The helper validates this pin before
+policy. `python3 tools/fetch-core.py` fetches the pinned source into a NEW
+`../aros-core` checkout, detached at its exact revision. Existing directories
+must already be clean at the pin; they are never reset or overwritten. The helper validates this pin before
 creating any build directory. Experimental builds require an explicit
 `--core-lock FILE` with their actual source identity; product packages must use
 the product pin. Packages reject a source that changed after configuration.

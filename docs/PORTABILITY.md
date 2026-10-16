@@ -3,9 +3,9 @@
 The architecture follows `aros-next/docs/AARCH64.md`, its
 `tracks/aarch64-generic.md`, `features/device-tree/spec.md` and `ROADMAP.md`.
 The order is early FDT access, core interrupt/timer/console bindings, then
-virtio devices and desktop integration. The private VM branch supplies reusable
-components and evidence for that sequence; publishing upstream is a separate
-explicit action.
+virtio devices and desktop integration. The public common core supplies reusable components for that sequence.
+The historical VM branch supplies earlier evidence; submission to official
+AROS upstream remains a separate reviewed action.
 
 | Boundary | Contract |
 | --- | --- |
@@ -16,7 +16,7 @@ explicit action.
 | Timer | ARM architectural timer mechanism, with an explicitly selected physical or virtual channel. The probe uses CNTV because CNTP_TVAL is unavailable under QEMU/HVF. |
 | Runtime discovery | The retained tree is handed to the existing `openfirmware.resource` path; later drivers belong there. |
 | DMA | Device drivers require a bus-address mapping contract. Identity DMA in a VM does not establish a Pi bus-offset or Apple DART contract. |
-| ABI | VM guest x18 is unrestricted; macOS reserves host x18. Physical Apple migration of its existing platform-register ABI is a separately qualified change. |
+| ABI | VM guest x18 is unrestricted; macOS reserves host x18. Native Apple and future Raspberry Pi use the same ordinary register policy; their hardware qualification remains separate. |
 
 The GIC component is a single-CPU bootstrap owner. Its operations cover delivery,
 masking, acknowledgement, EOI and a self-SGI. SMP admission and cross-CPU routing

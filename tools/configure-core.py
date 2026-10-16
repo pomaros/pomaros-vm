@@ -18,7 +18,7 @@ p.add_argument('--core-lock', type=Path, default=root / 'CORE.lock',
                help='shared source pin; use an explicit lock file for experimental builds')
 p.add_argument('--source-date-epoch', default=os.environ.get('SOURCE_DATE_EPOCH'),
                help='build timestamp; defaults to the source commit timestamp')
-p.add_argument('--source', type=Path, default=Path(os.environ.get('AROS_CORE_SOURCE', root.parent / 'aros-core-pomaros')))
+p.add_argument('--source', type=Path, default=Path(os.environ.get('AROS_CORE_SOURCE', root.parent / 'aros-core')))
 p.add_argument('--toolchain', type=Path, default=root.parent / 'aros-crosstools')
 p.add_argument('--source-branch', action='append', default=[],
                help='an additional core branch accepted as the isolated VM source')
@@ -38,8 +38,8 @@ if subprocess.check_output(['git', '-C', str(source), 'status', '--porcelain'], 
 if output.exists():
     p.error('output must be a new directory; configured or native builds are never reused')
 branch = subprocess.check_output(['git', '-C', str(source), 'branch', '--show-current'], text=True).strip()
-if branch not in ('', 'pomaros-common', 'codex-smp-integration', *a.source_branch):
-    p.error('select the pinned detached source or isolated pomaros-common source branch, '
+if branch not in ('', lock.get('CORE_BRANCH', 'main'), 'codex-smp-integration', *a.source_branch):
+    p.error('select the pinned detached source or CORE.lock branch, '
             'or name the branch with --source-branch')
 if not toolchain.is_dir():
     p.error('the prebuilt AROS cross-toolchain directory is missing')
@@ -82,7 +82,7 @@ with options.open('a') as stream:
     stream.write('\n# Reproducible default; explicit environment/make overrides remain possible.\n'
                  f'SOURCE_DATE_EPOCH ?= {epoch}\nexport SOURCE_DATE_EPOCH\nexport TZ := UTC\n')
 (output/'vm-build-environment.json').write_text(json.dumps({
-    'SOURCE_DATE_EPOCH':epoch,'TZ':'UTC',
+    'SOURCE_DATE_EPOCH':epoch,'TZ':'UTC','source_lock':lock,
     'source_revision':subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD'],text=True).strip()
 },indent=2)+'\n')
 config = (output / 'bin/apple-aarch64/gen/config/target.cfg').read_bytes()

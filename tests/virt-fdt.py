@@ -6,7 +6,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 root=Path(__file__).resolve().parents[1]
-core=Path(os.environ.get('AROS_CORE_SOURCE',root.parent/'aros-core-pomaros'))
+core=Path(os.environ.get('AROS_CORE_SOURCE',root.parent/'aros-core'))
 arch=core/'arch/aarch64-apple'
 fdt=core/'arch/aarch64-all/boot/fdt'
 with tempfile.TemporaryDirectory() as tmp:

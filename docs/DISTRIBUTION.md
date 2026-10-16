@@ -112,4 +112,4 @@ boot retains its existing arena limit.
 
 `make test-page-arena` checks the real allocator’s range boundaries under host
 address/undefined-behaviour sanitizers for both native and VM arena limits.
-Set `AROS_CORE_SOURCE` if the core worktree is not the sibling `aros-core-pomaros`.
+Set `AROS_CORE_SOURCE` if the core worktree is not the sibling `aros-core`.

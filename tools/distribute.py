@@ -51,6 +51,20 @@ def verify_app(app,team,evidence,entitlements):
         raise ValueError('signed entitlements differ from the minimal product policy')
     return details
 
+def guest_source_lock(path, guest):
+    lock=dict(line.strip().split('=',1) for line in path.read_text().splitlines()
+              if line.strip() and not line.startswith('#'))
+    if (lock.get('CORE_REVISION') != guest['source_revision']
+            or lock.get('CORE_X18_POLICY') != 'unrestricted'
+            or lock.get('CORE_TARGET') != 'apple-aarch64'
+            or not lock.get('CORE_URL') or not lock.get('CORE_BRANCH')):
+        raise ValueError('guest source differs from source lock; retained historical payloads require --guest-source-lock with their actual URL/revision/ABI, not the current public source pin')
+    recorded=guest.get('source_lock')
+    if recorded and any(recorded.get(key) != lock.get(key) for key in
+                        ('CORE_URL','CORE_REVISION','CORE_BRANCH','CORE_X18_POLICY','CORE_TARGET')):
+        raise ValueError('selected source lock differs from the packaged guest source provenance')
+    return lock
+
 def prepare(a):
     if not a.app or not a.app.is_dir() or a.output.exists():raise ValueError('prepare requires an existing app and NEW output directory')
     revision=clean_revision(a.repo)
@@ -58,6 +72,7 @@ def prepare(a):
     original=a.app.resolve();resources=original/'Contents/Resources'
     original_provenance=json.loads((resources/'provenance.json').read_text())
     guest=original_provenance['guest']
+    source_lock=guest_source_lock(a.guest_source_lock or a.repo/'CORE.lock',guest)
     if guest['backend']!=('vz' if a.product=='vm' else 'qemu') or guest.get('desktop_session')!='desktop':raise ValueError('requires a qualified production desktop package for this backend')
     for required in ('HOST-LICENSE','AROS-LICENSE','AROS-LEGAL','Licenses/libfdt'):
         if not(resources/required).exists():raise ValueError('missing guest/host notice: '+required)
@@ -84,7 +99,8 @@ def prepare(a):
                   input_provenance_sha256=sha(resources/'provenance.json'),seed_sha256=sha(resources/'System.img'),
                   input_launcher_sha256=sha(executable),team_id=a.team_id,
                   signing_identity=a.identity,distribution='internal-development',
-                  source_access='PomAROS product launcher/tool sources are public in github.com/pomaros. The corresponding AROS core remains private; arrange recipient access to that source before redistribution.',
+                  input_source_url=source_lock['CORE_URL'],input_source_branch=source_lock['CORE_BRANCH'],
+                  source_access='Corresponding AROS source: '+source_lock['CORE_URL']+' at '+source_lock['CORE_REVISION']+'. Recipients need access to this exact source and applicable component sources before redistribution.',
                   external_qemu_required=a.product=='qemu')
     write_json(app/'Contents/Resources/DISTRIBUTION.json',snapshot)
     entitlements=a.repo/'distribution-entitlements.plist'
@@ -93,8 +109,6 @@ def prepare(a):
     run(['otool','-L',executable],evidence/'launcher-dependencies.log')
     snapshot.update(app_name=app.name,launcher_sha256=sha(executable),app_bundle_identifier=info['CFBundleIdentifier'])
     write_json(a.output/'distribution-provenance.json',snapshot)
-    source_lock=dict(line.split('=',1) for line in (a.repo/'CORE.lock').read_text().splitlines() if line and not line.startswith('#'))
-    source_lock['CORE_REVISION']=guest['source_revision']
     (a.output/'guest-source.lock').write_text('# Actual immutable packaged guest source; not a retag to current development HEAD.\n'+'\n'.join(key+'='+value for key,value in source_lock.items())+'\n')
     (a.output/'Applications').symlink_to('/Applications')
     prerequisite=('No QEMU or external hypervisor application is required. Apple Silicon and macOS 13 or later are required.' if a.product=='vm' else
@@ -109,8 +123,11 @@ The app creates its own persistent profile under ~/Library/Application Support/.
 
 Internal artifact for John Knipper. No public release or redistribution is authorized here.
 PomAROS product launcher/tool sources are public at https://github.com/pomaros.
-The corresponding AROS core remains private. Recipients must receive appropriate
-access to that core and applicable component sources before external redistribution.
+Corresponding AROS source: {source_lock['CORE_URL']}
+Exact source revision: {source_lock['CORE_REVISION']}
+Recipients must receive access to that exact core and applicable component sources
+before external redistribution. A newer public source pin does not relabel an older
+private guest payload or supply its missing corresponding source.
 The immutable guest payload retains its actual source identity in provenance.json;
 distribution signing does not relabel older compiled guest code as a newer revision.
 
@@ -129,6 +146,7 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('action',choices=['prepare','zip','dmg','submit','info','staple'])
     p.add_argument('--product',choices=['vm','qemu'],default='vm');p.add_argument('--repo',type=Path,default=ROOT)
+    p.add_argument('--guest-source-lock',type=Path,help='actual original core lock for a retained historical guest payload')
     p.add_argument('--app',type=Path);p.add_argument('--distribution',type=Path);p.add_argument('--output',type=Path)
     p.add_argument('--identity',default=IDENTITY);p.add_argument('--team-id',default='C43N3NG7Z5')
     p.add_argument('--acceptance',type=Path);p.add_argument('--file',type=Path);p.add_argument('--profile');p.add_argument('--id');p.add_argument('--evidence',type=Path)

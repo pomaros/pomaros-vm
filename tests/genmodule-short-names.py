@@ -5,7 +5,7 @@
 import argparse, json, os, subprocess
 from pathlib import Path
 p=argparse.ArgumentParser()
-p.add_argument('--source',type=Path,default=Path(__file__).resolve().parents[2]/'aros-core-pomaros')
+p.add_argument('--source',type=Path,default=Path(__file__).resolve().parents[2]/'aros-core')
 p.add_argument('--output',type=Path,required=True)
 p.add_argument('--expect-failure',action='store_true')
 a=p.parse_args();a.output.mkdir(parents=True,exist_ok=False)

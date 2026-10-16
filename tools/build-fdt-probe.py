@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import subprocess
 root=Path(__file__).resolve().parents[1]
-core=Path(os.environ.get('AROS_CORE_SOURCE',root.parent/'aros-core-pomaros'))
+core=Path(os.environ.get('AROS_CORE_SOURCE',root.parent/'aros-core'))
 irq=core/'arch/aarch64-all/irq'
 fdt=core/'arch/aarch64-all/boot/fdt';out=root/'build/fdt-probe';out.mkdir(parents=True,exist_ok=True)
 sources=[root/'guest/fdt/entry.S',root/'guest/fdt/probe.c',fdt/'early_fdt.c',irq/'gic.c',

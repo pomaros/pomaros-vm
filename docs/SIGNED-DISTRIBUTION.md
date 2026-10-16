@@ -43,7 +43,15 @@ record the final DMG checksum after stapling. The tools retain command logs,
 signatures, entitlements, runtime identity, submission IDs and ticket checks.
 
 These are internal artifacts for John Knipper. Product launcher/tool sources are public in the PomAROS organization. The
-corresponding AROS core remains private; appropriate recipient access to that
-core and applicable component sources is required before redistribution. No GitHub release upload or public source publication is
+curated common AROS core is public at https://github.com/pomaros/aros-core.
+Historical artifacts can still identify private source commits absent from that
+fork; recipients need those exact sources and applicable component sources
+before redistribution. A newer public core pin cannot relabel an older payload. No GitHub release upload or public source publication is
 part of this recipe. License texts, prerequisites and source-access limits are
 included with the distribution and application.
+
+For a retained historical payload, `prepare --guest-source-lock PATH` requires
+a lock containing its actual source URL, exact revision, branch and ABI. It
+refuses to replace the current public pin with an old private commit silently.
+Existing signed/notarized archives and their provenance are never modified by
+source acquisition or pin updates.

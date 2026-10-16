@@ -13,10 +13,20 @@ The existing hosted PomAROS remains in its own repository.
 
 ## Shared guest source
 
-The source checkout `../aros-core-pomaros` is shared with PomAROS QEMU and the
-other products. This repository owns the Virtualization.framework application
+The public [common AROS core](https://github.com/pomaros/aros-core) is shared
+with PomAROS QEMU and Hosted. `CORE.lock` pins the exact source revision in the
+separate `../aros-core` checkout. Acquire it with:
+
+```sh
+python3 tools/fetch-core.py
+```
+
+The helper creates a new detached checkout or verifies an existing clean pin;
+it never resets a working tree. Build the AROS LLVM toolchain separately using
+the [shared toolchain recipe](https://github.com/pomaros/pomaros-hosted/blob/main/GETTING-STARTED.md); a local toolchain is required at `../aros-crosstools`
+(or the explicit `--toolchain` path). This repository owns the Virtualization.framework application
 and the guest build/packaging tools consumed by `pomaros-qemu`. It contains no
-private copy of the kernel. Guest packages record their exact core revision;
+separate copy of the kernel. Guest packages record their exact core revision;
 macOS hosted binaries use a distinct ABI and cannot be reused as VM modules.
 The native product repository stays empty and private during preparation.
 
@@ -102,7 +112,7 @@ make -C boot/arosboot
 `make test` additionally executes a real EL1 guest with Hypervisor.framework, checks x18
 across VM exits, rejects a corrupted probe, and exercises the core FDT mapper
 under ASan/UBSan. `AROS_CORE_SOURCE` selects the kernel checkout; the default
-is `../aros-core-pomaros`.
+is `../aros-core`.
 
 `tools/configure-core.py` configures an independent VM guest build.
 `tools/package-core.py` packages its freshly built modules and records their

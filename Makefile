@@ -1,4 +1,4 @@
-AROS_CORE_SOURCE ?= ../aros-core-pomaros
+AROS_CORE_SOURCE ?= ../aros-core
 FDT_DIR := $(AROS_CORE_SOURCE)/arch/aarch64-all/boot/fdt
 FDT_SOURCES := $(addprefix $(FDT_DIR)/libfdt/,fdt.c fdt_ro.c fdt_sw.c fdt_check.c)
 # SPDX-License-Identifier: MIT
@@ -240,7 +240,7 @@ test-page-arena:
 
 # Host-only gates do not start hardware virtualization or touch personal profiles.
 .PHONY: test-host
-test-host: test-host-services test-clipboard-codec test-clipboard-services test-vm-storage test-package-app test-package-backend test-configure-pin
+test-host: test-host-services test-clipboard-codec test-clipboard-services test-vm-storage test-package-app test-package-backend test-configure-pin test-fetch-source
 
 .PHONY: test-package-backend
 test-package-backend:
@@ -249,3 +249,7 @@ test-package-backend:
 .PHONY: test-configure-pin
 test-configure-pin:
 	python3 tests/configure-pin.py
+
+.PHONY: test-fetch-source
+test-fetch-source:
+	python3 tests/fetch-source.py

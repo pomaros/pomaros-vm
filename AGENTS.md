@@ -1,9 +1,9 @@
 # Working on PomAROS VM
 
-Private repository. Publish only to this private origin; upstream publication
-requires John's explicit instruction. MIT for host/tool code; preserve the
+Public product repository. Publishing requires the user's authorization and
+coordinated review; public AROS upstream submissions are a separate action. MIT for host/tool code; preserve the
 licenses and provenance of imported files. OS changes belong in the isolated
-APL core checkout `../aros-core-pomaros`, not in the hosted PomAROS tree.
+APL core checkout `../aros-core`, not in the hosted PomAROS tree.
 
 Guest x18 is an ordinary caller-saved register. No guest build may reserve it.
 Host code follows the macOS ABI. Keep hardware virtualization tests separate
