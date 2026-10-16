@@ -4507,3 +4507,31 @@ round-trip checks confirm all five USB files, Wanderer bytes and its requirement
 marker exactly match their inputs in the final SYS image. Machine evidence is
 artifacts/tiles-review40-seed-capacity/result.json. Guest proof is run separately
 in the core validation lane; packaging success alone is not guest acceptance.
+
+
+## PomAROS VM migration — 2026-10-16
+
+Merged legacy origin/main (835c0ed) with the local relocation/cleanup history
+in a10a716 before rebranding. Current product names, application bundle,
+identifier, environment variable and fresh profile directory use PomAROS.
+Historical journal names, source import hashes and provenance retain their
+original identities. Existing personal profiles were not accessed or changed.
+
+The application and guest packaging tools use the shared sibling core checkout
+`../aros-core-pomaros`, branch `pomaros-common`, and workspace-relative toolchain
+and build defaults. The host remains macOS ABI; guest configuration rejects
+`-ffixed-x18`. QEMU consumes these tools with `--backend qemu`; it has persistent
+WORK/input/networking without VZ's vsock host bridge or coordinated shutdown.
+No equivalence of host bridge features is claimed.
+
+Host checks pass: Swift application build and ad-hoc signing; host services,
+clipboard codec/services, VM storage, package admission, backend admission;
+EFI build; five C sanitizer binaries and five Python parser/codegen/allocator
+gates. The latter use explicit `../aros-core-vm` revision 2d167429e3 while the
+common core is consolidated. Evidence: `artifacts/pomaros-migration/host-tests.json`
+and logs. No VM or physical-machine run performed by this migration.
+
+An attempted QEMU desktop package from the fresh audit build failed admission
+because `Devs/Drivers/pci.hidd` was not built. Earlier full distro failure
+(QuickPart proto/uuid.h) and integrated ELF-loader crash are not resolved by
+renaming. Shared core qualification and a fresh package remain necessary.

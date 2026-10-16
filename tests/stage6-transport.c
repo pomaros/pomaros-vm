@@ -15,7 +15,7 @@ static BOOL hello(struct VMExchangeClient *c)
 {
     UBYTE reply[64];ULONG got=0;
     return VMExchangeRequest(c,1,NULL,0,reply,sizeof(reply),&got) &&
-      got==sizeof("Macaros host services 1")-1 && !memcmp(reply,"Macaros host services 1",got);
+      got==sizeof("PomAROS host services 1")-1 && !memcmp(reply,"PomAROS host services 1",got);
 }
 static LONG exchange(const char *args)
 {

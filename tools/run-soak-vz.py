@@ -20,7 +20,7 @@ if not a.disk.is_file() or a.disk.stat().st_size!=320*1024*1024:
     p.error('requires isolated desktop WORK image with VMSOAK, VMNET, VMCLIP and live session')
 a.output.mkdir(parents=True,exist_ok=False);a.output=a.output.resolve()
 disk=a.output/'system.img';shutil.copyfile(a.disk,disk)
-launcher=root/'build/macaros-vm';log=a.output/'console.log'
+launcher=root/'build/pomaros-vm';log=a.output/'console.log'
 result={'result':'FAIL','reason':'not-started','backend':'Virtualization.framework',
         'input_disk_sha256':hashlib.sha256(disk.read_bytes()).hexdigest(),
         'launcher_sha256':hashlib.sha256(launcher.read_bytes()).hexdigest()}

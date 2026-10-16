@@ -1,9 +1,9 @@
-# Working on Macaros VM
+# Working on PomAROS VM
 
 Private repository. Publish only to this private origin; upstream publication
 requires John's explicit instruction. MIT for host/tool code; preserve the
 licenses and provenance of imported files. OS changes belong in the isolated
-APL core checkout `../aros-core-vm`, not in the hosted Macaros tree.
+APL core checkout `../aros-core-pomaros`, not in the hosted PomAROS tree.
 
 Guest x18 is an ordinary caller-saved register. No guest build may reserve it.
 Host code follows the macOS ABI. Keep hardware virtualization tests separate

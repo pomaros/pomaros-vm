@@ -46,3 +46,12 @@ The ABI builder selects the VM SDK by default and permits compiler use of x18.
 `boot/headless-modules.json` uses the integration packager's ordered component
 list; `tools/package-core.py` packages freshly built modules and an independently
 rebuilt ABI command instead of extracting binaries from a seed bundle.
+
+## PomAROS product lineage
+
+The host repository is maintained at `pomaros/pomaros-vm`. Its Git history
+retains the original private `jonx/macaros-vm` lineage, including source import
+identities above. Historical names and file hashes are provenance, rather than
+active product settings. OS source is shared with the other PomAROS products
+in the sibling `aros-core-pomaros` checkout; its exact revision belongs in each
+package's provenance. No native product repository is populated by this migration.

@@ -35,14 +35,14 @@ final class Application: NSObject, NSApplicationDelegate, NSWindowDelegate, VZVi
     guard let window, window.isKeyWindow else { return }
     machineView?.capturesSystemKeys = false
     window.makeFirstResponder(nil)
-    window.title = "Macaros VM — click to return to AROS"
+    window.title = "PomAROS VM — click to return to AROS"
     NSApp.deactivate()
   }
 
   func windowDidBecomeKey(_ notification: Notification) {
     machineView?.capturesSystemKeys = true
     window.makeFirstResponder(machineView)
-    window.title = "Macaros VM — release input: Ctrl+Option+Esc"
+    window.title = "PomAROS VM — release input: Ctrl+Option+Esc"
   }
 
   func listener(_ listener: VZVirtioSocketListener,
@@ -131,7 +131,7 @@ final class Application: NSObject, NSApplicationDelegate, NSWindowDelegate, VZVi
         if FileManager.default.fileExists(atPath:macFile.path) {
           let saved=try String(contentsOf:macFile,encoding:.utf8).trimmingCharacters(in:.whitespacesAndNewlines)
           guard let mac=VZMACAddress(string:saved), mac.isUnicastAddress, mac.isLocallyAdministeredAddress else {
-            throw NSError(domain:"MacarosVM",code:1,userInfo:[NSLocalizedDescriptionKey:"Invalid saved VM MAC address"])
+            throw NSError(domain:"PomAROSVM",code:1,userInfo:[NSLocalizedDescriptionKey:"Invalid saved VM MAC address"])
           }
           network.macAddress=mac
         } else {
@@ -156,8 +156,8 @@ final class Application: NSObject, NSApplicationDelegate, NSWindowDelegate, VZVi
         if launchOptions.contains("--clipboard-test") {
           pasteboard=NSPasteboard(name:NSPasteboard.Name("org.aros.vm.test."+UUID().uuidString))
           pasteboard.clearContents()
-          guard pasteboard.setString("Macaros clipboard qualification",forType:.string) else {
-            throw NSError(domain:"MacarosClipboard",code:1)
+          guard pasteboard.setString("PomAROS clipboard qualification",forType:.string) else {
+            throw NSError(domain:"PomAROSClipboard",code:1)
           }
           print("clipboard-test private named pasteboard seeded");fflush(stdout)
         } else { pasteboard = .general }
@@ -180,7 +180,7 @@ final class Application: NSObject, NSApplicationDelegate, NSWindowDelegate, VZVi
           contentRect: NSRect(x: 0, y: 0, width: 1024, height: 768),
           styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered,
           defer: false)
-        window.title = "Macaros VM — release input: Ctrl+Option+Esc"
+        window.title = "PomAROS VM — release input: Ctrl+Option+Esc"
         // Local monitor runs before the VZ view handles the reserved chord.
         // No global event tap or Accessibility permission is required.
         releaseInputMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
@@ -286,7 +286,7 @@ final class Application: NSObject, NSApplicationDelegate, NSWindowDelegate, VZVi
     fflush(stdout)
   }
   func fail(_ error: Error) {
-    fputs("Macaros VM: \(error)\n", stderr)
+    fputs("PomAROS VM: \(error)\n", stderr)
     exit(1)
   }
   func finishTermination() {
@@ -356,7 +356,7 @@ if options.contains("--input-probe") && options.contains("--headless") && (!opti
 }
 if (!bundledLaunch && CommandLine.arguments.count < 3) || suppliedOptions.count != Set(suppliedOptions).count
   || options.contains(where: { !$0.hasPrefix("--cpus=") && $0 != "--headless" && $0 != "--gpu" && $0 != "--gpu-window" && $0 != "--usb-input" && $0 != "--input-probe" && $0 != "--network" && $0 != "--vsock-probe" && $0 != "--host-services" && $0 != "--clipboard-test" && $0 != "--force-stop" && $0 != "--window-close-test" && $0 != "--transport-cut-test" }) {
-  fputs("usage: macaros-vm DISK_IMAGE STATE_DIRECTORY [--cpus=N] [--headless] [--gpu] [--gpu-window] [--usb-input] [--input-probe] [--network] [--vsock-probe] [--host-services] [--clipboard-test] [--force-stop] [--window-close-test] [--transport-cut-test]\n", stderr)
+  fputs("usage: pomaros-vm DISK_IMAGE STATE_DIRECTORY [--cpus=N] [--headless] [--gpu] [--gpu-window] [--usb-input] [--input-probe] [--network] [--vsock-probe] [--host-services] [--clipboard-test] [--force-stop] [--window-close-test] [--transport-cut-test]\n", stderr)
   exit(2)
 }
 if #available(macOS 13.0, *) {
@@ -366,18 +366,18 @@ if #available(macOS 13.0, *) {
     let storage:VMStorage
     if bundledLaunch {
       guard let seed=Bundle.main.url(forResource:"System",withExtension:"img") else {
-        throw NSError(domain:"MacarosVM",code:1,userInfo:[NSLocalizedDescriptionKey:"No bundled system image; supply DISK_IMAGE and STATE_DIRECTORY for command-line use."])
+        throw NSError(domain:"PomAROSVM",code:1,userInfo:[NSLocalizedDescriptionKey:"No bundled system image; supply DISK_IMAGE and STATE_DIRECTORY for command-line use."])
       }
       let state:URL
-      if let override=ProcessInfo.processInfo.environment["MACAROS_VM_STATE_DIRECTORY"] {
+      if let override=ProcessInfo.processInfo.environment["POMAROS_VM_STATE_DIRECTORY"] {
         state=URL(fileURLWithPath:override,isDirectory:true)
       } else {
-        let profile = Bundle.main.object(forInfoDictionaryKey:"MacarosVMProfileName") as? String ?? "Default"
+        let profile = Bundle.main.object(forInfoDictionaryKey:"PomAROSVMProfileName") as? String ?? "Default"
         guard !profile.isEmpty, profile.utf8.allSatisfy({ ($0 >= 65 && $0 <= 90) || ($0 >= 97 && $0 <= 122) || ($0 >= 48 && $0 <= 57) || $0 == 45 || $0 == 95 }) else {
-          throw NSError(domain:"MacarosVM",code:1,userInfo:[NSLocalizedDescriptionKey:"Invalid bundled profile name."])
+          throw NSError(domain:"PomAROSVM",code:1,userInfo:[NSLocalizedDescriptionKey:"Invalid bundled profile name."])
         }
         state=try FileManager.default.url(for:.applicationSupportDirectory,in:.userDomainMask,appropriateFor:nil,create:true)
-          .appendingPathComponent("Macaros VM",isDirectory:true).appendingPathComponent(profile,isDirectory:true)
+          .appendingPathComponent("PomAROS VM",isDirectory:true).appendingPathComponent(profile,isDirectory:true)
       }
       storage=try VMStorage(state:state,seed:seed)
     } else {
@@ -391,14 +391,14 @@ if #available(macOS 13.0, *) {
     releaseItem.keyEquivalentModifierMask = [.control, .option]
     releaseItem.target = delegate
     applicationMenu.addItem(.separator())
-    applicationMenu.addItem(withTitle:"Quit Macaros VM",action:#selector(NSApplication.terminate(_:)),keyEquivalent:"q")
+    applicationMenu.addItem(withTitle:"Quit PomAROS VM",action:#selector(NSApplication.terminate(_:)),keyEquivalent:"q")
     app.mainMenu=menu
     app.run()
     withExtendedLifetime(delegate) {}
   } catch {
-    fputs("Macaros VM: \(error.localizedDescription)\n",stderr)
+    fputs("PomAROS VM: \(error.localizedDescription)\n",stderr)
     if bundledLaunch && !options.contains("--headless") {
-      let alert=NSAlert();alert.messageText="Macaros VM could not start"
+      let alert=NSAlert();alert.messageText="PomAROS VM could not start"
       alert.informativeText=error.localizedDescription;alert.runModal()
     }
     exit(1)

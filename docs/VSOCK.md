@@ -51,7 +51,7 @@ monotonic ten-second deadline, and closes. It exposes neither host files nor
 the clipboard. VZ owns each connection file descriptor; teardown runs on the
 main queue.
 
-Build the launcher with `make build/macaros-vm`, package a current headless
+Build the launcher with `make build/pomaros-vm`, package a current headless
 image with `tools/package-core.py --pci-hidd`, then run:
 
 ```sh

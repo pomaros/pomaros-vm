@@ -53,7 +53,7 @@ try:
     if a.work_volume:
         # Format an isolated file: mformat must never infer its bounds from the
         # boot disk or overwrite the already populated boot filesystem.
-        with tempfile.TemporaryDirectory(prefix='macaros-work-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='pomaros-work-') as temporary:
             volume = Path(temporary)/'WORK.img'
             with volume.open('xb') as stream: stream.truncate(work_bytes)
             run(['mformat','-i',str(volume),'-T',str(work_bytes//512),

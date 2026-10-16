@@ -1,4 +1,4 @@
-Macaros VM - AROS distribution
+PomAROS VM - AROS distribution
 
 Open System, Tools, Utilities and Prefs for the standard AROS applications.
 From a Shell, for example:
@@ -17,5 +17,5 @@ provide their own Copy/Paste commands. VMExchange transfers files through the
 profile's Shared folder; text and supported images can use the clipboard.
 
 This application uses the Distribution profile and leaves the existing Default
-profile intact. Zed, Ferail and third-party hosted Macaros applications are not
+profile intact. Zed, Ferail and third-party hosted PomAROS applications are not
 part of this distribution. See the LICENSE files for AROS licensing.

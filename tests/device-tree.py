@@ -7,7 +7,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 root = Path(__file__).resolve().parents[1]
-core = Path(os.environ.get('AROS_CORE_SOURCE', root.parent / 'aros-core-vm'))
+core = Path(os.environ.get('AROS_CORE_SOURCE', root.parent / 'aros-core-pomaros'))
 with tempfile.TemporaryDirectory(prefix='devicetree-') as directory:
     tmp = Path(directory)
     header = r'''

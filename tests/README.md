@@ -11,3 +11,10 @@
 The dispatch policy check is separate from the guest Wait/delivery check:
 Wait resumes with Disable nesting held and its final Enable may repair masks.
 The secondary probe does not establish concurrent Exec scheduling.
+
+## Product packaging gates
+
+| Command | Scope |
+|---|---|
+| `make test-host` | Host service framing, clipboard codec/services, personal disk safety and packaging admission; no VM execution. |
+| `python3 tests/package-backend.py` | VZ host bridge defaults and QEMU persistent desktop without a host bridge; unsupported bridge requests rejected. |

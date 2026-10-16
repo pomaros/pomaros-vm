@@ -16,8 +16,8 @@ p.add_argument('--output', type=Path, required=True)
 p.add_argument('--smp', action='store_true', help='isolated experimental Exec SMP build')
 p.add_argument('--source-date-epoch', default=os.environ.get('SOURCE_DATE_EPOCH'),
                help='build timestamp; defaults to the source commit timestamp')
-p.add_argument('--source', type=Path, default=root.parent / 'aros-core-vm')
-p.add_argument('--toolchain', type=Path, default=Path.home() / 'Source/aros-project/aros-crosstools')
+p.add_argument('--source', type=Path, default=Path(os.environ.get('AROS_CORE_SOURCE', root.parent / 'aros-core-pomaros')))
+p.add_argument('--toolchain', type=Path, default=root.parent / 'aros-crosstools')
 p.add_argument('--source-branch', action='append', default=[],
                help='an additional core branch accepted as the isolated VM source')
 a = p.parse_args()
@@ -27,8 +27,8 @@ toolchain = a.toolchain.resolve()
 if output.exists():
     p.error('output must be a new directory; configured or native builds are never reused')
 branch = subprocess.check_output(['git', '-C', str(source), 'branch', '--show-current'], text=True).strip()
-if branch not in ('codex-macaros-vm', 'codex-smp-integration', *a.source_branch):
-    p.error('select the isolated codex-macaros-vm or codex-smp-integration source branch, '
+if branch not in ('pomaros-common', 'codex-smp-integration', *a.source_branch):
+    p.error('select the isolated pomaros-common or codex-smp-integration source branch, '
             'or name the branch with --source-branch')
 if not toolchain.is_dir():
     p.error('the prebuilt AROS cross-toolchain directory is missing')

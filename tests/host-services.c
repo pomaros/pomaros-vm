@@ -53,7 +53,7 @@ int test_host_services(void)
     struct VMExchangeClient c;int okay=0;UBYTE data[4096];ULONG got=0;
     const char *name="vmbridge-qualification.bin";
     if(!VMExchangeOpen(&c))goto done;
-    if(!VMExchangeRequest(&c,1,NULL,0,data,sizeof(data),&got) || got!=sizeof("Macaros host services 1")-1 || memcmp(data,"Macaros host services 1",sizeof("Macaros host services 1")-1))goto close;
+    if(!VMExchangeRequest(&c,1,NULL,0,data,sizeof(data),&got) || got!=sizeof("PomAROS host services 1")-1 || memcmp(data,"PomAROS host services 1",sizeof("PomAROS host services 1")-1))goto close;
     if(VMExchangeRequest(&c,5,"../outside",10,data,sizeof(data),&got) || c.status!=1)goto close;
     if(!VMExchangeRequest(&c,2,name,strlen(name),NULL,0,&got))goto close;
     for(unsigned offset=0;offset<65536;offset+=sizeof(data)) {

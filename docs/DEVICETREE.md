@@ -51,7 +51,7 @@ The tree contained seven nodes including GICv3, its MSI frame, the ARM timer,
 PCI ECAM and virtio console. Final evidence: `artifacts/vz-devicetree-4/`;
 the whole desktop/command/shutdown check took 6.49 seconds.
 
-The ready application is `artifacts/distribution-devicetree/Macaros VM.app`.
+The ready application is `artifacts/distribution-devicetree/PomAROS VM.app`.
 It uses a fresh `Distribution-DeviceTree` profile so existing Default and
 Distribution disks are preserved. The updated resource and command must travel
 together; copying the command alone to the previous VM reports an old resource.

@@ -62,7 +62,7 @@ int test_clipboard_sync(void)
     UnLoadSeg(program);
     if(result || !openClip(&clip))goto done;
     ULONG bytes;LONG id;UBYTE *initial=readClip(&clip,&bytes,&id);
-    const char *seed="Macaros clipboard qualification";
+    const char *seed="PomAROS clipboard qualification";
     ULONG length=strlen(seed),stride=8+length+(length&1);
     BOOL seeded=initial && bytes==12+2*stride && !memcmp(initial+8,"FTXTCHRS",8) &&
         getBE(initial+16)==length && !memcmp(initial+20,seed,length) &&
@@ -141,7 +141,7 @@ int main(void)
     if(!openClip(&clip))goto done;
     for(unsigned i=0;i<100 && !seeded;++i) {
         ULONG bytes;LONG id;UBYTE *p=readClip(&clip,&bytes,&id);
-        const char *seed="Macaros clipboard qualification";
+        const char *seed="PomAROS clipboard qualification";
         ULONG length=strlen(seed),stride=8+length+(length&1);
         seeded=p && bytes==12+2*stride && !memcmp(p+8,"FTXTCHRS",8) &&
             getBE(p+16)==length && !memcmp(p+20,seed,length) &&

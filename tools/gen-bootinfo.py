@@ -151,7 +151,7 @@ def main() -> int:
         default=ROOT / "boot/arosboot/include/aros/apple/bootinfo.h",
     )
     parser.add_argument(
-        "--core-root", type=Path, default=ROOT.parent / "aros-core-vm"
+        "--core-root", type=Path, default=ROOT.parent / "aros-core-pomaros"
     )
     args = parser.parse_args()
 

@@ -1,26 +1,39 @@
-# Macaros VM
+# PomAROS VM
 
 AROS AArch64 running inside a hardware virtual machine on macOS. The guest
 uses the native AROS ABI, including x18 as a compiler temporary. The macOS
 launcher follows Apple's host ABI.
 
 This private project reuses the AROS kernel, UEFI loader and bundle tools.
-The existing hosted Macaros remains in its own repository.
+The existing hosted PomAROS remains in its own repository.
+
+## Shared guest source
+
+The source checkout `../aros-core-pomaros` is shared with PomAROS QEMU and the
+other products. This repository owns the Virtualization.framework application
+and the guest build/packaging tools consumed by `pomaros-qemu`. It contains no
+private copy of the kernel. Guest packages record their exact core revision;
+macOS hosted binaries use a distinct ABI and cannot be reused as VM modules.
+The native product repository stays empty and private during preparation.
+
+The current full distribution and desktop runtime are undergoing qualification;
+a successful host build does not establish a usable guest release. See the
+[handoff](when%20john%20is%20back.md) for observed blockers.
 
 ## Standard AROS distribution
 
 `make distrib` builds and packages the AROS desktop distribution for the VM,
 including tools, utilities, preferences, fonts, themes, catalogs and datatypes.
 Zed and Ferail are excluded. The result is
-`artifacts/distribution/Macaros VM.app`, with a separate `Distribution` profile
+`artifacts/distribution/PomAROS VM.app`, with a separate `Distribution` profile
 and persistent system files in `WORK:System`. See the
 [distribution build and disk layout](docs/DISTRIBUTION.md).
 
 ## Use the application
 
-Open the packaged `Macaros VM.app` to start the AROS desktop. The application
+Open the packaged `PomAROS VM.app` to start the AROS desktop. The application
 includes its guest system; first launch creates a personal profile in
-`~/Library/Application Support/Macaros VM/Default/`. Network access uses the
+`~/Library/Application Support/PomAROS VM/Default/`. Network access uses the
 Mac's connection through VZ NAT, so AROS needs no Wi-Fi configuration.
 
 Press **Control+Option+Esc** to release mouse/keyboard input to macOS. Click the
@@ -67,14 +80,15 @@ mtools and dtc:
 
 ```sh
 make
-make test
+make test-host
 make -C boot/arosboot
 ```
 
-`make test` executes a real EL1 guest with Hypervisor.framework, checks x18
+`make test-host` runs the host service, clipboard, storage and packaging gates.
+`make test` additionally executes a real EL1 guest with Hypervisor.framework, checks x18
 across VM exits, rejects a corrupted probe, and exercises the core FDT mapper
 under ASan/UBSan. `AROS_CORE_SOURCE` selects the kernel checkout; the default
-is `../aros-core-vm`.
+is `../aros-core-pomaros`.
 
 `tools/configure-core.py` configures an independent VM guest build.
 `tools/package-core.py` packages its freshly built modules and records their
@@ -84,7 +98,7 @@ with HVF, records exact inputs and requires both the kernel startup contract
 and the Wanderer framebuffer check. `--accel tcg` is the software regression
 lane; it never substitutes for an HVF failure.
 
-`build/macaros-vm DISK_IMAGE STATE_DIRECTORY [--headless]` launches the
+`build/pomaros-vm DISK_IMAGE STATE_DIRECTORY [--headless]` launches the
 Virtualization.framework application. The image must be a writable private
 copy. Firmware state lives separately in `STATE_DIRECTORY`. The automated VZ qualification lane
 is headless: `tools/run-vz.py --disk IMAGE --output NEW_DIR`. The VZ display

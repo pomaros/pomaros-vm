@@ -35,7 +35,7 @@ volume = a.output/'volume.img'
 with volume.open('xb') as f: f.truncate(total-base)
 subprocess.run(['mformat','-i',str(volume),'-T','32768','-v','VMTEST','::'],check=True)
 seed = a.output/'SEED.TXT'
-seed.write_bytes(b'MACAROS-VM-FILESYSTEM-TEST-V1\n')
+seed.write_bytes(b'POMAROS-VM-FILESYSTEM-TEST-V1\n')
 subprocess.run(['mcopy','-i',str(volume),str(seed),'::SEED.TXT'],check=True)
 with image.open('ab') as f: f.write(volume.read_bytes())
 expected = bytes(((i*37+11)^(i>>8))&255 for i in range(65536))

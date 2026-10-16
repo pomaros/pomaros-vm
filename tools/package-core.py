@@ -13,6 +13,7 @@ from types import SimpleNamespace
 
 root = Path(__file__).resolve().parents[1]
 p = argparse.ArgumentParser(description=__doc__)
+p.add_argument('--backend', choices=['vz', 'qemu'], default='vz')
 p.add_argument('--virtio-gpu', action='store_true')
 p.add_argument('--pci-hidd', action='store_true')
 p.add_argument('--virtio-device', action='store_true')
@@ -45,9 +46,12 @@ p.add_argument('--xhci-enumerate', action='store_true')
 p.add_argument('--build', type=Path, required=True)
 p.add_argument('--output', type=Path, required=True)
 p.add_argument('--profile', choices=['headless', 'wanderer'], default='headless')
-p.add_argument('--toolchain', type=Path, default=Path.home() / 'Source/aros-project/aros-crosstools')
+p.add_argument('--toolchain', type=Path, default=root.parent / 'aros-crosstools')
 p.add_argument('--efi', type=Path, required=True, help='explicit built UEFI loader; no implicit stale build selection')
 a = p.parse_args()
+if a.backend == 'qemu' and any((a.host_services, a.vsock_device, a.file_commands,
+        a.clipboard_sync, a.clipboard_probe, a.shutdown_probe, a.work_probe, a.soak_probe)):
+    p.error('QEMU has no host-service provider; omit vsock, file/clipboard and shutdown/work/soak qualification flags')
 if a.soak_probe:
     if not (a.work_volume and a.usb_desktop and a.desktop_session=='forever') or a.work_probe or a.shutdown_probe:
         p.error('--soak-probe requires --work-volume --usb-desktop --desktop-session forever and excludes work/shutdown probes')
@@ -62,7 +66,7 @@ if a.file_commands:
     a.host_services=True;a.virtio_device=True
 if a.command_startup and (a.profile!='headless' or a.host_services or a.vsock_device):
     p.error('--command-startup requires headless without host services or vsock device')
-if a.work_volume: a.host_services=True
+if a.work_volume and a.backend == 'vz': a.host_services=True
 if a.host_services: a.vsock_device=True
 if a.vsock_device and not (a.pci_hidd or (a.profile=='wanderer' and a.virtio_gpu)):
     p.error('--vsock-device requires --pci-hidd or a resident virtio-GPU desktop')
@@ -206,7 +210,7 @@ if a.network_stack:
         pci_files.append(('System/Network/AROSTCP/C/'+name,sdk/'AROS/System/Network/AROSTCP/C'/name))
     # Keep the standard tree: DHCP defaults and AROSTCP ProgramDir agree.
     configs={
-        'general.config':'USELOOPBACK=YES\nDEBUGSANA=NO\nGATEWAY=NO\nHOSTNAME=macaros-vm\nOPENGUI=NO\n',
+        'general.config':'USELOOPBACK=YES\nDEBUGSANA=NO\nGATEWAY=NO\nHOSTNAME=pomaros-'+a.backend+'\nOPENGUI=NO\n',
         'interfaces':'vn0 DEV=DEVS:Networks/virtionet.device UNIT=0 IP=DHCP NOTRACKING UP\n',
         'netdb':'WITH interfaces PREFIX=I\n',
     }
@@ -364,7 +368,7 @@ shutil.copyfile(efi, output / 'EFI/BOOT/BOOTAA64.EFI')
 inputs = ([output/'AROS/CPUPROBE.CFG'] if (a.smp_probe or a.smp_exec) else []) + ([output/'AROS/SESSION.CFG'] if a.desktop_session is not None else []) + ([pci_probe] if a.pci_hidd else []) + [path for _, path in pci_files] + [stage2, efi, probe, ramdisk] + [path for _, path in components] + programs
 manifest = {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in inputs}
 (output / 'provenance.json').write_text(json.dumps({
-    'profile': a.profile, 'smp_exec': a.smp_exec, 'smp_probe': a.smp_probe, 'soak_probe': a.soak_probe, 'work_volume': a.work_volume, 'work_probe': a.work_probe, 'shutdown_probe': a.shutdown_probe, 'clipboard_probe': a.clipboard_probe, 'clipboard_sync': a.clipboard_sync, 'file_commands': a.file_commands, 'command_startup': a.command_startup, 'vsock_device': a.vsock_device, 'host_services': a.host_services, 'network_tcp': bool(a.network_tcp_request), 'network_dns': a.network_dns, 'network_probe': a.network_probe, 'network_stack': a.network_stack, 'virtionet_device': a.virtionet_device, 'input_probe': a.input_probe, 'desktop_session': a.desktop_session, 'usb_desktop': a.usb_desktop, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,
+    'backend': a.backend, 'profile': a.profile, 'smp_exec': a.smp_exec, 'smp_probe': a.smp_probe, 'soak_probe': a.soak_probe, 'work_volume': a.work_volume, 'work_probe': a.work_probe, 'shutdown_probe': a.shutdown_probe, 'clipboard_probe': a.clipboard_probe, 'clipboard_sync': a.clipboard_sync, 'file_commands': a.file_commands, 'command_startup': a.command_startup, 'vsock_device': a.vsock_device, 'host_services': a.host_services, 'network_tcp': bool(a.network_tcp_request), 'network_dns': a.network_dns, 'network_probe': a.network_probe, 'network_stack': a.network_stack, 'virtionet_device': a.virtionet_device, 'input_probe': a.input_probe, 'desktop_session': a.desktop_session, 'usb_desktop': a.usb_desktop, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,
     'source_revision': revision, 'configure_command': configure_command,
     'inputs': manifest, 'bundle_sha256': hashlib.sha256(data).hexdigest(),
 }, indent=2) + '\n')

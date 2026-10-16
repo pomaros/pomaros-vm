@@ -11,9 +11,9 @@ usage()
 }
 
 project_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-sdk_root=${AROS_VM_SDK:-"$HOME/Source/aros-project/Build/macaros-vm/clean-core/bin/apple-aarch64"}
+sdk_root=${AROS_VM_SDK:-"$project_root/../Build/pomaros-vm/clean-core/bin/apple-aarch64"}
 sdk_tools=
-crosstools=${AROS_CROSSTOOLS:-"$HOME/Source/aros-project/aros-crosstools"}
+crosstools=${AROS_CROSSTOOLS:-"$project_root/../aros-crosstools"}
 profile=cli
 
 while [ "$#" -gt 0 ]; do
@@ -142,7 +142,7 @@ if [ "$profile" = desktop-clipboard ]; then
     set -- -DVM_CLIPBOARD_DESKTOP
 fi
 if [ "$profile" = stage6-transport ]; then
-    set -- "${AROS_CORE_SOURCE:-$project_root/../aros-core-vm}/workbench/tools/VMExchange/client.c"
+    set -- "${AROS_CORE_SOURCE:-$project_root/../aros-core-pomaros}/workbench/tools/VMExchange/client.c"
 fi
 if [ "$profile" = platform ]; then
     set -- "$project_root/tests/command-startup.c"
@@ -154,10 +154,10 @@ fi
     --target=aarch64-unknown-aros \
     -mcmodel=large -fno-pic -fno-pie -femulated-tls \
     -O2 -Wall -Wextra -Werror \
-    -I"${AROS_CORE_SOURCE:-$project_root/../aros-core-vm}/workbench/tools/VMExchange" \
-    -I"${AROS_CORE_SOURCE:-$project_root/../aros-core-vm}/rom/hidds/pci" \
-    -I"${AROS_CORE_SOURCE:-$project_root/../aros-core-vm}/rom/devs/virtio" \
-    -I"${AROS_CORE_SOURCE:-$project_root/../aros-core-vm}/rom/hidds/virtiogfx" \
+    -I"${AROS_CORE_SOURCE:-$project_root/../aros-core-pomaros}/workbench/tools/VMExchange" \
+    -I"${AROS_CORE_SOURCE:-$project_root/../aros-core-pomaros}/rom/hidds/pci" \
+    -I"${AROS_CORE_SOURCE:-$project_root/../aros-core-pomaros}/rom/devs/virtio" \
+    -I"${AROS_CORE_SOURCE:-$project_root/../aros-core-pomaros}/rom/hidds/virtiogfx" \
     -isystem "$include_dir" -isystem "$generated_include_dir" \
     -isystem "$posix_include_dir" -isystem "$stdc_include_dir" \
     -nostartfiles -nodefaultlibs \

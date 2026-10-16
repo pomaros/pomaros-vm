@@ -3,13 +3,13 @@
 # Copyright (c) 2026 John Knipper
 set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-core=${AROS_CORE_SOURCE:-"$root/../aros-core-vm"}
-build=${AROS_BUILD:-"$HOME/Source/aros-project/Build/macaros-vm/core"}
+core=${AROS_CORE_SOURCE:-"$root/../aros-core-pomaros"}
+build=${AROS_BUILD:-"$root/../Build/pomaros-vm/clean-core"}
 [ -f "$build/arch/aarch64-apple/mmakefile" ] || {
     echo 'An isolated configured AROS Apple build is required; see docs/BUILD.md.' >&2
     exit 1
 }
-[ "$(git -C "$core" branch --show-current)" = codex-macaros-vm ] || {
+[ "$(git -C "$core" branch --show-current)" = pomaros-common ] || {
     echo 'Refusing a shared native core branch; select the isolated VM checkout.' >&2
     exit 1
 }

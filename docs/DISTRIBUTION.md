@@ -1,14 +1,14 @@
-# AROS distribution for Macaros VM
+# AROS distribution for PomAROS VM
 
 `make distrib` builds the standard AROS desktop runtime and packages an autonomous
-Macaros VM application. It follows the runtime boundary of hosted Macaros's
+PomAROS VM application. It follows the runtime boundary of hosted PomAROS's
 `graft/make-aros-release.sh` (file revision
 `f44b2ce96738f2af4522310f7b5e44b54fd9f1ee`): C, Classes, Devs, Extras, Fonts, L, Libs, Locale,
 Prefs, S, Storage, System, Tools, Utilities and WBStartup, with desktop icons.
 Zed, Ferail and Moonstone are excluded, as are the Developer SDK, debug symbols,
 crash files and native Apple diagnostic commands. Runtime Devs payloads use
 an explicit portable/VM allowlist; Apple hardware modules are excluded from
-that directory. Hosted Macaros is reference
+that directory. Hosted PomAROS is reference
 material only: its executables and macOS drivers are never copied into the VM.
 
 The build uses the VM-configured AArch64 SDK with ordinary x18 and pinned AROS
@@ -32,7 +32,7 @@ make distrib VM_DISTRIB_BUILD=/absolute/configured-vm-build \
 The existing VM build and EFI loader must have been prepared as documented in
 BUILD.md. The output must be new; packaging refuses to replace user disks or an
 existing distribution. Source changes must be committed before recording the
-signed application. The result is `artifacts/distribution/Macaros VM.app`.
+signed application. The result is `artifacts/distribution/PomAROS VM.app`.
 Signing is local/ad-hoc, not Developer ID notarization or public publication.
 
 ## Disk and startup
@@ -60,8 +60,8 @@ VM distribution. Preset icons for absent programs are left in the preset and
 do not create dead desktop entries. The current selected set is Gorilla.
 
 The distribution app uses the separate `Distribution` profile under
-`~/Library/Application Support/Macaros VM/`. Opening it does not replace the
-existing minimal `Default` profile. An explicit `MACAROS_VM_STATE_DIRECTORY`
+`~/Library/Application Support/PomAROS VM/`. Opening it does not replace the
+existing minimal `Default` profile. An explicit `POMAROS_VM_STATE_DIRECTORY`
 still overrides this. A profile is seeded only on its first launch. The old
 boot-only image updater is not a distribution updater: it preserves WORK and
 therefore cannot install or upgrade `WORK:System`.
@@ -78,10 +78,10 @@ inventories):
 
 ```sh
 python3 tools/upgrade-distribution.py \
-  --old-app '/path/to/old/Macaros VM.app' \
-  --new-app '/path/to/new/Macaros VM.app' \
-  --disk "$HOME/Library/Application Support/Macaros VM/Distribution/system.img" \
-  --output "$HOME/Library/Application Support/Macaros VM/Distribution/upgraded.img"
+  --old-app '/path/to/old/PomAROS VM.app' \
+  --new-app '/path/to/new/PomAROS VM.app' \
+  --disk "$HOME/Library/Application Support/PomAROS VM/Distribution/system.img" \
+  --output "$HOME/Library/Application Support/PomAROS VM/Distribution/upgraded.img"
 ```
 
 The output is a new 320 MiB disk with the new app's boot volume and
@@ -112,4 +112,4 @@ boot retains its existing arena limit.
 
 `make test-page-arena` checks the real allocator’s range boundaries under host
 address/undefined-behaviour sanitizers for both native and VM arena limits.
-Set `AROS_CORE_SOURCE` if the core worktree is not the sibling `aros-core-vm`.
+Set `AROS_CORE_SOURCE` if the core worktree is not the sibling `aros-core-pomaros`.

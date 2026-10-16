@@ -1,10 +1,10 @@
-AROS_CORE_SOURCE ?= ../aros-core-vm
+AROS_CORE_SOURCE ?= ../aros-core-pomaros
 FDT_DIR := $(AROS_CORE_SOURCE)/arch/aarch64-all/boot/fdt
 FDT_SOURCES := $(addprefix $(FDT_DIR)/libfdt/,fdt.c fdt_ro.c fdt_sw.c fdt_check.c)
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 John Knipper
 .PHONY: all test clean
-all: build/x18-probe build/x18.bin build/macaros-vm
+all: build/x18-probe build/x18.bin build/pomaros-vm
 build:
 	mkdir -p $@
 build/x18.o: guest/x18.S | build
@@ -25,12 +25,12 @@ test: all build/vz-platform-test build/gic-contract-test build/pci-ecam-access-t
 	python3 tests/pci-ecam-codegen.py
 	build/virtio-pci-map-test
 	build/virtio-status-test
-	python3 tools/gen-bootinfo.py --check
-	cmp include/vm-console.h ../aros-core-vm/arch/aarch64-apple/include/aros/apple/vmconsole.h
+	python3 tools/gen-bootinfo.py --check --core-root "$(AROS_CORE_SOURCE)"
+	cmp include/vm-console.h $(AROS_CORE_SOURCE)/arch/aarch64-apple/include/aros/apple/vmconsole.h
 clean:
 	rm -rf build
 
-build/macaros-vm: Makefile src/main.swift src/VMStorage.swift src/HostServices.swift src/ClipboardCodec.swift src/ClipboardStore.swift entitlements.plist | build
+build/pomaros-vm: Makefile src/main.swift src/VMStorage.swift src/HostServices.swift src/ClipboardCodec.swift src/ClipboardStore.swift entitlements.plist | build
 	SWIFT_DETERMINISTIC_HASHING=1 swiftc -target arm64-apple-macos13.0 -O -whole-module-optimization -num-threads 1 -module-cache-path build/swift-module-cache -warnings-as-errors -framework AppKit -framework Virtualization src/main.swift src/VMStorage.swift src/HostServices.swift src/ClipboardCodec.swift src/ClipboardStore.swift -o $@
 	codesign --force --sign - --entitlements entitlements.plist $@
 
@@ -47,7 +47,7 @@ build/gic-contract-test: tests/gic-contract.c $(GIC_CONTRACT_SOURCES) | build
 	 -I$(AROS_CORE_SOURCE)/arch/aarch64-apple/include \
 	 -I$(AROS_CORE_SOURCE)/arch/aarch64-apple/bootstrap $< $(GIC_CONTRACT_SOURCES) -o $@
 
-AROS_VM_SDK ?= $(HOME)/Source/aros-project/Build/macaros-vm/clean-core/bin/apple-aarch64
+AROS_VM_SDK ?= $(abspath ../Build/pomaros-vm/clean-core)/bin/apple-aarch64
 OF_SOURCE := $(AROS_CORE_SOURCE)/rom/openfirmware
 .PHONY: test-openfirmware
 test-openfirmware: build/openfirmware-fdt-test
@@ -134,7 +134,7 @@ build/console-timeout-test: tests/console-timeout.c include/vm-console.h | build
 XHCI_SOURCE := $(AROS_CORE_SOURCE)/rom/usb/pcixhci
 build/xhci-dma-test: tests/xhci-dma.c $(XHCI_SOURCE)/xhci_dma.c | build
 	clang -std=gnu11 -Wall -Wextra -Werror -Wno-unused-parameter -Wno-ignored-attributes -fsanitize=address,undefined -fno-sanitize-recover=all \
-	 -I$(XHCI_SOURCE) -idirafter $(HOME)/Source/aros-project/Build/macaros-vm/clean-core/bin/apple-aarch64/AROS/Developer/include $< -o $@
+	 -I$(XHCI_SOURCE) -idirafter $(abspath ../Build/pomaros-vm/clean-core)/bin/apple-aarch64/AROS/Developer/include $< -o $@
 .PHONY: test-xhci-dma
 test-xhci-dma: build/xhci-dma-test
 	build/xhci-dma-test
@@ -220,15 +220,15 @@ build/vm-storage-test: src/VMStorage.swift tests/vm-storage.swift | build
 	swiftc -target arm64-apple-macos13.0 -O -warnings-as-errors src/VMStorage.swift tests/vm-storage.swift -o $@
 
 # Full standard AROS distribution; build binaries for VM, never copy hosted ones.
-VM_DISTRIB_BUILD ?= $(HOME)/Source/aros-project/Build/macaros-vm/clean-core
-VM_DISTRIB_EFI ?= build/uefi-desktop-session/BOOTAA64.EFI
+VM_DISTRIB_BUILD ?= $(abspath ../Build/pomaros-vm/clean-core)
+VM_DISTRIB_EFI ?= build/uefi/BOOTAA64.EFI
 VM_DISTRIB_OUTPUT ?= artifacts/distribution
 .PHONY: distrib distribution distribution-build
 distribution-build:
 	python3 tools/distribution.py build --build "$(VM_DISTRIB_BUILD)"
-distrib distribution: build/macaros-vm distribution-build
+distrib distribution: build/pomaros-vm distribution-build
 	python3 tools/distribution.py package --build "$(VM_DISTRIB_BUILD)" --efi "$(VM_DISTRIB_EFI)" --output "$(VM_DISTRIB_OUTPUT)"
-	python3 tools/package-app.py --esp "$(VM_DISTRIB_OUTPUT)/esp" --output "$(VM_DISTRIB_OUTPUT)/Macaros VM.app" --profile-name Distribution
+	python3 tools/package-app.py --esp "$(VM_DISTRIB_OUTPUT)/esp" --output "$(VM_DISTRIB_OUTPUT)/PomAROS VM.app" --profile-name Distribution
 
 .PHONY: test-package-app
 test-package-app:
@@ -237,3 +237,11 @@ test-package-app:
 .PHONY: test-page-arena
 test-page-arena:
 	python3 tests/page-arena.py
+
+# Host-only gates do not start hardware virtualization or touch personal profiles.
+.PHONY: test-host
+test-host: test-host-services test-clipboard-codec test-clipboard-services test-vm-storage test-package-app test-package-backend
+
+.PHONY: test-package-backend
+test-package-backend:
+	python3 tests/package-backend.py

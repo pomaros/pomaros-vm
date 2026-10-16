@@ -28,7 +28,7 @@ a.output.mkdir(parents=True)
 a.output = a.output.resolve()
 image = a.output/'prepared.img'
 shutil.copyfile(a.disk, image)
-magic = b'MACAROS-VM-STORAGE-TEST-V1\n'.ljust(4096, b'\0')
+magic = b'POMAROS-VM-STORAGE-TEST-V1\n'.ljust(4096, b'\0')
 pattern = bytes(((i*37+11)^(i>>8))&255 for i in range(4096))
 with image.open('r+b') as f:
     f.truncate(total)

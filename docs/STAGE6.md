@@ -1,4 +1,4 @@
-# Macaros VM: stage-six acceptance
+# PomAROS VM: stage-six acceptance
 
 This is the execution checklist for John's VM goal. Architectural requirements
 remain in `aros-next/docs/AARCH64.md`, `docs/ROADMAP.md` and the device-tree
@@ -47,7 +47,7 @@ Standalone application: `tools/package-app.py` produces a private signed .app
 with a probe-free seed. Bundled VZ mode passes first-launch copy, desktop/HID
 startup, state/disk exclusivity and guest-acknowledged shutdown; host tests prove
 later seed changes preserve personal disk bytes. Normal location is Application
-Support/Macaros VM/Default. This is not Finder-click or VZ pixel verification,
+Support/PomAROS VM/Default. This is not Finder-click or VZ pixel verification,
 and does not qualify GUI editing commands. The current full-build comparison
 includes the GPU IRQ/MSI changes. Independent launcher builds and same-input
 signed app packaging have passed their comparisons.
@@ -102,7 +102,7 @@ probe had a compile-time format warning, fixed before the combined run.
 To repeat the bounded VM test from a configured SDK and new output directory:
 
 ```sh
-python3 tests/stage6-vz.py --app "artifacts/stage6-final/Macaros VM.app" \
+python3 tests/stage6-vz.py --app "artifacts/stage6-final/PomAROS VM.app" \
   --output artifacts/vz-stage6-repeat
 ```
 
@@ -131,7 +131,7 @@ and a build-local Swift module cache. Both signed launchers have SHA256
 `db00d7697aa48c756ef2b1288daa06110e959b36d1a70b3e1fdeb567a5717ff0`.
 Earlier cold builds with the default compilation options produced differing
 code bytes, so the Makefile now pins this tested recipe. The updated signed app
-at `artifacts/stage6-final/Macaros VM.app` passed the integrated VZ gate in
+at `artifacts/stage6-final/PomAROS VM.app` passed the integrated VZ gate in
 19.55 seconds (`artifacts/vz-stage6-final-deterministic-1/verdict.json`). Its
 packaged executable has a different outer hash because the app itself is
 signed again; its provenance records the matching pre-package launcher hash.
@@ -143,7 +143,7 @@ stage2. This is a build check, separate from the bounded VZ runs above.
 
 The later French-keyboard distribution stores `pc105_f` in `ENVARC:Keymap`;
 the existing `LoadKeymap RESTORE` startup command reads it. Its signed app at
-`artifacts/stage6-french/Macaros VM.app` passed the integrated VZ gate in
+`artifacts/stage6-french/PomAROS VM.app` passed the integrated VZ gate in
 21.89 seconds (`artifacts/vz-stage6-french-1/verdict.json`). The packaged seed
 and stopped test disk read back `pc105_f`. John confirmed that French typing
 works in the existing `Distribution-Stage6Final` profile after it was updated

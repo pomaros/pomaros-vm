@@ -9,8 +9,8 @@ The supported configuration builds into a new directory with
 `tools/configure-core.py`, followed by the payload target and
 `tools/package-core.py` as shown below. The packager consumes only products
 from that build and refuses missing components. No native object directory or
-seed bundle is needed. Core source lives in `~/Source/aros-project/aros-core-vm`, on the
-private `codex-macaros-vm` branch; qualified revisions are recorded in
+seed bundle is needed. Core source lives in `../aros-core-pomaros`, on the
+private `pomaros-common` branch; qualified revisions are recorded in
 `when john is back.md`.
 
 Guest C and assembly target AArch64 ELF without `-ffixed-x18`. EFI targets
@@ -116,10 +116,10 @@ positive kernel hash before using the build again.
 ## Fresh configuration
 
 ```sh
-python3 tools/configure-core.py --output "$HOME/Source/aros-project/Build/macaros-vm/clean-core"
-make -C "$HOME/Source/aros-project/Build/macaros-vm/clean-core" -j8 apple-boot-payloads
+python3 tools/configure-core.py --output "../Build/pomaros-vm/clean-core"
+make -C "../Build/pomaros-vm/clean-core" -j8 apple-boot-payloads
 make -C boot/arosboot BUILD=../../build/uefi-clean
-python3 tools/package-core.py --build "$HOME/Source/aros-project/Build/macaros-vm/clean-core" \
+python3 tools/package-core.py --build "../Build/pomaros-vm/clean-core" \
   --efi build/uefi-clean/BOOTAA64.EFI --output build/fresh-headless
 python3 tools/make-disk.py --esp build/fresh-headless --output build/fresh-headless.img
 python3 tools/run-vz.py --disk build/fresh-headless.img --output artifacts/fresh-vz
@@ -128,7 +128,7 @@ python3 tools/run-qemu.py --esp build/fresh-headless --profile core \
 ```
 
 The output directory must not exist. The helper uses the prebuilt cross
-toolchain in `~/Source/aros-project/aros-crosstools` (override with `--toolchain`), records the
+toolchain in `../aros-crosstools` (override with `--toolchain`), records the
 configure command and log, and selects `--enable-vm-guest`. This profile exports
 `AROS_VM_GUEST=1` to generated makefiles and omits the native x18 reservation
 from C and C++ flags. Other targets cannot select this profile; the physical
@@ -147,9 +147,9 @@ Repeating packaging can verify byte-identical bundles; that is separate from
 comparing two independent complete builds. Build and package the desktop with:
 
 ```sh
-make -C "$HOME/Source/aros-project/Build/macaros-vm/clean-core" -j8 apple-wanderer-payloads
-make -C "$HOME/Source/aros-project/Build/macaros-vm/clean-core" -j8 workbench-c
-python3 tools/package-core.py --build "$HOME/Source/aros-project/Build/macaros-vm/clean-core" \
+make -C "../Build/pomaros-vm/clean-core" -j8 apple-wanderer-payloads
+make -C "../Build/pomaros-vm/clean-core" -j8 workbench-c
+python3 tools/package-core.py --build "../Build/pomaros-vm/clean-core" \
   --efi build/uefi-clean/BOOTAA64.EFI --profile wanderer --output build/fresh-wanderer
 python3 tools/run-qemu.py --esp build/fresh-wanderer --output artifacts/fresh-desktop \
   --require-timer --require-irq-chain --gic-version 3
@@ -190,7 +190,7 @@ constructor under ASan/UBSan, including failure at every allocation. This target
 is separate from the SDK-independent host test suite (`make test`).
 
 The generic PCI ECAM class can be built independently with
-`make -C "$HOME/Source/aros-project/Build/macaros-vm/clean-core" -j8 kernel-hidd-pciecam`.
+`make -C "../Build/pomaros-vm/clean-core" -j8 kernel-hidd-pciecam`.
 `make test-pci-ecam-class` uses the actual class methods and SDK structures under
 host sanitizers; it does not qualify class loading or device enumeration in a
 guest. The VM platform must supply admitted mappings and a configuration-write
@@ -211,7 +211,7 @@ retained bridge. The permanent module keeps its admitted mappings for the VM
 lifetime and reserves the boot console. DMA translation is limited to buffers
 allocated through its explicit platform policy. On a discovered GICv2m frame,
 the resident driver provides one MSI-X table entry per device.
-Build it with `make -C "$HOME/Source/aros-project/Build/macaros-vm/clean-core" -j8 kernel-hidd-vmpci`;
+Build it with `make -C "../Build/pomaros-vm/clean-core" -j8 kernel-hidd-vmpci`;
 this target is limited to the VM profile. Both resident markers are required
 by `--require-pci-hidd`. The default package without that option does not load
 the platform driver.
@@ -496,7 +496,7 @@ accepts an explicit 1–512 byte script with the Wanderer profile, without
 Build the EFI loader with `make -C boot/arosboot`. For a live desktop, package
 with `--profile wanderer --virtio-gpu --usb-desktop --desktop-session forever`.
 Use that loader with `--efi build/uefi/BOOTAA64.EFI`. Launch the resulting disk
-with `build/macaros-vm DISK_IMAGE STATE_DIRECTORY` to show its VZ window.
+with `build/pomaros-vm DISK_IMAGE STATE_DIRECTORY` to show its VZ window.
 The process owns the session until it is stopped. Keyboard/pointer event
 acceptance requires separate qualification; HID binding does not prove it.
 
@@ -612,20 +612,20 @@ After building the launcher and a normal `--work-volume --network-stack
 --usb-desktop --desktop-session forever` package, commit source changes and run:
 
 ```sh
-python3 tools/package-app.py --esp artifacts/desktop-safe-quit-bundle --output 'artifacts/Macaros VM.app'
+python3 tools/package-app.py --esp artifacts/desktop-safe-quit-bundle --output 'artifacts/PomAROS VM.app'
 ```
 
 The app includes its boot disk, guest provenance and license notices. It is
 ad-hoc signed for private local use, not notarized for public distribution.
 Opening it without arguments starts the desktop with network and host services.
 First launch copies the seed into
-`~/Library/Application Support/Macaros VM/Default/system.img`. Later launches
+`~/Library/Application Support/PomAROS VM/Default/system.img`. Later launches
 reuse that disk and state (including NVRAM, MAC and Shared directory). Updating
 or replacing the app does not replace a populated disk. A failed initial copy
 is not published as system.img. The application locks its state while running; VZ owns the disk attachment
 lease. An extra flock on the disk would conflict with VZ itself.
 
-`MACAROS_VM_STATE_DIRECTORY` overrides the state location for isolated testing.
+`POMAROS_VM_STATE_DIRECTORY` overrides the state location for isolated testing.
 Bundled mode also accepts flags such as `--headless --gpu --usb-input
 --clipboard-test`; no disk/state positional arguments are then needed. The
 explicit `DISK_IMAGE STATE_DIRECTORY [flags]` command-line form remains available.
@@ -654,7 +654,7 @@ prerequisite so changing build flags triggers recompilation. This was checked
 with the installed toolchain recorded in artifacts/packaging-repro-tools.json.
 
 The EFI makefile already fixes the PE timestamp to zero. Two fresh copies of
-boot/arosboot and include, built with `make AROS_CORE_SOURCE=/Users/jkn/Source/aros-project/aros-core-vm`,
+boot/arosboot and include, built with `make AROS_CORE_SOURCE=../aros-core-pomaros`,
 produce identical EFI bytes matching the qualified desktop loader. App packaging
 also produces identical signed file bytes and modes from frozen inputs. None
 of these claims substitutes for the full guest/SDK comparison; its exact source scope is recorded in stage-six acceptance.
@@ -673,7 +673,7 @@ makefile exports alone do not reach its $(shell) expressions.
 
 ```sh
 python3 tests/build-date.py
-python3 tools/rebuild-compare.py --output "$HOME/Source/aros-project/Build/macaros-vm/repro-current-20261001"
+python3 tools/rebuild-compare.py --output "../Build/pomaros-vm/repro-current-20261001"
 ```
 
 The comparison tool freezes a clean core clone (preserving repository identity
@@ -714,7 +714,7 @@ stop the VM and create a separate disk with the new seed and existing WORK:
 python3 tools/update-system-image.py \
   --seed "NEW.app/Contents/Resources/System.img" \
   --disk "OLD_PROFILE/system.img" --output "NEW_PROFILE/system.img"
-MACAROS_VM_STATE_DIRECTORY="NEW_PROFILE" "NEW.app/Contents/MacOS/MacarosVM"
+POMAROS_VM_STATE_DIRECTORY="NEW_PROFILE" "NEW.app/Contents/MacOS/PomAROSVM"
 ```
 
 Use absolute profile paths when launching from another directory. The helper
@@ -751,3 +751,16 @@ driver's IRQ completion marker in addition to desktop startup and verified
 QMP desktop pixels. Selecting an MSI controller alone proves no interrupt
 delivery. The current GICv3/GICv2m HVF trial aborts in QEMU before completion;
 see the handoff for the retained failure and diagnostic attempt.
+
+## QEMU packaging backend
+
+`tools/package-core.py` and `tools/distribution.py package` accept
+`--backend vz|qemu`; the default is `vz`. Both consume the same configured VM
+build. QEMU packages retain WORK storage, USB input and networking without
+starting VMSync or requiring a vsock host-service provider. Host clipboard,
+file exchange and coordinated host shutdown are unavailable in that backend.
+The QEMU product owns its launcher and shutdown interface. A bounded test
+harness is separate from its interactive launcher.
+
+`python3 tests/package-backend.py` checks the actual argument admission phase
+for both backends and rejects unsupported QEMU host-service requests.

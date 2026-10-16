@@ -7,7 +7,7 @@ import os
 import subprocess
 import tempfile
 
-core=Path(__file__).resolve().parents[2]/'aros-core-vm'
+core=Path(__file__).resolve().parents[2]/'aros-core-pomaros'
 source=(core/'config/make.cfg.in').read_text()
 block=source[source.index('# Reproducible command version'):source.index('# Bootstrap ELF')]
 count=0

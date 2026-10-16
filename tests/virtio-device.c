@@ -47,7 +47,7 @@ static int transfer(struct IOStdReq *io,UWORD command,ULONG offset,void *data,UL
 static UBYTE pattern(unsigned i) { return (UBYTE)((i*37+11)^(i>>8)); }
 static int storage_test(struct IOStdReq *io,UBYTE *buffer)
 {
-    static const char magic[]="MACAROS-VM-STORAGE-TEST-V1\n";
+    static const char magic[]="POMAROS-VM-STORAGE-TEST-V1\n";
     int result=transfer(io,CMD_READ,TEST_BASE,buffer,4096);
     if(result!=1)return result;
     for(unsigned i=0;i<4096;++i)
@@ -131,7 +131,7 @@ static int filesystem_test(struct IOStdReq *io,UBYTE *buffer,int crash)
     if(!node->dn_SegList || !AddDosEntry((void *)node)) { FreeVec(node);return 0; }
     mark("[VM] filesystem mount begin\n");
     BPTR file=Open((CONST_STRPTR)"VMTEST0:SEED.TXT",MODE_OLDFILE);
-    static const char seed[]="MACAROS-VM-FILESYSTEM-TEST-V1\n";
+    static const char seed[]="POMAROS-VM-FILESYSTEM-TEST-V1\n";
     if(!file)return 0;
     LONG bytes=Read(file,buffer,4096);Close(file);
     if(bytes!=sizeof(seed)-1 || memcmp(buffer,seed,sizeof(seed)-1))return 0;

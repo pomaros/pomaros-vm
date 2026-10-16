@@ -24,7 +24,7 @@ try:
     (a.output/'baseline-runner.log').write_text(baseline.stdout+baseline.stderr)
     if baseline.returncode:raise RuntimeError('baseline-failed')
     verdict['input_sha256']=hashlib.sha256(a.disk.read_bytes()).hexdigest()
-    verdict['launcher_sha256']=hashlib.sha256((root/'build/macaros-vm').read_bytes()).hexdigest()
+    verdict['launcher_sha256']=hashlib.sha256((root/'build/pomaros-vm').read_bytes()).hexdigest()
     source=a.output/'baseline/restart/system.img'
     crash=a.output/'crash.img';shutil.copyfile(source,crash)
     # Geometry selects crash mode, outside the mounted 64..80 MiB volume.
@@ -32,7 +32,7 @@ try:
     log=a.output/'crash-console.log'
     armed=False;start=time.monotonic()
     with log.open('w') as output:
-        proc=subprocess.Popen([str(root/'build/macaros-vm'),str(crash),str(a.output/'crash-state'),
+        proc=subprocess.Popen([str(root/'build/pomaros-vm'),str(crash),str(a.output/'crash-state'),
                                '--headless'],stdout=output,stderr=subprocess.STDOUT)
         try:
             while time.monotonic()-start<20:

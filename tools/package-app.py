@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 John Knipper
-"""Build a private, ad-hoc signed Macaros VM app with an immutable seed disk."""
+"""Build a private, ad-hoc signed PomAROS VM app with an immutable seed disk."""
 import argparse
 import hashlib
 import json
@@ -47,20 +47,20 @@ def main():
         validate_desktop(manifest, (a.esp/'Startup-Sequence').read_text())
     except ValueError as error:
         p.error(str(error))
-    launcher=root/'build/macaros-vm'
+    launcher=root/'build/pomaros-vm'
     if not launcher.is_file(): p.error('build the launcher first')
     a.output.mkdir(parents=True)
     try:
         contents=a.output/'Contents';binary=contents/'MacOS';resources=contents/'Resources'
         binary.mkdir(parents=True);resources.mkdir()
-        shutil.copy2(launcher,binary/'MacarosVM')
+        shutil.copy2(launcher,binary/'PomAROSVM')
         subprocess.run(['python3',str(root/'tools/make-disk.py'),'--esp',str(a.esp),
                         '--output',str(resources/'System.img')],check=True)
-        identifier='me.jkn.macaros-vm'+('' if a.profile_name=='Default' else '.'+a.profile_name.lower().replace('_','-'))
-        info={'CFBundleIdentifier':identifier,'CFBundleName':'Macaros VM',
-              'CFBundleDisplayName':'Macaros VM','CFBundleExecutable':'MacarosVM',
+        identifier='org.pomaros.vm'+('' if a.profile_name=='Default' else '.'+a.profile_name.lower().replace('_','-'))
+        info={'CFBundleIdentifier':identifier,'CFBundleName':'PomAROS VM',
+              'CFBundleDisplayName':'PomAROS VM','CFBundleExecutable':'PomAROSVM',
               'CFBundlePackageType':'APPL','CFBundleShortVersionString':'0.1.0',
-              'CFBundleVersion':'1','MacarosVMProfileName':a.profile_name,'LSMinimumSystemVersion':'13.0','NSHighResolutionCapable':True}
+              'CFBundleVersion':'1','PomAROSVMProfileName':a.profile_name,'LSMinimumSystemVersion':'13.0','NSHighResolutionCapable':True}
         (contents/'Info.plist').write_bytes(plistlib.dumps(info,sort_keys=True))
         provenance={'source_revision':subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],text=True).strip(),
                     'guest':manifest,'launcher_sha256':hashlib.sha256(launcher.read_bytes()).hexdigest(),

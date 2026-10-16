@@ -5,13 +5,13 @@ import argparse
 import hashlib,json,os,shutil,subprocess,time
 root=Path(__file__).resolve().parents[1]
 parser=argparse.ArgumentParser(description="Bounded VZ image, forced stream cut and window close qualification")
-parser.add_argument('--app',type=Path,default=root/'artifacts/stage6-release/Macaros VM.app')
+parser.add_argument('--app',type=Path,default=root/'artifacts/stage6-release/PomAROS VM.app')
 parser.add_argument('--output',type=Path,required=True)
 a=parser.parse_args();out=a.output.resolve()
 if out.exists():parser.error('output must be new')
 out.mkdir(parents=True)
 seed=a.app/'Contents/Resources/System.img'
-launcher=a.app/'Contents/MacOS/MacarosVM'
+launcher=a.app/'Contents/MacOS/PomAROSVM'
 for profile in ('stage6-transport','stage6-image'):
   output=out/profile
   with (out/(profile+'-build.log')).open('w') as log:

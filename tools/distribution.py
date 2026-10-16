@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 John Knipper
-"""Build/package the standard AROS runtime for Macaros VM (no hosted binaries)."""
+"""Build/package the standard AROS runtime for PomAROS VM (no hosted binaries)."""
 import argparse
 import hashlib
 import json
@@ -16,8 +16,8 @@ from types import SimpleNamespace
 from fat_metadata import EPOCH, normalize_fat16
 
 ROOT = Path(__file__).resolve().parents[1]
-# Runtime boundary derived from Macaros/graft/make-aros-release.sh. Platform
-# boot modules come from package-core, never from the hosted Macaros directory.
+# Runtime boundary derived from PomAROS/graft/make-aros-release.sh. Platform
+# boot modules come from package-core, never from the hosted PomAROS directory.
 ROOTS = 'C Classes Devs Extras Fonts L Libs Locale Prefs S Storage System Tools Utilities WBStartup'.split()
 EXCLUDED = {'Zed', 'ZedAros', 'Ferail', 'Feraille', 'Moonstone', 'Developer',
             'AppleCPU', 'AppleCopy', 'AppleDisk', 'AppleFiles', 'ApplePCIeDiag',
@@ -151,19 +151,24 @@ def package(a):
     sdk, source = config(a.build)
     if a.output.exists():
         raise ValueError('output must be new; existing distributions and user disks are never overwritten')
-    missing = [name for name in REQUIRED if not (sdk / name).is_file()]
+    required = [name for name in REQUIRED if a.backend == 'vz' or name not in {'C/VMExchange', 'C/VMSync'}]
+    missing = [name for name in required if not (sdk / name).is_file()]
     if missing:
         raise ValueError('build the distribution first; missing ' + ', '.join(missing))
     a.output.mkdir(parents=True)
     base = a.output / 'base'
     run(['python3', ROOT / 'tools/package-core.py', '--build', a.build, '--efi', a.efi,
          '--output', base, '--profile', 'wanderer', '--virtio-gpu', '--usb-desktop',
-         '--work-volume', '--host-services', '--network-stack', '--desktop-session', 'forever'])
+         '--work-volume', '--backend', a.backend, '--network-stack', '--desktop-session', 'forever']
+         + (['--host-services'] if a.backend == 'vz' else []))
     esp = a.output / 'esp'
     shutil.copytree(base, esp)
     system = esp / 'WORK/System'
     system.mkdir(parents=True)
     copy_runtime(sdk, system)
+    if a.backend == 'qemu':
+        for name in ('C/VMExchange', 'C/VMSync', 'Devs/vmbridge.device'):
+            (system / name).unlink(missing_ok=True)
     # The boot seed owns VM-specific commands, mountlists and network settings.
     env = dict(os.environ, LC_ALL='en_US.UTF-8', TZ='UTC')
     run(['mcopy', '-o', '-s', '-i', base / 'SYS.img', '::*', system], env=env, stdout=subprocess.DEVNULL)
@@ -251,7 +256,7 @@ Echo >>VMWORK0:distribution-startup.log "Desktop setup complete"
     if startup.count(marker) != 1:
         raise ValueError('missing unique WORK readiness barrier')
     # Launch shutdown and input from the RAM bootstrap before optional setup.
-    services = 'Run >NIL: SYS:C/VMSync VOLUME=VMWORK0:\nSYS:VMUSB\n'
+    services = ('Run >NIL: SYS:C/VMSync VOLUME=VMWORK0:\n' if a.backend == 'vz' else '') + 'SYS:VMUSB\n'
     if startup.count(services) != 1:
         raise ValueError('missing unique VM service startup')
     startup = startup.replace(services, '')
@@ -283,7 +288,7 @@ Echo >>VMWORK0:distribution-startup.log "Desktop setup complete"
          '--sequence', '1', '--slot', '0', '--state', 'accepted', '--output', esp / 'AROS/BOOT0.ID'])
     # Disk-local marker lets boot-only tooling reject partial distribution updates.
     (esp / 'AROS/DISTRIB.TAG').write_text('{"distribution": true, "system": "WORK:System"}\n')
-    for required in [*REQUIRED, 'Devs/DOSDrivers/PIPE']:
+    for required in [*required, 'Devs/DOSDrivers/PIPE']:
         if not (system / required).is_file():
             raise ValueError('missing staged runtime requirement: ' + required)
     inventory = {}
@@ -303,6 +308,7 @@ def main():
     parser.add_argument('action', choices=['build', 'package'])
     parser.add_argument('--build', type=Path, required=True)
     parser.add_argument('--jobs', type=int, default=6)
+    parser.add_argument('--backend', choices=['vz', 'qemu'], default='vz')
     parser.add_argument('--efi', type=Path)
     parser.add_argument('--output', type=Path)
     a = parser.parse_args(); a.build = a.build.resolve()

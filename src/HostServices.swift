@@ -125,7 +125,7 @@ final class HostServices: NSObject, VZVirtioSocketListenerDelegate {
       var response=[UInt8](),status:UInt64=0
       switch op {
       case 1:
-        if !body.isEmpty { status=1 } else { response=Array("Macaros host services 1".utf8) }
+        if !body.isEmpty { status=1 } else { response=Array("PomAROS host services 1".utf8) }
       case 2:
         if upload>=0 { status=2 }
         else if let name=filename(body) {

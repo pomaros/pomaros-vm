@@ -3,8 +3,8 @@
  * Polling early console using Virtio 1.2 split queue 1 (port-zero transmit).
  * The loader retains this identity-mapped record for bootstrap and kernel.
  */
-#ifndef MACAROS_VM_CONSOLE_H
-#define MACAROS_VM_CONSOLE_H
+#ifndef POMAROS_VM_CONSOLE_H
+#define POMAROS_VM_CONSOLE_H
 #include <stdint.h>
 #include <stddef.h>
 #define VM_CONSOLE_MAGIC UINT64_C(0x564d434f4e534f4c)

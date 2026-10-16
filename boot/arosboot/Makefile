@@ -4,7 +4,7 @@ LLVM ?= /opt/homebrew/opt/llvm/bin
 LLD ?= /opt/homebrew/opt/lld/bin
 CC := $(LLVM)/clang
 LD := $(LLD)/lld-link
-AROS_CORE_SOURCE ?= ../../../aros-core-vm
+AROS_CORE_SOURCE ?= ../../../aros-core-pomaros
 FDT_DIR := $(AROS_CORE_SOURCE)/arch/aarch64-all/boot/fdt
 BUILD := ../../build/uefi
 CFLAGS := --target=aarch64-pc-windows-msvc -std=c11 -O2 -Wall -Wextra -Werror \

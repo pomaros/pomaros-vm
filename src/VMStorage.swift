@@ -9,7 +9,7 @@ final class VMStorage {
   let state:URL
   private var stateLock:Int32 = -1
   private static func failure(_ message:String)->NSError {
-    NSError(domain:"MacarosVM",code:1,userInfo:[NSLocalizedDescriptionKey:message])
+    NSError(domain:"PomAROSVM",code:1,userInfo:[NSLocalizedDescriptionKey:message])
   }
   private static func openFile(_ url:URL,create:Bool,exclusive:Bool)throws->Int32 {
     let fd=Darwin.open(url.path,O_RDWR|O_NOFOLLOW|(create ? O_CREAT:0),mode_t(0o600))

@@ -124,7 +124,7 @@ pixels_verified=False
 capture_count=0
 passed=False;reason='timeout';start=time.monotonic()
 with log.open('w') as out:
-    proc=subprocess.Popen([str(root/'build/macaros-vm'),str(disk),str(a.output/'state'),'--headless','--force-stop',f'--cpus={a.cpus}']+(['--gpu-window'] if a.require_gpu_scanout or a.require_input else ['--gpu'] if a.require_gpu or a.desktop_startup else [])+(['--usb-input'] if a.usb_input else [])+(['--input-probe'] if a.require_input else [])+(['--network'] if a.require_network_config or a.require_desktop_network else [])+(['--vsock-probe'] if a.require_vsock else [])+(['--host-services'] if a.require_host_services or a.require_desktop_clipboard or a.require_desktop_work else [])+(['--clipboard-test'] if a.require_clipboard_sync or a.require_desktop_clipboard or a.require_desktop_work else []),stdout=out,stderr=subprocess.STDOUT)
+    proc=subprocess.Popen([str(root/'build/pomaros-vm'),str(disk),str(a.output/'state'),'--headless','--force-stop',f'--cpus={a.cpus}']+(['--gpu-window'] if a.require_gpu_scanout or a.require_input else ['--gpu'] if a.require_gpu or a.desktop_startup else [])+(['--usb-input'] if a.usb_input else [])+(['--input-probe'] if a.require_input else [])+(['--network'] if a.require_network_config or a.require_desktop_network else [])+(['--vsock-probe'] if a.require_vsock else [])+(['--host-services'] if a.require_host_services or a.require_desktop_clipboard or a.require_desktop_work else [])+(['--clipboard-test'] if a.require_clipboard_sync or a.require_desktop_clipboard or a.require_desktop_work else []),stdout=out,stderr=subprocess.STDOUT)
     try:
         while time.monotonic()-start<a.timeout:
             text=log.read_text(errors='replace')
@@ -229,6 +229,6 @@ verdict={'result':'PASS' if passed else 'FAIL','reason':reason,
          'pci_hidd_required':a.require_pci_hidd,'msi_frame_required':a.require_msi_frame,'msi_irq_required':a.require_msi_irq,'virtio_device_required':a.require_virtio_device,
          'seconds':round(time.monotonic()-start,2),
          'input_disk_sha256':hashlib.sha256(a.disk.read_bytes()).hexdigest(),
-         'launcher_sha256':hashlib.sha256((root/'build/macaros-vm').read_bytes()).hexdigest()}
+         'launcher_sha256':hashlib.sha256((root/'build/pomaros-vm').read_bytes()).hexdigest()}
 (a.output/'verdict.json').write_text(json.dumps(verdict,indent=2)+'\n')
 print(json.dumps(verdict));raise SystemExit(0 if passed else 1)

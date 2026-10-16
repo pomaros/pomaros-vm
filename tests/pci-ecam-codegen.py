@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 
 root = Path(__file__).resolve().parents[1]
-core = Path(os.environ.get('AROS_CORE_SOURCE', root.parent / 'aros-core-vm'))
+core = Path(os.environ.get('AROS_CORE_SOURCE', root.parent / 'aros-core-pomaros'))
 with tempfile.TemporaryDirectory(prefix='ecam-codegen-') as tmp:
     source = Path(tmp) / 'stores.c'
     assembly = Path(tmp) / 'stores.s'

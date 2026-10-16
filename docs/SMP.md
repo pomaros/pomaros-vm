@@ -99,7 +99,7 @@ Build the same payload targets listed under the secondary-probe procedure,
 using a separate SMP build directory. For the ordinary-task qualification:
 
 ```sh
-python3 tools/package-core.py --build "$HOME/Source/aros-project/Build/macaros-vm/exec-smp-2" \
+python3 tools/package-core.py --build "../Build/pomaros-vm/exec-smp-2" \
   --efi build/uefi-smp/BOOTAA64.EFI --profile wanderer --virtio-gpu \
   --desktop-session 12 --smp-exec --output build/exec-smp
 python3 tools/run-qemu.py --esp build/exec-smp --console virtio \
@@ -284,7 +284,7 @@ Use the isolated `codex-smp-integration` core and its configured build. Build
 EFI adapter against the same source. Example:
 
 ```sh
-python3 tools/package-core.py --build "$HOME/Source/aros-project/Build/macaros-vm/smp-core" \
+python3 tools/package-core.py --build "../Build/pomaros-vm/smp-core" \
   --efi build/uefi-smp/BOOTAA64.EFI --profile wanderer --virtio-gpu \
   --desktop-session 12 --smp-probe --output build/cpu-probe
 python3 tools/run-qemu.py --esp build/cpu-probe --console virtio \

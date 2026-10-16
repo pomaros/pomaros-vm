@@ -22,7 +22,7 @@ a.output.mkdir(parents=True)
 a.output = a.output.resolve()
 disk = a.output/'system.img'
 shutil.copyfile(a.disk, disk)
-launcher = root/'build/macaros-vm'
+launcher = root/'build/pomaros-vm'
 verdict = {'result':'FAIL', 'reason':'not-run', 'backend':'Virtualization.framework',
            'input_disk_sha256':hashlib.sha256(disk.read_bytes()).hexdigest(),
            'launcher_sha256':hashlib.sha256(launcher.read_bytes()).hexdigest()}
