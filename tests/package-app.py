@@ -11,7 +11,7 @@ validate = module['validate_desktop']
 
 class Admission(unittest.TestCase):
     def setUp(self):
-        self.manifest = dict(profile='wanderer', desktop_session='forever',
+        self.manifest = dict(profile='wanderer', desktop_session='desktop',
                              **{feature: True for feature in module['DESKTOP_FEATURES']})
         self.startup = 'Run >NIL: SYS:C/VMSync VOLUME=VMWORK0:\nG4Ready\nEndCLI\n'
 
@@ -38,7 +38,7 @@ class Admission(unittest.TestCase):
                 with self.assertRaises(ValueError): validate(self.manifest, startup)
 
     def test_not_a_live_desktop(self):
-        for override in [dict(profile='headless'), dict(desktop_session='20')]:
+        for override in [dict(profile='headless'), dict(desktop_session='20'), dict(desktop_session='forever')]:
             with self.assertRaises(ValueError): validate(dict(self.manifest, **override), self.startup)
 
 if __name__ == '__main__': unittest.main()

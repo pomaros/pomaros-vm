@@ -35,7 +35,7 @@ p.add_argument('--network-tcp-request', type=Path)
 p.add_argument('--startup-sequence', type=Path)
 p.add_argument('--extra-file', action='append', default=[], metavar='REL=PATH',
                help='any other file at REL under the SYS: root of the image (repeatable); recorded in the provenance inputs')
-p.add_argument('--desktop-session', help='1..3600 seconds or forever; omitted for boot proof')
+p.add_argument('--desktop-session', help='1..3600 seconds, forever (diagnostics), or desktop (quiet UI); omitted for boot proof')
 p.add_argument('--smp-exec', action='store_true', help='ordinary Exec tasks on two CPUs; requires the isolated SMP ABI build')
 p.add_argument('--smp-probe', action='store_true', help='isolated secondary execution test, not Exec SMP')
 p.add_argument('--clipboard-probe',action='store_true')
@@ -95,8 +95,8 @@ if (a.smp_probe or a.smp_exec) and (a.desktop_session is None or not a.desktop_s
 if a.desktop_session is not None:
     if a.profile != 'wanderer' or not a.virtio_gpu:
         p.error('--desktop-session requires wanderer and --virtio-gpu')
-    if a.desktop_session != 'forever' and not (a.desktop_session.isascii() and a.desktop_session.isdecimal() and not a.desktop_session.startswith('0') and 1 <= int(a.desktop_session) <= 3600):
-        p.error('--desktop-session must be 1..3600 or forever')
+    if a.desktop_session not in ('forever', 'desktop') and not (a.desktop_session.isascii() and a.desktop_session.isdecimal() and not a.desktop_session.startswith('0') and 1 <= int(a.desktop_session) <= 3600):
+        p.error('--desktop-session must be 1..3600, forever or desktop')
 if a.startup_sequence and (a.profile != 'wanderer' or a.usb_desktop):
     p.error('--startup-sequence requires wanderer without --usb-desktop')
 if a.usb_desktop and not (a.profile == 'wanderer' and a.virtio_gpu):

@@ -508,9 +508,11 @@ startup contract; it also checks elapsed host time. A session not run, or a
 ready desktop without the required HID marker, fails explicitly.
 
 The package writes `AROS/SESSION.CFG` with ASCII decimal seconds (1–3600) or
-`forever`, followed by one newline, and records its hash. The VZ ACPI bridge
+`forever` (diagnostic UI) or `desktop` (quiet production UI), followed by one
+newline, and records its hash. The VZ ACPI bridge
 translates it into existing `aros,desktop-hold-seconds` or
-`aros,desktop-hold-forever` chosen strings. An absent file selects the boot
+`aros,desktop-hold-forever` chosen strings. Production `desktop` also sets
+`aros,desktop-quiet=1` to omit the diagnostic Shell and statistics window. An absent file selects the boot
 proof with no hold. Invalid contents reject the platform setup. This is VZ
 loader policy; a firmware-provided FDT uses its own chosen properties.
 
@@ -609,7 +611,7 @@ only covers the configured WORK device.
 ### Standalone macOS application
 
 After building the launcher and a normal `--work-volume --network-stack
---usb-desktop --desktop-session forever` package, commit source changes and run:
+--usb-desktop --desktop-session desktop` package, commit source changes and run:
 
 ```sh
 python3 tools/package-app.py --esp artifacts/desktop-safe-quit-bundle --output 'artifacts/PomAROS VM.app'

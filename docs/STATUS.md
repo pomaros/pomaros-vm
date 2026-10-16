@@ -98,3 +98,16 @@ history and the original source checkout; it is excluded from the current
 product tree. Record new product milestones here with exact source identities,
 actual commands, verdicts and artifact references. Build and run procedures live
 in [BUILD.md](BUILD.md); architecture lives in [PORTABILITY.md](PORTABILITY.md).
+
+The follow-up supervisor capture reads the actual instruction from guest RAM
+using the host mapping observed at `hv_vm_map`. Guest PC `0x538604f0` contains
+`0xb8404d69`, decoded as `ldr w9, [x11, #4]!`; guest x11 and x26 both equal
+`0x8000014000`. All three Hypervisor register reads return success on the
+owning CPU thread. This proves the scalar writeback MMIO instruction rather
+than a SIMD hypothesis. Evidence: `artifacts/desktop-hvf-opcode/` in the QEMU
+repository. Core correction and fresh runtime acceptance remain pending.
+
+Production packaging selects the strict `desktop` session policy, requesting an
+endless guest session and `aros,desktop-quiet=1`. Diagnostic `forever` retains
+its Shell/statistics UI. Firmware FDT and package admission tests pass; the
+policy requires the coordinated common-core hook before runtime acceptance.

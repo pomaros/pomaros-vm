@@ -7,9 +7,14 @@
 #include <libfdt.h>
 
 /* Optional ESP session policy: absent means the bounded boot proof. Values
- * are decimal seconds 1..3600 or "forever", each terminated by one newline.
+ * are decimal seconds 1..3600, "forever" (diagnostics), or "desktop"
+ * (quiet production UI), each terminated by one newline.
  * Keep firmware policy separate from the portable kernel's chosen contract. */
 static int session_policy(char *text, size_t bytes) {
+    if(bytes == 8 && text[0]=='d' && text[1]=='e' && text[2]=='s' &&
+       text[3]=='k' && text[4]=='t' && text[5]=='o' && text[6]=='p' && text[7]=='\n') {
+        text[7]=0;return 1;
+    }
     if(bytes == 8 && text[0]=='f' && text[1]=='o' && text[2]=='r' &&
        text[3]=='e' && text[4]=='v' && text[5]=='e' && text[6]=='r' && text[7]=='\n') {
         text[7]=0;return 1;
@@ -358,7 +363,10 @@ static int make_tree(void *memory, int capacity, const struct VMConsole *console
     FDT_STEP(fdt_begin_node(memory,"chosen"));
     FDT_STEP(fdt_property_string(memory,"stdout-path","/console"));
     if(session && session[0]) {
-        if(session[0]=='f')
+        if(session[0]=='d') {
+            FDT_STEP(fdt_property_string(memory,"aros,desktop-hold-forever","1"));
+            FDT_STEP(fdt_property_string(memory,"aros,desktop-quiet","1"));
+        } else if(session[0]=='f')
             FDT_STEP(fdt_property_string(memory,"aros,desktop-hold-forever","1"));
         else
             FDT_STEP(fdt_property_string(memory,"aros,desktop-hold-seconds",session));

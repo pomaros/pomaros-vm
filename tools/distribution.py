@@ -164,7 +164,7 @@ def package(a):
     base = a.output / 'base'
     run(['python3', ROOT / 'tools/package-core.py', '--build', a.build, '--efi', a.efi,
          '--output', base, '--profile', 'wanderer', '--virtio-gpu', '--usb-desktop',
-         '--work-volume', '--backend', a.backend, '--network-stack', '--desktop-session', 'forever']
+         '--work-volume', '--backend', a.backend, '--network-stack', '--desktop-session', 'desktop']
          + (['--host-services'] if a.backend == 'vz' else []))
     esp = a.output / 'esp'
     shutil.copytree(base, esp)

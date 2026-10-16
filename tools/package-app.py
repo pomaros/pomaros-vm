@@ -20,7 +20,7 @@ QUALIFICATION_PROBES = ('work_probe', 'shutdown_probe', 'clipboard_probe',
 def validate_desktop(manifest, startup):
     """Reject incomplete or qualification-only payloads before creating an app."""
     if (manifest.get('profile') != 'wanderer'
-            or manifest.get('desktop_session') != 'forever'
+            or manifest.get('desktop_session') != 'desktop'
             or not all(manifest.get(feature) for feature in DESKTOP_FEATURES)):
         raise ValueError('requires a live GPU desktop with WORK, USB, host services and networking')
     if any(manifest.get(probe) for probe in QUALIFICATION_PROBES):
