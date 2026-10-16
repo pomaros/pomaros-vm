@@ -2,7 +2,7 @@
 # Copyright (c) 2026 John Knipper
 from pathlib import Path
 import argparse
-import hashlib,json,os,shutil,subprocess,time
+import hashlib,json,os,re,shutil,subprocess,time
 root=Path(__file__).resolve().parents[1]
 parser=argparse.ArgumentParser(description="Bounded VZ image, forced stream cut and window close qualification")
 parser.add_argument('--app',type=Path,default=root/'artifacts/stage6-release/PomAROS VM.app')
@@ -60,6 +60,19 @@ try:
   verdict.update(result='PASS',reason='active-vsock-cut-held-session-failure-guest-reopen-file-put-get-clipboard-reconnect-window-close-graceful-quiesce',seconds=round(time.monotonic()-start,2))
 except Exception as error:verdict.update(reason=repr(error),seconds=round(time.monotonic()-start,2))
 finally:
-  if proc and proc.poll() is None:proc.kill();proc.wait();verdict['forced_cleanup']=True
+  if proc and proc.poll() is None:
+    if verdict['result'] != 'PASS':
+      verdict['independent_guest_register_api']=False
+      try:
+        sample=subprocess.run(['/usr/bin/sample',str(proc.pid),'1','1','-file',str(out/'host-sample.txt')],capture_output=True,timeout=5)
+        (out/'host-sample.log').write_bytes(sample.stdout+sample.stderr)
+      except Exception as error:(out/'host-sample-error.txt').write_text(str(error))
+      window=re.search(r'window-id=(\d+)',log.read_text(errors='replace'))
+      if window:
+        try:
+          shot=subprocess.run(['/usr/sbin/screencapture','-x','-o','-l',window[1],str(out/'failure-window.png')],capture_output=True,timeout=5)
+          (out/'failure-capture.log').write_bytes(shot.stdout+shot.stderr)
+        except Exception as error:(out/'failure-capture-error.txt').write_text(str(error))
+    proc.kill();proc.wait();verdict['forced_cleanup']=True
   (out/'verdict.json').write_text(json.dumps(verdict,indent=2)+'\n')
 print(json.dumps(verdict));raise SystemExit(verdict['result']!='PASS')

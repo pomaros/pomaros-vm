@@ -28,9 +28,11 @@ changed for that fixture. Evidence is in ignored
 The supported configure helper passes on a fresh default build directory at
 locked candidate `b027ee4ecd`, with source epoch `1792165783`, UTC and unrestricted
 guest x18. Evidence: `artifacts/pomaros-migration/pinned-configure.log`.
-The candidate's `apple-wanderer-payloads` build completes with exit 0. Its
-full distribution graph is still being built; this alone does not make a
-complete desktop package.
+The candidate's `apple-wanderer-payloads` build completes with exit 0. Its complete distribution graph, base commands and explicit CPUInfo target build
+successfully. Fresh VZ and QEMU desktop packages contain respectively 3866 and
+3863 runtime files; the QEMU package omits the VZ bridge services. Both windowed
+applications package and sign successfully. This establishes build/package
+completion, with desktop runtime acceptance tracked separately.
 
 A fresh headless core bundle from that build passes real QEMU/HVF (7.85 s)
 and Virtualization.framework (2.36 s) runs, both in normal host windows. The
@@ -61,9 +63,28 @@ A QEMU desktop packaging attempt from the partial audit build refused missing
 to build the required PCI/virtio/USB/network components and base commands.
 The earlier partial audit had built `workbench-c` separately; the canonical
 distribution graph explicitly includes it so clean builds do not inherit those
-commands from an earlier step. Fresh full packaging,
-real VZ/HVF desktop input, networking, persistent files and clean shutdown still
-need acceptance against the pinned consolidated build. Audio and production SMP
+commands from an earlier step. The fresh QEMU/HVF desktop run aborts inside QEMU 11.0.1's HVF MMIO handling
+(`assert(isv)`) immediately after xHCI instantiation. Its host crash report and
+full logs are retained; the guest instruction remains under debugger diagnosis.
+A single TCG comparison reaches desktop stability, graphics IRQ and two USB
+bindings, but the strict pixel gate rejects the visible debug statistics window
+as requester geometry. Its overall verdict remains FAIL. Evidence:
+`../pomaros-qemu/artifacts/desktop-hvf/` and `artifacts/desktop-tcg/` in that repo.
+The supervised HVF failure captures guest PC `0x538604f0` through a successful
+Hypervisor register read on the owning CPU thread. Its final MMIO abort has
+VA/IPA `0x8000014004`, ISV=0 and read direction. Evidence is in
+`../pomaros-qemu/artifacts/desktop-hvf-lldb/`.
+
+Fresh windowed VZ stage6 passes runtime transport-cut recovery, file exchange,
+JPEG decoding with nonflat guest pixels, desktop/HID/GPU markers and the
+window-close quiesce acknowledgement. The overall check remains FAIL: after a
+clean process exit, FAT16's clean-shutdown bit is clear and normal mtools refuses
+the disk. Both FAT copies agree; read-only diagnostic access verifies both
+persisted file fixtures exactly, so filesystem corruption is not established.
+Evidence: `artifacts/stage6-fresh/verdict.json` and
+`artifacts/stage6-fresh/post-exit-fat-diagnostic.json`.
+Real input events, networking and fully clean persistent shutdown still need
+acceptance against the pinned consolidated build. Audio and production SMP
 are not qualified by this migration.
 
 No upstream publication or visibility change is part of these checks. The
