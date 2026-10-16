@@ -4,9 +4,9 @@ PomAROS VM builds and boots its full AROS desktop using Apple's Virtualization.f
 
 ## Verified on 2026-10-16
 
-The shared core pin is `3c382bcf39373ac50630f5df6e961a3afb05a64b`. The guest SDK was built fresh with frozen LLVM 20.1.0, using release epoch `1792169063` and UTC. The full distribution graph and all 44 required-file admissions pass. Both backend distributions and their signed development applications package successfully.
+The shared core pin is `4613340d3f1932b156420d86e3074372e5d15501`. The guest SDK was built fresh with frozen LLVM 20.1.0, using release epoch `1792169063` and UTC. The full distribution graph and all 44 required-file admissions pass. Both backend distributions and their signed development applications package successfully.
 
-Actual guest objects were compiled at `48e445615380448d74ec02c9958a71201ce4904c`. The final pin adds a hosted-only ELF protection correction and host test. The real standalone preprocessed loader tokens match exactly between these revisions; retained configure/build/source-amendment metadata records this distinction. No earlier compiler's guest objects were imported.
+Actual guest objects were compiled at `48e445615380448d74ec02c9958a71201ce4904c`. Subsequent shared-source changes add a hosted-only ELF protection correction, extract the unchanged monitor renderer into a shared header, and add a Darwin-only SystemMonitor utility. The standalone loader tokens and the entire guest coldstart translation unit retain identical preprocessed code. Qualified artifacts and runs keep their original source metadata at `3c382bc`; this source-pin update does not relabel those runs or rebuild unchanged guest objects. No earlier compiler's guest objects were imported.
 
 The final VZ stage6 run passes in 18.6 seconds: forced vsock interruption, guest session reopening, file PUT/GET, clipboard reconnection, MultiView JPEG decoding with varied pixels, desktop stability, two USB HID bindings and GPU IRQ completion. One window-close request receives the guest quiesce acknowledgement and exits normally. Normal mtools reads both persisted file fixtures; the two FAT copies agree and the FAT16 clean-shutdown bit is set. The immutable seed remains unchanged. Local evidence: `artifacts/stage6-final-3c/`.
 
@@ -24,4 +24,4 @@ The macOS launcher uses Apple's ABI. The VM guest leaves x18 unrestricted; only 
 
 These bounded checks do not establish long-term desktop stability, real keyboard/pointer event delivery, full networking, audio or production SMP. QEMU has no VZ clipboard/file provider or coordinated guest flush/quit transport; its separate status documents that limitation. The earlier failed HVF/MMIO, screenshot and FAT runs remain preserved in local artifacts; their failure verdicts were not rewritten.
 
-No public upstream publication or repository visibility change was performed. The native product repository remains empty and private. Build procedures live in [BUILD.md](BUILD.md) and [DISTRIBUTION.md](DISTRIBUTION.md); architecture lives in [PORTABILITY.md](PORTABILITY.md).
+The product repositories remain private. The native product repository remains empty and private. Build procedures live in [BUILD.md](BUILD.md) and [DISTRIBUTION.md](DISTRIBUTION.md); architecture lives in [PORTABILITY.md](PORTABILITY.md).
