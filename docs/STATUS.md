@@ -108,6 +108,7 @@ than a SIMD hypothesis. Evidence: `artifacts/desktop-hvf-opcode/` in the QEMU
 repository. Core correction and fresh runtime acceptance remain pending.
 
 Production packaging selects the strict `desktop` session policy, requesting an
-endless guest session and `aros,desktop-quiet=1`. Diagnostic `forever` retains
-its Shell/statistics UI. Firmware FDT and package admission tests pass; the
+endless guest session and `aros,desktop-hide-shell=1`. Its PomAROS monitor widget
+remains visible with github.com/pomaros and github.com/jonx. Diagnostic `forever`
+retains its Shell. Firmware FDT and package admission tests pass; the
 policy requires the coordinated common-core hook before runtime acceptance.

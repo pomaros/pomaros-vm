@@ -35,7 +35,7 @@ p.add_argument('--network-tcp-request', type=Path)
 p.add_argument('--startup-sequence', type=Path)
 p.add_argument('--extra-file', action='append', default=[], metavar='REL=PATH',
                help='any other file at REL under the SYS: root of the image (repeatable); recorded in the provenance inputs')
-p.add_argument('--desktop-session', help='1..3600 seconds, forever (diagnostics), or desktop (quiet UI); omitted for boot proof')
+p.add_argument('--desktop-session', help='1..3600 seconds, forever (diagnostics), or desktop (monitor widget UI); omitted for boot proof')
 p.add_argument('--smp-exec', action='store_true', help='ordinary Exec tasks on two CPUs; requires the isolated SMP ABI build')
 p.add_argument('--smp-probe', action='store_true', help='isolated secondary execution test, not Exec SMP')
 p.add_argument('--clipboard-probe',action='store_true')

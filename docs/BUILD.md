@@ -508,11 +508,11 @@ startup contract; it also checks elapsed host time. A session not run, or a
 ready desktop without the required HID marker, fails explicitly.
 
 The package writes `AROS/SESSION.CFG` with ASCII decimal seconds (1–3600) or
-`forever` (diagnostic UI) or `desktop` (quiet production UI), followed by one
+`forever` (diagnostic UI) or `desktop` (production UI with the monitor widget), followed by one
 newline, and records its hash. The VZ ACPI bridge
 translates it into existing `aros,desktop-hold-seconds` or
 `aros,desktop-hold-forever` chosen strings. Production `desktop` also sets
-`aros,desktop-quiet=1` to omit the diagnostic Shell and statistics window. An absent file selects the boot
+`aros,desktop-hide-shell=1` to omit the diagnostic Shell while retaining the monitor widget. An absent file selects the boot
 proof with no hold. Invalid contents reject the platform setup. This is VZ
 loader policy; a firmware-provided FDT uses its own chosen properties.
 

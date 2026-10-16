@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import struct
 import sys
 import zlib
@@ -256,18 +257,91 @@ def verify_wanderer_classifier(expected_size: tuple[int, int] = (800, 600)) -> N
             raise ValueError("Wanderer classifier accepted synthetic requester")
 
 
+def recognize_widget(width: int, height: int, rows: list[bytes]) -> tuple[int, int, int]:
+    """Validate the measured single-CPU monitor before excluding any pixels."""
+    if (width, height) != (1024, 768):
+        raise ValueError('monitor widget requires the pinned single-CPU 1024x768 layout')
+    left, top, bottom = width - 632, 20, 521
+    # These black-pixel masks were measured from the actual guest renderer.
+    # They identify static KBD -, CORES and CPU labels, without OCR or a broad
+    # exception for arbitrary grey windows. Dynamic clock/load text is separate.
+    labels = [(183, 60, '1e72a9cbf7a30d50a2d83f4e0705bf113214e19a69838c946d7cc2f5935a8234'),
+              (315, 72, 'd76c6c31f2c8225f6228625a11104f97e9a04e02fe99e12cd0a5670ee4c676af'),
+              (337, 48, '1a34af2dbb6f8ccfc995db88c9fe0dcafb59b11c241226c2657e8ebe653a8bca')]
+    for y, span, expected in labels:
+        mask = bytes(int(pixel(rows, x, yy) == (0, 0, 0))
+                     for yy in range(y, y + 14) for x in range(left + 14, left + 14 + span))
+        if hashlib.sha256(mask).hexdigest() != expected:
+            raise ValueError('monitor widget static glyph contract differs')
+    for y, color in ((top, (238, 238, 238)), (bottom - 4, (238, 238, 238)), (bottom - 1, (0, 0, 0))):
+        if sum(pixel(rows, x, y) == color for x in range(left + 4, width - 4)) < 620:
+            raise ValueError('monitor widget frame contract differs')
+    # A single CPU leaves these rows blank. An alert inside the admitted
+    # rectangle must invalidate the widget before any region is excluded.
+    for y in range(355, bottom - 4):
+        if any(pixel(rows, x, y) != WANDERER_DESKTOP for x in range(left + 4, width - 4)):
+            raise ValueError('monitor widget blank-row contract differs')
+    for y in range(top + 20, bottom - 4):
+        if any(pixel(rows, x, y) not in (WANDERER_DESKTOP, (0, 0, 0))
+               for x in range(left + 4, width - 4)):
+            raise ValueError('monitor widget body palette differs')
+    return left, top, bottom
+
+
+def verify_widget(width: int, height: int, rows: list[bytes]) -> str:
+    left, top, bottom = recognize_widget(width, height, rows)
+    stripped = [bytearray(row) for row in rows]
+    for y in range(top, bottom):
+        stripped[y][left*3:] = bytes(WANDERER_DESKTOP) * (width - left)
+    blue = count_region(stripped, 0, width, 15, height, REQUESTER_TITLE)
+    if blue > 64:
+        raise ValueError('requester or CLI title outside monitor widget')
+    result = verify_wanderer(width, height, stripped, (1024, 768))
+    return result + ' monitor-widget=frame,static-glyphs,blank-rows'
+
+
+def verify_widget_negative_controls(width: int, height: int, rows: list[bytes]) -> None:
+    # Exercise both sides of the exception on the actual submitted frame.
+    left = width - 632
+    for x0 in (left - 80, left + 200):
+        for color in ((0, 0, 0), REQUESTER_TITLE):
+            alert = [bytearray(row) for row in rows]
+            for y in range(height//2 - 10, height//2 + 10):
+                for x in range(x0, x0 + 40):
+                    alert[y][x*3:x*3+3] = bytes(color)
+            try:
+                verify_widget(width, height, alert)
+            except ValueError as error:
+                expected = 'blank-row contract' if x0 > left else (
+                    'requester or CLI title' if color == REQUESTER_TITLE else 'software-failure/requester geometry')
+                if expected not in str(error):
+                    raise ValueError('widget alert control rejected for wrong reason: ' + str(error)) from error
+            else:
+                raise ValueError('widget classifier accepted an inside/outside alert control')
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile",
-                        choices=("graphics", "intuition", "wanderer", "wanderer-virtio"),
+                        choices=("graphics", "intuition", "wanderer", "wanderer-virtio", "wanderer-widget"),
                         default="graphics")
+    parser.add_argument("--serial-log", type=Path)
     parser.add_argument("image", type=Path)
     args = parser.parse_args()
     try:
         width, height, rows = decode(args.image)
         if width < 640 or height < 480:
             raise ValueError("framebuffer is smaller than the G2 fixture")
-        if args.profile in ("wanderer", "wanderer-virtio"):
+        if args.profile == "wanderer-widget":
+            if args.serial_log is None:
+                raise ValueError('monitor widget requires the matching serial log')
+            serial = args.serial_log.read_text(errors='replace')
+            if not all(marker in serial for marker in ('[KI] alive window open', '[KI] desktop stable')):
+                raise ValueError('monitor widget serial markers missing')
+            verify_wanderer_classifier((1024, 768))
+            result = verify_widget(width, height, rows)
+            verify_widget_negative_controls(width, height, rows)
+        elif args.profile in ("wanderer", "wanderer-virtio"):
             expected_size = (1024, 768) if args.profile == "wanderer-virtio" else (800, 600)
             verify_wanderer_classifier(expected_size)
             result = verify_wanderer(width, height, rows, expected_size)

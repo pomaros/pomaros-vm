@@ -72,11 +72,11 @@ int main(void) {
     chosen=fdt_path_offset(tree,"/chosen");
     assert(!strcmp(fdt_getprop(tree,chosen,"aros,desktop-hold-forever",&length),"1"));
     assert(!fdt_getprop(tree,chosen,"aros,desktop-hold-seconds",&length));
-    assert(!fdt_getprop(tree,chosen,"aros,desktop-quiet",&length));
+    assert(!fdt_getprop(tree,chosen,"aros,desktop-hide-shell",&length));
     assert(make_tree(tree,sizeof(tree),&state,0x1000,NULL,NULL,"desktop")==0);
     chosen=fdt_path_offset(tree,"/chosen");
     assert(!strcmp(fdt_getprop(tree,chosen,"aros,desktop-hold-forever",&length),"1"));
-    assert(!strcmp(fdt_getprop(tree,chosen,"aros,desktop-quiet",&length),"1"));
+    assert(!strcmp(fdt_getprop(tree,chosen,"aros,desktop-hide-shell",&length),"1"));
     assert(!fdt_getprop(tree,chosen,"aros,desktop-hold-seconds",&length));
     unsigned char guard[128];memset(guard,0xa5,sizeof(guard));
     assert(make_tree(guard,64,&state,0x1000,NULL,NULL,NULL)==-FDT_ERR_NOSPACE);

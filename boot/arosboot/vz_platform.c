@@ -8,7 +8,7 @@
 
 /* Optional ESP session policy: absent means the bounded boot proof. Values
  * are decimal seconds 1..3600, "forever" (diagnostics), or "desktop"
- * (quiet production UI), each terminated by one newline.
+ * (production UI with the monitor widget), each terminated by one newline.
  * Keep firmware policy separate from the portable kernel's chosen contract. */
 static int session_policy(char *text, size_t bytes) {
     if(bytes == 8 && text[0]=='d' && text[1]=='e' && text[2]=='s' &&
@@ -365,7 +365,7 @@ static int make_tree(void *memory, int capacity, const struct VMConsole *console
     if(session && session[0]) {
         if(session[0]=='d') {
             FDT_STEP(fdt_property_string(memory,"aros,desktop-hold-forever","1"));
-            FDT_STEP(fdt_property_string(memory,"aros,desktop-quiet","1"));
+            FDT_STEP(fdt_property_string(memory,"aros,desktop-hide-shell","1"));
         } else if(session[0]=='f')
             FDT_STEP(fdt_property_string(memory,"aros,desktop-hold-forever","1"));
         else
