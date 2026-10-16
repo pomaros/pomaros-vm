@@ -266,7 +266,12 @@ def recognize_widget(width: int, height: int, rows: list[bytes]) -> tuple[int, i
     left, top, bottom = width - 632, 20, 521
     # Check alert signals before static glyphs. An alert covering a label must
     # never be reported as a harmless incomplete asynchronous redraw.
-    for y in range(355, bottom - 4):
+    # The public UP renderer has no native keyboard-backlight controls.
+    # Its former KBD label row must be background, not an arbitrary glyph mask.
+    # coldstart_proof.c retains CORES/CPU at the same positions and leaves this
+    # row undrawn; keep it strict even when an alert overlaps the old label.
+    blank_rows = (*range(183, 197), *range(355, bottom - 4))
+    for y in blank_rows:
         if any(pixel(rows, x, y) != WANDERER_DESKTOP for x in range(left + 4, width - 4)):
             raise ValueError('monitor widget blank-row contract differs')
     for y in range(top + 20, bottom - 4):
@@ -278,10 +283,9 @@ def recognize_widget(width: int, height: int, rows: list[bytes]) -> tuple[int, i
             if all(pixel(rows,x,y)==(0,0,0) for y in range(y0,y0+16) for x in range(x0,x0+16)):
                 raise ValueError('monitor widget solid alert geometry present')
     # These black-pixel masks were measured from the actual guest renderer.
-    # They identify static KBD -, CORES and CPU labels, without OCR or a broad
+    # They identify the retained static CORES and CPU labels, without OCR or a broad
     # exception for arbitrary grey windows. Dynamic clock/load text is separate.
-    labels = [(183, 60, '1e72a9cbf7a30d50a2d83f4e0705bf113214e19a69838c946d7cc2f5935a8234'),
-              (315, 72, 'd76c6c31f2c8225f6228625a11104f97e9a04e02fe99e12cd0a5670ee4c676af'),
+    labels = [(315, 72, 'd76c6c31f2c8225f6228625a11104f97e9a04e02fe99e12cd0a5670ee4c676af'),
               (337, 48, '1a34af2dbb6f8ccfc995db88c9fe0dcafb59b11c241226c2657e8ebe653a8bca')]
     for y, span, expected in labels:
         mask = bytes(int(pixel(rows, x, yy) == (0, 0, 0))
@@ -412,14 +416,16 @@ def main() -> int:
                     try:verifier(width,height,control)
                     except ValueError:pass
                     else:raise ValueError('production classifier accepted '+name)
-                for color in (REQUESTER_TITLE,(0,0,0)):
-                    obscured=[bytearray(row) for row in rows]
-                    for y in range(180,204):
-                        for x in range(408,456):obscured[y][x*3:x*3+3]=bytes(color)
-                    try:verifier(width,height,obscured)
-                    except ValueError as error:
-                        if not any(reason in str(error) for reason in ('body palette','solid alert geometry')):raise ValueError('label alert misclassified as incomplete glyph') from error
-                    else:raise ValueError('production classifier accepted alert over glyph')
+                # Cover the removed control row and both retained static labels.
+                for label_top in (180, 312, 334):
+                    for color in (REQUESTER_TITLE,(0,0,0)):
+                        obscured=[bytearray(row) for row in rows]
+                        for y in range(label_top,label_top+24):
+                            for x in range(408,456):obscured[y][x*3:x*3+3]=bytes(color)
+                        try:verifier(width,height,obscured)
+                        except ValueError as error:
+                            if not any(reason in str(error) for reason in ('body palette','solid alert geometry','blank-row contract')):raise ValueError('label alert misclassified as incomplete glyph') from error
+                        else:raise ValueError('production classifier accepted alert over glyph')
                 missing=[bytearray(row) for row in rows]
                 for y in range(20,height):missing[y][:392*3]=bytes(WANDERER_DESKTOP)*392
                 try:verifier(width,height,missing)

@@ -6,7 +6,9 @@ QEMU.
 
 ![PomAROS VM running in its macOS window](docs/images/pomaros-vm.png)
 
-Actual windowed application and guest desktop, captured on 2026-10-16.
+Actual windowed capture from an earlier development image. The public UP
+monitor retains the clock and CPU rows; the native hardware controls shown
+here are excluded. See [qualification and capture limits](docs/STATUS.md).
 
 This project reuses the AROS kernel, UEFI loader and bundle tools.
 The existing hosted PomAROS remains in its own repository.
