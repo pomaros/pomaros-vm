@@ -1,6 +1,7 @@
 [
   "apple-wanderer-payloads",
   "workbench-c",
+  "workbench-c-cpuinfo",
   "kernel-hidd-pci",
   "kernel-hidd-pciecam",
   "kernel-hidd-vmpci",
