@@ -213,7 +213,7 @@ if a.network_stack:
         pci_files.append(('System/Network/AROSTCP/C/'+name,sdk/'AROS/System/Network/AROSTCP/C'/name))
     # Keep the standard tree: DHCP defaults and AROSTCP ProgramDir agree.
     configs={
-        'general.config':'USELOOPBACK=YES\nDEBUGSANA=NO\nGATEWAY=NO\nHOSTNAME=pomaros-'+a.backend+'\nOPENGUI=NO\n',
+        'general.config':'USELOOPBACK=YES\nDEBUGSANA=NO\nGATEWAY=NO\nHOSTNAME=pomaros-'+('vm' if a.backend == 'vz' else 'qemu')+'\nOPENGUI=NO\n',
         'interfaces':'vn0 DEV=DEVS:Networks/virtionet.device UNIT=0 IP=DHCP NOTRACKING UP\n',
         'netdb':'WITH interfaces PREFIX=I\n',
     }
