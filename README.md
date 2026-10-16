@@ -4,6 +4,10 @@ PomAROS VM runs AROS in its own virtual machine on macOS, using Apple's
 built-in Virtualization.framework. Running the application does not require
 QEMU.
 
+![PomAROS VM running in its macOS window](docs/images/pomaros-vm.png)
+
+Actual windowed application and guest desktop, captured on 2026-10-16.
+
 This private project reuses the AROS kernel, UEFI loader and bundle tools.
 The existing hosted PomAROS remains in its own repository.
 
@@ -16,9 +20,9 @@ private copy of the kernel. Guest packages record their exact core revision;
 macOS hosted binaries use a distinct ABI and cannot be reused as VM modules.
 The native product repository stays empty and private during preparation.
 
-The current full distribution and desktop runtime are undergoing qualification;
-a successful host build does not establish a usable guest release. See the
-[handoff](docs/STATUS.md) for observed blockers.
+The full desktop builds and boots in a normal window. Guest file exchange,
+clipboard reconnection and clean persistent shutdown pass the bounded VM test.
+This remains a development build; see [qualification and limits](docs/STATUS.md).
 
 ## Register policy
 

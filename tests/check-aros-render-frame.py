@@ -264,6 +264,19 @@ def recognize_widget(width: int, height: int, rows: list[bytes]) -> tuple[int, i
     if (width, height) != (1024, 768):
         raise ValueError('monitor widget requires the pinned single-CPU 1024x768 layout')
     left, top, bottom = width - 632, 20, 521
+    # Check alert signals before static glyphs. An alert covering a label must
+    # never be reported as a harmless incomplete asynchronous redraw.
+    for y in range(355, bottom - 4):
+        if any(pixel(rows, x, y) != WANDERER_DESKTOP for x in range(left + 4, width - 4)):
+            raise ValueError('monitor widget blank-row contract differs')
+    for y in range(top + 20, bottom - 4):
+        if any(pixel(rows, x, y) not in (WANDERER_DESKTOP, (0, 0, 0))
+               for x in range(left + 4, width - 4)):
+            raise ValueError('monitor widget body palette differs')
+    for y0 in range(top+20,bottom-20,8):
+        for x0 in range(left+4,width-20,8):
+            if all(pixel(rows,x,y)==(0,0,0) for y in range(y0,y0+16) for x in range(x0,x0+16)):
+                raise ValueError('monitor widget solid alert geometry present')
     # These black-pixel masks were measured from the actual guest renderer.
     # They identify static KBD -, CORES and CPU labels, without OCR or a broad
     # exception for arbitrary grey windows. Dynamic clock/load text is separate.
@@ -278,15 +291,6 @@ def recognize_widget(width: int, height: int, rows: list[bytes]) -> tuple[int, i
     for y, color in ((top, (238, 238, 238)), (bottom - 4, (238, 238, 238)), (bottom - 1, (0, 0, 0))):
         if sum(pixel(rows, x, y) == color for x in range(left + 4, width - 4)) < 620:
             raise ValueError('monitor widget frame contract differs')
-    # A single CPU leaves these rows blank. An alert inside the admitted
-    # rectangle must invalidate the widget before any region is excluded.
-    for y in range(355, bottom - 4):
-        if any(pixel(rows, x, y) != WANDERER_DESKTOP for x in range(left + 4, width - 4)):
-            raise ValueError('monitor widget blank-row contract differs')
-    for y in range(top + 20, bottom - 4):
-        if any(pixel(rows, x, y) not in (WANDERER_DESKTOP, (0, 0, 0))
-               for x in range(left + 4, width - 4)):
-            raise ValueError('monitor widget body palette differs')
     return left, top, bottom
 
 
@@ -304,7 +308,8 @@ def verify_widget(width: int, height: int, rows: list[bytes]) -> str:
 
 def verify_wallpaper_widget(width: int, height: int, rows: list[bytes],
                             reference: tuple[int, int, list[bytes]]) -> str:
-    left, top, bottom = recognize_widget(width, height, rows)
+    if (width,height)!=(1024,768):raise ValueError('production wallpaper requires 1024x768')
+    left, top, bottom = 392,20,521
     stripped = [bytearray(row) for row in rows]
     for y in range(top, bottom):
         stripped[y][left*3:] = bytes(WANDERER_DESKTOP) * (width-left)
@@ -314,6 +319,7 @@ def verify_wallpaper_widget(width: int, height: int, rows: list[bytes],
     alert = count_region(stripped, 0, width, 329, 444, (0, 0, 0))
     if black > 512 or alert > 1024:
         raise ValueError('software-failure/requester geometry present')
+    recognize_widget(width,height,rows)
     # Production uses its configured JPEG backdrop, not the flat RAM fixture.
     # Compare 32x32 blocks outside the exact verified monitor and icon column.
     # A two-source-pixel neighbourhood admits the two bitmap scalers' rounding;
@@ -406,6 +412,14 @@ def main() -> int:
                     try:verifier(width,height,control)
                     except ValueError:pass
                     else:raise ValueError('production classifier accepted '+name)
+                for color in (REQUESTER_TITLE,(0,0,0)):
+                    obscured=[bytearray(row) for row in rows]
+                    for y in range(180,204):
+                        for x in range(408,456):obscured[y][x*3:x*3+3]=bytes(color)
+                    try:verifier(width,height,obscured)
+                    except ValueError as error:
+                        if not any(reason in str(error) for reason in ('body palette','solid alert geometry')):raise ValueError('label alert misclassified as incomplete glyph') from error
+                    else:raise ValueError('production classifier accepted alert over glyph')
                 missing=[bytearray(row) for row in rows]
                 for y in range(20,height):missing[y][:392*3]=bytes(WANDERER_DESKTOP)*392
                 try:verifier(width,height,missing)
