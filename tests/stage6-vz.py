@@ -41,6 +41,7 @@ try:
     until(['[STAGE6] ready for forced transport cut'],30)
     (state/'transport-cut.request').write_text('cut\n')
     until(['[HOST] test transport cut active=1','[STAGE6] held session cut PASS','[STAGE6] new host session after cut PASS','[STAGE6] file exchange after cut PASS','[HOST] file service reconnected after cut PASS','[HOST] clipboard service reconnected after cut PASS','[STAGE6] MultiView JPEG window and nonflat pixels PASS','[KI] desktop stable','[VM] desktop two HID bindings PASS','[VM] virtio graphics IRQ completion PASS'],35)
+    subprocess.run(['swift',str(root/'tools/capture-window.swift'),str(proc.pid),str(out/'desktop-window.png')],check=True)
     (state/'window-close.request').write_text('close\n')
     assert proc.wait(timeout=20)==0
   data=log.read_text(errors='replace')
