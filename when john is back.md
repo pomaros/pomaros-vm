@@ -359,7 +359,7 @@ croisée installée. Contrôles réels de configure PASS : profil VM sans fixed-
 profil natif par défaut avec fixed-x18, valeur invalide refusée ; preuves dans
 `artifacts/configure-profile-control`.
 
-La reconstruction est lancée dans `~/Build/macaros-vm/clean-core`, sans objets
+La reconstruction est lancée dans `~/Source/aros-project/Build/macaros-vm/clean-core`, sans objets
 copiés, cible apple-boot-payloads. Elle n’est pas encore qualifiée comme un
 build complet. La première tentative s’est arrêtée parce que le script
 configure avait été régénéré après sa configuration ; config.status --recheck
@@ -2181,7 +2181,7 @@ has been attempted. Full stage-six goal remains open; SMP untouched.
   physique ni de validation des axes/pression étendus, mais layout partagé
   corrigé et attribut réellement cloné/livré par Intuition en AArch64.
 - Reproductibilité : clone figé aros-core-vm-repro-20261001 et sorties neuves
-  repro-a-20261001 / repro-b-20261001 sous ~/Build/macaros-vm. Ne pas confondre
+  repro-a-20261001 / repro-b-20261001 sous ~/Source/aros-project/Build/macaros-vm. Ne pas confondre
   leur lancement avec une comparaison achevée ; résultats à consigner après
   les builds et la comparaison binaire effective.
 
@@ -3196,7 +3196,7 @@ symlink targets and stage2. No comparison success is claimed before its final
 verdict. The next run uses the new core epoch changes and includes the components
 missing from the old 18,069-file comparison.
 
-Full comparison launched at /Users/jkn/Build/macaros-vm/repro-current-20261001
+Full comparison launched at /Users/jkn/Source/aros-project/Build/macaros-vm/repro-current-20261001
 from core d3301fb648 and VM tools 0613f3b. Supervisor exec session 46525,
 PID 20748; log artifacts/repro-current-supervisor.log. Configuration A passed;
 B is in progress. Inspect the existing process/handle before any restart.
@@ -3577,7 +3577,7 @@ The current-core independent rebuild continues separately without source changes
 
 Core `01e0e1a4b12d6e7f55817a69a3077bc5c4e0c6f9` now passes the
 22-target independent comparison: 18,285 entries in each build, zero differences.
-Evidence: `/Users/jkn/Build/macaros-vm/repro-irq-current-20261001/verdict.json`.
+Evidence: `/Users/jkn/Source/aros-project/Build/macaros-vm/repro-irq-current-20261001/verdict.json`.
 The build supervisor exited zero; its former handle must not be restarted.
 `artifacts/current-full-application/verdict.json` records successful direct
 packaging of build-a, without component overlays. The signed application is
@@ -4278,7 +4278,7 @@ only explicit ordinary worker tasks receive AP affinity. This is deliberately
 not a claim that AROSTCP or native Apple drivers are SMP-safe.
 
 A separate SDK/build is mandatory because SMP changes ExecBase's ABI:
-~/Build/macaros-vm/exec-smp-2. The source tranche 8f6ce31e58 is experimental,
+~/Source/aros-project/Build/macaros-vm/exec-smp-2. The source tranche 8f6ce31e58 is experimental,
 not qualified. The first complete build is in progress. Do not deploy it as a
 working replacement until an ordinary-task run passes the strict contract.
 The planned proof runs two pinned tasks concurrently twice, verifies x18 and
@@ -4371,7 +4371,7 @@ headroom; their source snapshots, logs and comparison artifacts remain.
 
 The physical M1 is running the experimental native SMP image from sibling
 run/native-smp-display/guest.bin, core 84d6264333 on codex-native-smp in
-../aros-core-smp. Fresh SDK: ~/Build/aros-native-smp, native fixed-x18 ABI;
+../aros-core-smp. Fresh SDK: ~/Source/aros-project/Build/aros-native-smp, native fixed-x18 ABI;
 VM-qualified codex-smp-integration/99576f283f remains unchanged.
 
 Two pinned ordinary tasks pass concurrent computation twice, x17/FPSIMD

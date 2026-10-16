@@ -43,7 +43,7 @@ p.add_argument('--xhci-enumerate', action='store_true')
 p.add_argument('--build', type=Path, required=True)
 p.add_argument('--output', type=Path, required=True)
 p.add_argument('--profile', choices=['headless', 'wanderer'], default='headless')
-p.add_argument('--toolchain', type=Path, default=Path.home() / 'aros-crosstools')
+p.add_argument('--toolchain', type=Path, default=Path.home() / 'Source/aros-project/aros-crosstools')
 p.add_argument('--efi', type=Path, required=True, help='explicit built UEFI loader; no implicit stale build selection')
 a = p.parse_args()
 if a.soak_probe:

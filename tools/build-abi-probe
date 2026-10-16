@@ -11,9 +11,9 @@ usage()
 }
 
 project_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-sdk_root=${AROS_VM_SDK:-"$HOME/Build/macaros-vm/clean-core/bin/apple-aarch64"}
+sdk_root=${AROS_VM_SDK:-"$HOME/Source/aros-project/Build/macaros-vm/clean-core/bin/apple-aarch64"}
 sdk_tools=
-crosstools=${AROS_CROSSTOOLS:-"$HOME/aros-crosstools"}
+crosstools=${AROS_CROSSTOOLS:-"$HOME/Source/aros-project/aros-crosstools"}
 profile=cli
 
 while [ "$#" -gt 0 ]; do

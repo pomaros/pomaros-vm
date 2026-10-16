@@ -47,7 +47,7 @@ build/gic-contract-test: tests/gic-contract.c $(GIC_CONTRACT_SOURCES) | build
 	 -I$(AROS_CORE_SOURCE)/arch/aarch64-apple/include \
 	 -I$(AROS_CORE_SOURCE)/arch/aarch64-apple/bootstrap $< $(GIC_CONTRACT_SOURCES) -o $@
 
-AROS_VM_SDK ?= $(HOME)/Build/macaros-vm/clean-core/bin/apple-aarch64
+AROS_VM_SDK ?= $(HOME)/Source/aros-project/Build/macaros-vm/clean-core/bin/apple-aarch64
 OF_SOURCE := $(AROS_CORE_SOURCE)/rom/openfirmware
 .PHONY: test-openfirmware
 test-openfirmware: build/openfirmware-fdt-test
@@ -134,7 +134,7 @@ build/console-timeout-test: tests/console-timeout.c include/vm-console.h | build
 XHCI_SOURCE := $(AROS_CORE_SOURCE)/rom/usb/pcixhci
 build/xhci-dma-test: tests/xhci-dma.c $(XHCI_SOURCE)/xhci_dma.c | build
 	clang -std=gnu11 -Wall -Wextra -Werror -Wno-unused-parameter -Wno-ignored-attributes -fsanitize=address,undefined -fno-sanitize-recover=all \
-	 -I$(XHCI_SOURCE) -idirafter $(HOME)/Build/macaros-vm/clean-core/bin/apple-aarch64/AROS/Developer/include $< -o $@
+	 -I$(XHCI_SOURCE) -idirafter $(HOME)/Source/aros-project/Build/macaros-vm/clean-core/bin/apple-aarch64/AROS/Developer/include $< -o $@
 .PHONY: test-xhci-dma
 test-xhci-dma: build/xhci-dma-test
 	build/xhci-dma-test
@@ -220,7 +220,7 @@ build/vm-storage-test: src/VMStorage.swift tests/vm-storage.swift | build
 	swiftc -target arm64-apple-macos13.0 -O -warnings-as-errors src/VMStorage.swift tests/vm-storage.swift -o $@
 
 # Full standard AROS distribution; build binaries for VM, never copy hosted ones.
-VM_DISTRIB_BUILD ?= $(HOME)/Build/macaros-vm/clean-core
+VM_DISTRIB_BUILD ?= $(HOME)/Source/aros-project/Build/macaros-vm/clean-core
 VM_DISTRIB_EFI ?= build/uefi-desktop-session/BOOTAA64.EFI
 VM_DISTRIB_OUTPUT ?= artifacts/distribution
 .PHONY: distrib distribution distribution-build

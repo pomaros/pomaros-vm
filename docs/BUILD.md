@@ -9,7 +9,7 @@ The supported configuration builds into a new directory with
 `tools/configure-core.py`, followed by the payload target and
 `tools/package-core.py` as shown below. The packager consumes only products
 from that build and refuses missing components. No native object directory or
-seed bundle is needed. Core source lives in `~/Source/aros-core-vm`, on the
+seed bundle is needed. Core source lives in `~/Source/aros-project/aros-core-vm`, on the
 private `codex-macaros-vm` branch; qualified revisions are recorded in
 `when john is back.md`.
 
@@ -116,10 +116,10 @@ positive kernel hash before using the build again.
 ## Fresh configuration
 
 ```sh
-python3 tools/configure-core.py --output "$HOME/Build/macaros-vm/clean-core"
-make -C "$HOME/Build/macaros-vm/clean-core" -j8 apple-boot-payloads
+python3 tools/configure-core.py --output "$HOME/Source/aros-project/Build/macaros-vm/clean-core"
+make -C "$HOME/Source/aros-project/Build/macaros-vm/clean-core" -j8 apple-boot-payloads
 make -C boot/arosboot BUILD=../../build/uefi-clean
-python3 tools/package-core.py --build "$HOME/Build/macaros-vm/clean-core" \
+python3 tools/package-core.py --build "$HOME/Source/aros-project/Build/macaros-vm/clean-core" \
   --efi build/uefi-clean/BOOTAA64.EFI --output build/fresh-headless
 python3 tools/make-disk.py --esp build/fresh-headless --output build/fresh-headless.img
 python3 tools/run-vz.py --disk build/fresh-headless.img --output artifacts/fresh-vz
@@ -128,7 +128,7 @@ python3 tools/run-qemu.py --esp build/fresh-headless --profile core \
 ```
 
 The output directory must not exist. The helper uses the prebuilt cross
-toolchain in `~/aros-crosstools` (override with `--toolchain`), records the
+toolchain in `~/Source/aros-project/aros-crosstools` (override with `--toolchain`), records the
 configure command and log, and selects `--enable-vm-guest`. This profile exports
 `AROS_VM_GUEST=1` to generated makefiles and omits the native x18 reservation
 from C and C++ flags. Other targets cannot select this profile; the physical
@@ -147,9 +147,9 @@ Repeating packaging can verify byte-identical bundles; that is separate from
 comparing two independent complete builds. Build and package the desktop with:
 
 ```sh
-make -C "$HOME/Build/macaros-vm/clean-core" -j8 apple-wanderer-payloads
-make -C "$HOME/Build/macaros-vm/clean-core" -j8 workbench-c
-python3 tools/package-core.py --build "$HOME/Build/macaros-vm/clean-core" \
+make -C "$HOME/Source/aros-project/Build/macaros-vm/clean-core" -j8 apple-wanderer-payloads
+make -C "$HOME/Source/aros-project/Build/macaros-vm/clean-core" -j8 workbench-c
+python3 tools/package-core.py --build "$HOME/Source/aros-project/Build/macaros-vm/clean-core" \
   --efi build/uefi-clean/BOOTAA64.EFI --profile wanderer --output build/fresh-wanderer
 python3 tools/run-qemu.py --esp build/fresh-wanderer --output artifacts/fresh-desktop \
   --require-timer --require-irq-chain --gic-version 3
@@ -190,7 +190,7 @@ constructor under ASan/UBSan, including failure at every allocation. This target
 is separate from the SDK-independent host test suite (`make test`).
 
 The generic PCI ECAM class can be built independently with
-`make -C "$HOME/Build/macaros-vm/clean-core" -j8 kernel-hidd-pciecam`.
+`make -C "$HOME/Source/aros-project/Build/macaros-vm/clean-core" -j8 kernel-hidd-pciecam`.
 `make test-pci-ecam-class` uses the actual class methods and SDK structures under
 host sanitizers; it does not qualify class loading or device enumeration in a
 guest. The VM platform must supply admitted mappings and a configuration-write
@@ -211,7 +211,7 @@ retained bridge. The permanent module keeps its admitted mappings for the VM
 lifetime and reserves the boot console. DMA translation is limited to buffers
 allocated through its explicit platform policy. On a discovered GICv2m frame,
 the resident driver provides one MSI-X table entry per device.
-Build it with `make -C "$HOME/Build/macaros-vm/clean-core" -j8 kernel-hidd-vmpci`;
+Build it with `make -C "$HOME/Source/aros-project/Build/macaros-vm/clean-core" -j8 kernel-hidd-vmpci`;
 this target is limited to the VM profile. Both resident markers are required
 by `--require-pci-hidd`. The default package without that option does not load
 the platform driver.
@@ -654,7 +654,7 @@ prerequisite so changing build flags triggers recompilation. This was checked
 with the installed toolchain recorded in artifacts/packaging-repro-tools.json.
 
 The EFI makefile already fixes the PE timestamp to zero. Two fresh copies of
-boot/arosboot and include, built with `make AROS_CORE_SOURCE=/Users/jkn/Source/aros-core-vm`,
+boot/arosboot and include, built with `make AROS_CORE_SOURCE=/Users/jkn/Source/aros-project/aros-core-vm`,
 produce identical EFI bytes matching the qualified desktop loader. App packaging
 also produces identical signed file bytes and modes from frozen inputs. None
 of these claims substitutes for the full guest/SDK comparison; its exact source scope is recorded in stage-six acceptance.
@@ -673,7 +673,7 @@ makefile exports alone do not reach its $(shell) expressions.
 
 ```sh
 python3 tests/build-date.py
-python3 tools/rebuild-compare.py --output "$HOME/Build/macaros-vm/repro-current-20261001"
+python3 tools/rebuild-compare.py --output "$HOME/Source/aros-project/Build/macaros-vm/repro-current-20261001"
 ```
 
 The comparison tool freezes a clean core clone (preserving repository identity

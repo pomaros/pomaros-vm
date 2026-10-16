@@ -10,9 +10,9 @@ import tempfile
 root=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser(description=__doc__)
 p.add_argument('--core',type=Path,default=root.parent/'aros-core-smp')
-p.add_argument('--build',type=Path,default=Path.home()/'Build/macaros-vm/smp-core')
+p.add_argument('--build',type=Path,default=Path.home()/'Source/aros-project/Build/macaros-vm/smp-core')
 a=p.parse_args();core=a.core.resolve();build=a.build.resolve()
-compiler=Path.home()/'aros-crosstools/bin/clang'
+compiler=Path.home()/'Source/aros-project/aros-crosstools/bin/clang'
 with tempfile.TemporaryDirectory() as temp:
     tmp=Path(temp)
     policy=tmp/'irq-policy'

@@ -16,7 +16,7 @@ p.add_argument('--smp', action='store_true', help='isolated experimental Exec SM
 p.add_argument('--source-date-epoch', default=os.environ.get('SOURCE_DATE_EPOCH'),
                help='build timestamp; defaults to the source commit timestamp')
 p.add_argument('--source', type=Path, default=root.parent / 'aros-core-vm')
-p.add_argument('--toolchain', type=Path, default=Path.home() / 'aros-crosstools')
+p.add_argument('--toolchain', type=Path, default=Path.home() / 'Source/aros-project/aros-crosstools')
 a = p.parse_args()
 source = a.source.resolve()
 output = a.output.resolve()
