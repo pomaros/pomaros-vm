@@ -20,6 +20,8 @@ class Pin(unittest.TestCase):
             git('add', 'source')
             git('-c', 'user.name=Pin Test', '-c', 'user.email=pin@example.invalid', 'commit', '-qm', 'fixture')
             revision = git('rev-parse', 'HEAD')
+            # Dependency pins are commonly checked out detached.
+            git('checkout', '-q', '--detach', revision)
             for expected, policy, message in [(revision, 'unrestricted', 'cross-toolchain'),
                     ('0' * 40, 'unrestricted', 'differs from CORE.lock'),
                     (revision, 'reserved', 'differs from CORE.lock')]:

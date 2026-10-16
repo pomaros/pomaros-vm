@@ -38,8 +38,8 @@ if subprocess.check_output(['git', '-C', str(source), 'status', '--porcelain'], 
 if output.exists():
     p.error('output must be a new directory; configured or native builds are never reused')
 branch = subprocess.check_output(['git', '-C', str(source), 'branch', '--show-current'], text=True).strip()
-if branch not in ('pomaros-common', 'codex-smp-integration', *a.source_branch):
-    p.error('select the isolated pomaros-common or codex-smp-integration source branch, '
+if branch not in ('', 'pomaros-common', 'codex-smp-integration', *a.source_branch):
+    p.error('select the pinned detached source or isolated pomaros-common source branch, '
             'or name the branch with --source-branch')
 if not toolchain.is_dir():
     p.error('the prebuilt AROS cross-toolchain directory is missing')
