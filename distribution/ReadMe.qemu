@@ -2,6 +2,9 @@ PomAROS QEMU - AROS development preview
 
 Open System, Tools, Utilities and Prefs for the standard AROS applications.
 QEMU 11 is an external macOS prerequisite, not part of this guest system.
+This preview requires macOS 26 or later, matching the tested Homebrew QEMU
+11.0.1 executable. The launcher alone targeting macOS 13 is not a claim of
+full guest execution on older macOS versions.
 
 This backend has no host clipboard/file bridge or coordinated guest flush/quit
 transport. Closing the window or quitting QEMU can interrupt cached writes.
