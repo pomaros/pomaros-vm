@@ -12,4 +12,4 @@ successful guest boot.
 
 Use isolated file-backed disks and bound every automated guest run. Keep the
 exact binary hashes, logs and strict test verdicts under ignored `artifacts/`.
-Record decisions, measured results and remaining work in `when john is back.md`.
+Record decisions, measured results and remaining work in `docs/STATUS.md`.

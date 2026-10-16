@@ -29,7 +29,7 @@ scheduler. Its `[DT0]`/`[DT2]` observations are scoped to that probe. They do no
 close the roadmap's full-platform gates, prove physical Pi hardware, or migrate
 the Apple kernel onto a shared IRQ implementation. Full AROS startup is measured
 separately on VZ and HVF. Exact revisions, results and next work are in
-[`when john is back.md`](../when%20john%20is%20back.md).
+[qualification status](STATUS.md).
 
 The VZ loader translates a checksummed ACPI MADT GICv3 distributor and one
 redistributor range, plus GTDT non-secure physical and virtual timer GSIs,

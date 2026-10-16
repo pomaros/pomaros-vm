@@ -130,6 +130,6 @@ It waits for desktop startup before launching Editor and for its active document
 before input. Editor requires its pinned `workbench/tools/Edit/catalogs` Git
 submodule; Editor is now included in the normal application payload. The exact test
 artifacts and earlier failed preparations are recorded in
-[`when john is back.md`](../when%20john%20is%20back.md). Physical shortcuts,
+[qualification status](STATUS.md). Physical shortcuts,
 GUI image operations, forced transport failures and prolonged reliability
 are not qualified by this text-editor test.

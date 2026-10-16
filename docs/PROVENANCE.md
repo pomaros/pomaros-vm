@@ -6,7 +6,7 @@
   `tests/check-aros-render-frame.py`: MIT code
   reused from `jonx/aros-apple-silicon` revision `7050a59`. The loader is adapted
   for VM boot and writes diagnostic `BOOT.LOG` on its boot volume.
-- OS changes: private `jonx/aros-apple-core`, branch `codex-macaros-vm`, based
+- OS changes: private `jonx/aros-apple-core`, initial VM revision `2d167429e3813a78ac92c68921d88267694f3fba`, based
   on `b30d52e58c`. AROS source retains APL 1.1. It is not copied into this host
   repository.
 - Launcher, qualification probes and VM orchestration: MIT, John Knipper.
@@ -50,7 +50,7 @@ rebuilt ABI command instead of extracting binaries from a seed bundle.
 ## PomAROS product lineage
 
 The host repository is maintained at `pomaros/pomaros-vm`. Its Git history
-retains the original private `jonx/macaros-vm` lineage, including source import
+retains the original private VM tooling lineage, including source import
 identities above. Historical names and file hashes are provenance, rather than
 active product settings. OS source is shared with the other PomAROS products
 in the sibling `aros-core-pomaros` checkout; its exact revision belongs in each

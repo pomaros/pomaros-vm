@@ -38,7 +38,7 @@ address.
 The successful bridge-address test does not explain earlier failures when the
 peer used the host Wi-Fi address. Do not infer a driver fault or a general NAT
 restriction from those failures. Exact runs and identities are recorded in
-[`when john is back.md`](../when%20john%20is%20back.md).
+[qualification status](STATUS.md).
 
 ## Desktop integration
 

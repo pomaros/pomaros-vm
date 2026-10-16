@@ -24,7 +24,7 @@ without its platform contract. Reuse existing virtio transport where suitable;
 VZ GPU/input/storage each need their own end-to-end acceptance evidence.
 
 Keep run paths, exact hashes, decisions and limitations in
-[`when john is back.md`](../when%20john%20is%20back.md). Review requests and
+[qualification status](STATUS.md). Review requests and
 coordination live on the project board. Native Apple and Raspberry Pi proofs
 remain distinct from VM and host-parser results.
 

@@ -18,7 +18,7 @@ The native product repository stays empty and private during preparation.
 
 The current full distribution and desktop runtime are undergoing qualification;
 a successful host build does not establish a usable guest release. See the
-[handoff](when%20john%20is%20back.md) for observed blockers.
+[handoff](docs/STATUS.md) for observed blockers.
 
 ## Standard AROS distribution
 
@@ -107,7 +107,7 @@ requires a virtio GPU driver. See [guest build instructions](docs/BUILD.md).
 The [host services transport](docs/VSOCK.md) documents the vsock packet API
 and bounded stream qualification.
 
-See [the handoff](when%20john%20is%20back.md) for measured results and work in
+See [the handoff](docs/STATUS.md) for measured results and work in
 progress, [portable architecture](docs/PORTABILITY.md), and [provenance](docs/PROVENANCE.md) for reused code.
 
 

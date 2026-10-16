@@ -11,7 +11,7 @@ The supported configuration builds into a new directory with
 from that build and refuses missing components. No native object directory or
 seed bundle is needed. Core source lives in `../aros-core-pomaros`, on the
 private `pomaros-common` branch; qualified revisions are recorded in
-`when john is back.md`.
+`STATUS.md`.
 
 Guest C and assembly target AArch64 ELF without `-ffixed-x18`. EFI targets
 AArch64 PE/COFF with the firmware calling convention; host code follows the

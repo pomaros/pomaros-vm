@@ -41,7 +41,7 @@ HELLO, two positive device IRQ counters and exact host fixture contents.
 A partial transfer result cannot make this gate pass.
 
 Evidence and outstanding diagnosis are recorded in
-[`when john is back.md`](../when%20john%20is%20back.md).
+[qualification status](STATUS.md).
 
 
 For the CLI gate, package with `--pci-hidd --file-commands` instead of
