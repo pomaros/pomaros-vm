@@ -2,20 +2,37 @@
 # Copyright (c) 2026 John Knipper
 from pathlib import Path
 import argparse
-import hashlib,json,os,re,shutil,subprocess,time
+import hashlib,json,os,re,shutil,struct,subprocess,time
 root=Path(__file__).resolve().parents[1]
 parser=argparse.ArgumentParser(description="Bounded VZ image, forced stream cut and window close qualification")
 parser.add_argument('--app',type=Path,default=root/'artifacts/stage6-release/PomAROS VM.app')
 parser.add_argument('--output',type=Path,required=True)
 a=parser.parse_args();out=a.output.resolve()
 if out.exists():parser.error('output must be new')
+if os.environ.get('MTOOLS_SKIP_CHECK') not in (None,'0'):parser.error('normal mtools filesystem admission must stay enabled')
 out.mkdir(parents=True)
 seed=a.app/'Contents/Resources/System.img'
 launcher=a.app/'Contents/MacOS/PomAROSVM'
+app_identity=json.loads((a.app/'Contents/Resources/provenance.json').read_text())
+guest_identity=app_identity['guest']
+core_lock=dict(line.split('=',1) for line in (root/'CORE.lock').read_text().splitlines() if line and not line.startswith('#'))
+if guest_identity['source_revision']!=core_lock['CORE_REVISION']:parser.error('app core differs from CORE.lock')
+sdk=Path(os.environ.get('AROS_VM_SDK',root.parent/'Build/pomaros-vm/clean-core/bin/apple-aarch64')).resolve()
+build=sdk.parents[1]
+build_identity=json.loads((build/'vm-build-environment.json').read_text())
+if build_identity['source_revision']!=guest_identity['source_revision']:parser.error('probe SDK differs from app core')
+configure=json.loads((build/'vm-configure-command.json').read_text())
+prefix='--with-aros-toolchain-install='
+installations=[argument[len(prefix):] for argument in configure if argument.startswith(prefix)]
+if len(installations)!=1:parser.error('SDK configure must identify one guest toolchain')
+toolchain=Path(installations[0]).resolve()
+source=Path(configure[0]).parent
+if subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD'],text=True).strip()!=guest_identity['source_revision'] or subprocess.check_output(['git','-C',str(source),'status','--porcelain'],text=True):parser.error('probe source must be clean at the app core revision')
+probe_environment=dict(os.environ,AROS_CORE_SOURCE=str(source))
 for profile in ('stage6-transport','stage6-image'):
   output=out/profile
   with (out/(profile+'-build.log')).open('w') as log:
-    subprocess.run([str(root/'tools/build-abi-probe'),'--profile',profile,str(output)],cwd=root,stdout=log,stderr=subprocess.STDOUT,check=True)
+    subprocess.run([str(root/'tools/build-abi-probe'),'--sdk',str(sdk),'--crosstools',str(toolchain),'--profile',profile,str(output)],cwd=root,stdout=log,stderr=subprocess.STDOUT,check=True,env=probe_environment)
 state=out/'state';state.mkdir()
 disk=state/'system.img';shutil.copyfile(seed,disk)
 offset=str(disk)+'@@67108864'
@@ -24,7 +41,7 @@ subprocess.run(['mcopy','-i',offset,str(out/'IPrefs.original'),'::System/C/IPref
 subprocess.run(['mcopy','-o','-i',offset,str(out/'stage6-transport'),'::System/C/IPrefs'],check=True)
 subprocess.run(['mcopy','-o','-i',offset,str(out/'stage6-image'),'::System/C/Stage6Image'],check=True)
 args=[str(launcher),str(disk),str(state),'--headless','--gpu','--gpu-window','--usb-input','--network','--host-services','--clipboard-test','--window-close-test','--transport-cut-test']
-verdict=dict(result='FAIL',reason='not-run',seed_sha256=hashlib.sha256(seed.read_bytes()).hexdigest(),launcher_sha256=hashlib.sha256(launcher.read_bytes()).hexdigest(),probe_sha256=hashlib.sha256((out/'stage6-transport').read_bytes()).hexdigest())
+verdict=dict(source_revision=guest_identity['source_revision'],build_environment=build_identity,toolchain=str(toolchain),host_windowed=True,result='FAIL',reason='not-run',seed_sha256=hashlib.sha256(seed.read_bytes()).hexdigest(),launcher_sha256=hashlib.sha256(launcher.read_bytes()).hexdigest(),probe_sha256=hashlib.sha256((out/'stage6-transport').read_bytes()).hexdigest())
 start=time.monotonic();log=out/'console.log';proc=None
 try:
   with log.open('wb') as output:
@@ -54,6 +71,16 @@ try:
   for name in ('source','copy'):
     got=subprocess.check_output(['mtype','-i',offset,'::stage6-cut-'+name+'.txt'])
     assert got==expected,(name,got)
+  with disk.open('rb') as image:
+    image.seek(67108864);bpb=image.read(512)
+    sector=struct.unpack_from('<H',bpb,11)[0];reserved=struct.unpack_from('<H',bpb,14)[0]
+    fat_sectors=struct.unpack_from('<H',bpb,22)[0]
+    assert sector==512 and fat_sectors>0 and bpb[16]==2,'expected two FAT16 copies'
+    image.seek(67108864+reserved*sector);fat1=image.read(fat_sectors*sector);fat2=image.read(fat_sectors*sector)
+    verdict['fat_copies_equal']=fat1==fat2
+    verdict['fat16_clean_shutdown_bit']=bool(struct.unpack_from('<H',fat1,2)[0]&0x8000)
+    assert verdict['fat_copies_equal'] and verdict['fat16_clean_shutdown_bit']
+  verdict['normal_mtools_admission']=True
   image_report=subprocess.check_output(['mtype','-i',offset,'::stage6-image.txt'],text=True)
   (out/'stage6-image.txt').write_text(image_report)
   assert 'varied=' in image_report
