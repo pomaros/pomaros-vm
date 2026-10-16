@@ -1,8 +1,8 @@
 # PomAROS VM
 
-AROS AArch64 running inside a hardware virtual machine on macOS. The guest
-uses the native AROS ABI, including x18 as a compiler temporary. The macOS
-launcher follows Apple's host ABI.
+PomAROS VM runs AROS in its own virtual machine on macOS, using Apple's
+built-in Virtualization.framework. Running the application does not require
+QEMU.
 
 This private project reuses the AROS kernel, UEFI loader and bundle tools.
 The existing hosted PomAROS remains in its own repository.
@@ -19,6 +19,14 @@ The native product repository stays empty and private during preparation.
 The current full distribution and desktop runtime are undergoing qualification;
 a successful host build does not establish a usable guest release. See the
 [handoff](docs/STATUS.md) for observed blockers.
+
+## Register policy
+
+The macOS launcher follows Apple's ABI. The AROS guest runs independently and
+can use the AArch64 x18 register normally. Hosted AROS reserves x18 because it
+calls macOS directly. Native Apple and future Raspberry Pi builds follow the
+ordinary register policy used by the VM guest. These targets share the same
+kernel source.
 
 ## Standard AROS distribution
 

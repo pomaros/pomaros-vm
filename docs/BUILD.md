@@ -15,15 +15,14 @@ private `pomaros-common` branch; qualified revisions are recorded in
 
 Guest C and assembly target AArch64 ELF without `-ffixed-x18`. EFI targets
 AArch64 PE/COFF with the firmware calling convention; host code follows the
-macOS ABI. The legacy `tools/prepare-esp.py --base` helper is for replacing
+macOS ABI. The diagnostic `tools/prepare-esp.py --base` helper is for replacing
 individual artifacts during diagnostic experiments, not a complete rebuild.
 Use separate, newly named ESP directories and disk images for each run.
 
 The MIT early-console protocol header is authored in `include/vm-console.h`;
 its imported copy in the APL core is `include/aros/apple/vmconsole.h`. Keep
 them identical when updating the protocol. The boot allocation schema adds
-`AROS_BOOT_ALLOCATION_EARLY_CONSOLE` for a single retained 4-KiB record; older
-consumers reject that allocation. Pin the matching core with each image.
+`AROS_BOOT_ALLOCATION_EARLY_CONSOLE` for a single retained 4-KiB record. Pin the matching core with each image.
 
 ## Portable platform probes
 
@@ -84,11 +83,11 @@ bootstrap rules, refresh it after pulling build changes. VZ startup qualificatio
 proof. Use the matching EFI loader and kernel; the generated FDT includes
 named timer interrupts.
 
-The isolated build helper also removes inherited `-ffixed-x18` from generated
-`target.cfg` before compiling. This corrects the native configuration copied
-with the original APFS build. It does not retroactively rebuild seed bundle
-modules or every previously compiled object: replacing all such artifacts is
-part of the clean full guest build. Newly rebuilt VM code must not reserve x18.
+The shared configuration reserves x18 only for the `darwin-aarch64` hosted
+target. VM guests and native Apple builds use x18 normally; future Raspberry Pi
+builds follow that same policy. The VM configure helper validates the generated
+flags and refuses a build that reserves x18. It does not rewrite generated
+configuration or reuse another target's object files.
 
 Stage two passes four scalar GIC window bounds in protected boot tags. The
 kernel requires all four, with no duplicates, and matches both FDT register
@@ -130,10 +129,10 @@ python3 tools/run-qemu.py --esp build/fresh-headless --profile core \
 The output directory must not exist. The helper uses the prebuilt cross
 toolchain in `../aros-crosstools` (override with `--toolchain`), records the
 configure command and log, and selects `--enable-vm-guest`. This profile exports
-`AROS_VM_GUEST=1` to generated makefiles and omits the native x18 reservation
-from C and C++ flags. Other targets cannot select this profile; the physical
-Apple default retains its existing flags. This creates no copy of native
-object files. It initializes the pinned catalog submodules required by DOS, base commands
+`AROS_VM_GUEST=1` to generated makefiles and validates ordinary x18 use in C
+and C++ flags. The profile selects guest platform behavior; x18 reservation
+belongs only to the `darwin-aarch64` hosted ABI. Native Apple builds also use
+ordinary x18. Each target builds its own objects from the shared source. It initializes the pinned catalog submodules required by DOS, base commands
 (LoadResource/R), ASL, muimaster and Wanderer before configuring.
 
 The packager consumes ordered paths in `boot/headless-modules.json` or
@@ -179,7 +178,7 @@ registers through QMP, independently of virtio. A deliberately short timeout
 checks this capture path but is not a guest fault reproduction. The ordinary
 framebuffer lane retains `--console pl011` and firmware FDT discovery.
 
-The headless package now contains 24 entries, including `openfirmware.resource` and `lddemon.resource`.
+The headless package includes `openfirmware.resource` and `lddemon.resource`.
 Its ABI command also checks the existing OpenFirmware APIs and reads PCI vendor
 IDs through a supervisor callback. ECAM remains inaccessible from EL0. VZ always
 requires this platform proof; use `--require-platform` for the QEMU core profile.
@@ -390,8 +389,7 @@ The QMP capture selects the GPU device directly. On VZ,
 only that window with screencapture. Both lanes decode the PNG using the existing
 render verifier and check quadrant colors as well as guest cleanup/boot proofs.
 Failure to capture or verify pixels cannot pass the visual gate. A successful
-control-command sequence alone does not qualify VZ rendering. The temporary
-view-cache capture experiment produced black images and was removed.
+control-command sequence alone does not qualify VZ rendering.
 
 
 ## Virtio desktop profile
@@ -407,8 +405,8 @@ This implementation uses the existing single-CPU IRQ lifetime contract.
 The VM desktop readiness observer samples at timer ticks so sleeping render
 commands cannot make a tight observation loop expire prematurely.
 Use `run-vz.py --require-gpu-irq --desktop-startup` with the desktop run flags
-to require actual interrupt completion. The changed path passes in VZ; earlier
-HVF pixel evidence predates this IRQ change. This profile includes
+to require actual interrupt completion. Each backend needs its own runtime
+and pixel qualification. This profile includes
 OpenFirmware and PCI/ECAM/vmpci residents and replaces the EFI graphics resident.
 The kernel verifies their exact order, priorities and flags.
 
@@ -649,17 +647,16 @@ including a UTF-8 name. It also checks refusal to overwrite an existing output.
 This packaging comparison does not establish independent guest compilation or
 launcher/EFI reproducibility.
 
-Launcher release builds use Swift whole-module optimization. Independent normal
-per-file optimized builds differed; the WMO builds match in separate source and
-output directories after entitlements signing. The Makefile is a launcher
-prerequisite so changing build flags triggers recompilation. This was checked
-with the installed toolchain recorded in artifacts/packaging-repro-tools.json.
+Launcher release builds use Swift whole-module optimization. Compare separate
+source and output directories after entitlements signing. The Makefile is a
+launcher prerequisite so changing build flags triggers recompilation; record
+the exact compiler and signing inputs with each comparison.
 
-The EFI makefile already fixes the PE timestamp to zero. Two fresh copies of
-boot/arosboot and include, built with `make AROS_CORE_SOURCE=../aros-core-pomaros`,
-produce identical EFI bytes matching the qualified desktop loader. App packaging
-also produces identical signed file bytes and modes from frozen inputs. None
-of these claims substitutes for the full guest/SDK comparison; its exact source scope is recorded in stage-six acceptance.
+The EFI makefile fixes the PE timestamp to zero. Compare two fresh copies of
+boot/arosboot and include with the same explicit `AROS_CORE_SOURCE` and compiler.
+App packaging comparisons use frozen inputs and compare signed bytes and modes.
+These checks do not replace the full guest/SDK comparison. Observed results and
+exact source identities belong in [STATUS.md](STATUS.md).
 
 ### Complete current guest comparison and build epoch
 
