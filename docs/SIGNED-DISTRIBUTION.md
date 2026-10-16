@@ -42,8 +42,8 @@ both tickets, signatures and the contained executable's accepted hash, then
 record the final DMG checksum after stapling. The tools retain command logs,
 signatures, entitlements, runtime identity, submission IDs and ticket checks.
 
-These are internal artifacts for John Knipper. Corresponding sources remain in
-private repositories; appropriate recipient source access is required before
-public redistribution. No GitHub release upload or public source publication is
+These are internal artifacts for John Knipper. Product launcher/tool sources are public in the PomAROS organization. The
+corresponding AROS core remains private; appropriate recipient access to that
+core and applicable component sources is required before redistribution. No GitHub release upload or public source publication is
 part of this recipe. License texts, prerequisites and source-access limits are
 included with the distribution and application.

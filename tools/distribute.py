@@ -84,7 +84,7 @@ def prepare(a):
                   input_provenance_sha256=sha(resources/'provenance.json'),seed_sha256=sha(resources/'System.img'),
                   input_launcher_sha256=sha(executable),team_id=a.team_id,
                   signing_identity=a.identity,distribution='internal-development',
-                  source_access='Corresponding source is private. Arrange recipient source access before any public redistribution.',
+                  source_access='PomAROS product launcher/tool sources are public in github.com/pomaros. The corresponding AROS core remains private; arrange recipient access to that source before redistribution.',
                   external_qemu_required=a.product=='qemu')
     write_json(app/'Contents/Resources/DISTRIBUTION.json',snapshot)
     entitlements=a.repo/'distribution-entitlements.plist'
@@ -108,8 +108,9 @@ Existing personal profiles are never overwritten by installing this application.
 The app creates its own persistent profile under ~/Library/Application Support/.
 
 Internal artifact for John Knipper. No public release or redistribution is authorized here.
-Corresponding source is maintained in private repositories. Recipients must receive
-appropriate corresponding source access before binaries are shared externally.
+PomAROS product launcher/tool sources are public at https://github.com/pomaros.
+The corresponding AROS core remains private. Recipients must receive appropriate
+access to that core and applicable component sources before external redistribution.
 The immutable guest payload retains its actual source identity in provenance.json;
 distribution signing does not relabel older compiled guest code as a newer revision.
 
