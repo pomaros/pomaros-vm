@@ -14,6 +14,8 @@ root = Path(__file__).resolve().parents[1]
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--output', type=Path, required=True)
 p.add_argument('--smp', action='store_true', help='isolated experimental Exec SMP build')
+p.add_argument('--core-lock', type=Path, default=root / 'CORE.lock',
+               help='shared source pin; use an explicit lock file for experimental builds')
 p.add_argument('--source-date-epoch', default=os.environ.get('SOURCE_DATE_EPOCH'),
                help='build timestamp; defaults to the source commit timestamp')
 p.add_argument('--source', type=Path, default=Path(os.environ.get('AROS_CORE_SOURCE', root.parent / 'aros-core-pomaros')))
@@ -24,6 +26,15 @@ a = p.parse_args()
 source = a.source.resolve()
 output = a.output.resolve()
 toolchain = a.toolchain.resolve()
+lock = dict(line.strip().split('=', 1) for line in a.core_lock.read_text().splitlines()
+            if line.strip() and not line.startswith('#'))
+revision = subprocess.check_output(['git', '-C', str(source), 'rev-parse', 'HEAD'], text=True).strip()
+if (revision != lock.get('CORE_REVISION') or lock.get('CORE_X18_POLICY') != 'unrestricted'
+        or lock.get('CORE_TARGET') != 'apple-aarch64'):
+    p.error('source or register ABI differs from CORE.lock; select the pinned source or explicit experimental lock')
+if subprocess.check_output(['git', '-C', str(source), 'status', '--porcelain'], text=True):
+    p.error('source must be clean before configuring a pinned VM guest')
+
 if output.exists():
     p.error('output must be a new directory; configured or native builds are never reused')
 branch = subprocess.check_output(['git', '-C', str(source), 'branch', '--show-current'], text=True).strip()

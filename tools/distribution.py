@@ -40,6 +40,10 @@ def config(build):
     if 'AROS_VM_GUEST           := 1' not in cfg or '-ffixed-x18' in cfg:
         raise ValueError('requires a VM-configured AArch64 build with ordinary x18')
     source = Path(json.loads((build / 'vm-configure-command.json').read_text())[0]).parent
+    expected = json.loads((build / 'vm-build-environment.json').read_text())['source_revision']
+    actual = subprocess.check_output(['git', '-C', str(source), 'rev-parse', 'HEAD'], text=True).strip()
+    if actual != expected:
+        raise ValueError('core source changed after configure; select a fresh matching build')
     return sdk, source
 
 def build_runtime(a):

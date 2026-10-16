@@ -139,6 +139,9 @@ configure_command = json.loads((build / 'vm-configure-command.json').read_text()
 source = Path(configure_command[0]).parent
 revision = subprocess.check_output(['git', '-C', str(source), 'rev-parse', 'HEAD'], text=True).strip()
 dirty = subprocess.check_output(['git', '-C', str(source), 'status', '--porcelain'], text=True)
+build_identity = json.loads((build / 'vm-build-environment.json').read_text())
+if build_identity['source_revision'] != revision:
+    p.error('core source changed after configure; use a fresh build for the selected revision')
 if dirty:
     p.error('commit or resolve core source changes before recording a package')
 stage2 = sdk / 'gen/arch/aarch64-apple/bootstrap/aros-apple-stage2-test.bin'

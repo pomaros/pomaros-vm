@@ -240,8 +240,12 @@ test-page-arena:
 
 # Host-only gates do not start hardware virtualization or touch personal profiles.
 .PHONY: test-host
-test-host: test-host-services test-clipboard-codec test-clipboard-services test-vm-storage test-package-app test-package-backend
+test-host: test-host-services test-clipboard-codec test-clipboard-services test-vm-storage test-package-app test-package-backend test-configure-pin
 
 .PHONY: test-package-backend
 test-package-backend:
 	python3 tests/package-backend.py
+
+.PHONY: test-configure-pin
+test-configure-pin:
+	python3 tests/configure-pin.py

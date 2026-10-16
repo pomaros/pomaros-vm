@@ -113,7 +113,9 @@ try:
     for label in ('a','b'):
         with (a.output/('configure-'+label+'.log')).open('w') as log:
             subprocess.run(['python3',str(configure),'--source',str(source),
-                            '--output',str(a.output/('build-'+label)),'--source-date-epoch',epoch],
+                            '--output',str(a.output/('build-'+label)),'--source-date-epoch',epoch,
+                            '--toolchain',str(root.parent/'aros-crosstools'),
+                            '--core-lock',str(root/'CORE.lock')],
                            env=env,stdout=log,stderr=subprocess.STDOUT,check=True)
         print('configure '+label+' PASS',flush=True)
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
