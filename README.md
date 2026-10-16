@@ -8,7 +8,7 @@ QEMU.
 
 Actual windowed application and guest desktop, captured on 2026-10-16.
 
-This private project reuses the AROS kernel, UEFI loader and bundle tools.
+This project reuses the AROS kernel, UEFI loader and bundle tools.
 The existing hosted PomAROS remains in its own repository.
 
 ## Shared guest source
