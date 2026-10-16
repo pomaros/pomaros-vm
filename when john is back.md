@@ -4535,3 +4535,11 @@ An attempted QEMU desktop package from the fresh audit build failed admission
 because `Devs/Drivers/pci.hidd` was not built. Earlier full distro failure
 (QuickPart proto/uuid.h) and integrated ELF-loader crash are not resolved by
 renaming. Shared core qualification and a fresh package remain necessary.
+
+
+The same EFI build and host contract/parser gates were rerun against common
+candidate f32aa81736. Boot ABI generated-header and console protocol byte
+comparisons pass. The allocator fixture needed the common core's UP config and
+IRQ save/restore stubs after its memory-lock API changed; updated fixture passes
+for native/VM bounds under ASan/UBSan. This is a fixture adaptation, no core
+repair. Final evidence: `artifacts/pomaros-migration/common-host-tests.json`.

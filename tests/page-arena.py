@@ -11,10 +11,12 @@ core = Path(os.environ.get('AROS_CORE_SOURCE', root.parent / 'aros-core-pomaros'
 with tempfile.TemporaryDirectory(prefix='vm-page-arena-') as temporary:
     tmp = Path(temporary)
     headers = {
+        'aros/config.h': '/* UP allocator host fixture. */\n',
+        'aros/apple/runtime.h': '#include <stdint.h>\n#include <assert.h>\nextern int exclusion_depth;\nstatic inline uint64_t AROSAppleRuntimeIRQSave(void) { return (uint64_t)exclusion_depth++; }\nstatic inline void AROSAppleRuntimeIRQRestore(uint64_t value) { assert(exclusion_depth > 0); --exclusion_depth; assert((uint64_t)exclusion_depth == value); }\n',
         'aros/kernel.h': '#define MAP_Executable 4\n#define MAP_Writable 2\n',
         'aros/debug.h': '#define bug(...) ((void)0)\n',
         'exec/execbase.h': '#include <stddef.h>\n',
-        'exec/memory.h': '#define MEMF_CLEAR 0x10000\n',
+        'exec/memory.h': '#define MEMF_CLEAR 0x10000\n#define MEMF_24BITDMA (1L << 9)\n#define MEMF_31BIT (1L << 12)\n',
         'proto/exec.h': '#include <assert.h>\nextern int exclusion_depth;\nstatic inline void Forbid(void) { ++exclusion_depth; }\nstatic inline void Permit(void) { assert(exclusion_depth > 0); --exclusion_depth; }\n',
     }
     for name, content in headers.items():
