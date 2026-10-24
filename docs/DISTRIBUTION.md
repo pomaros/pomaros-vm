@@ -37,7 +37,7 @@ Signing is local/ad-hoc, not Developer ID notarization or public publication.
 
 ## Disk and startup
 
-The fixed disk layout stays 64 MiB boot plus 256 MiB WORK. A small RAM system
+The distribution disk layout stays 64 MiB boot plus 256 MiB WORK (development packages may size WORK up to 1024 MiB with `--work-size`). A small RAM system
 starts storage, mounts WORK and waits for its publication. It starts the VM shutdown and input services from RAM, then assigns SYS
 to `VMWORK0:System` (the `WORK:System` directory), updates the normal AROS
 assigns, loads datatypes/preferences and starts the desktop and network stack.

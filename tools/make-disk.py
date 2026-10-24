@@ -15,7 +15,9 @@ p=argparse.ArgumentParser()
 p.add_argument('--esp',type=Path,required=True)
 p.add_argument('--output',type=Path,required=True)
 p.add_argument('--work-volume', action='store_true',
-               help='append a new 256 MiB FAT WORK volume after the 64 MiB boot volume')
+               help='append a new FAT16 WORK volume after the 64 MiB boot volume')
+p.add_argument('--work-size', type=int, metavar='MIB',
+               help='WORK volume size in MiB, 256 to 1024 in 64 MiB steps; default 256 or the packaged work_bytes')
 a=p.parse_args()
 provenance = a.esp/'provenance.json'
 manifest = json.loads(provenance.read_text()) if provenance.is_file() else {}
@@ -24,9 +26,16 @@ if manifest.get('distribution') and not work_tree.is_dir():
     p.error('distribution requires its WORK runtime tree')
 if provenance.is_file() and json.loads(provenance.read_text()).get('work_volume', False):
     a.work_volume = True
+packaged_bytes = manifest.get('work_bytes') if manifest.get('work_volume') else None
+if a.work_size is not None and (a.work_size<256 or a.work_size>1024 or a.work_size%64):
+    p.error('--work-size takes 256 to 1024 MiB in 64 MiB steps (FAT16 bounded geometry)')
+if a.work_size is not None and packaged_bytes and packaged_bytes!=a.work_size*1024*1024:
+    p.error('--work-size disagrees with the packaged WORK geometry in provenance.json')
+if a.work_size is not None and not a.work_volume:
+    p.error('--work-size requires --work-volume')
 a.output.parent.mkdir(parents=True,exist_ok=True)
 boot_bytes = 64*1024*1024
-work_bytes = 256*1024*1024 if a.work_volume else 0
+work_bytes = (a.work_size*1024*1024 if a.work_size else packaged_bytes or 256*1024*1024) if a.work_volume else 0
 env=dict(os.environ,TZ='UTC',LC_ALL='en_US.UTF-8')
 def run(command):
     subprocess.run(command,env=env,check=True)

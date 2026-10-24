@@ -47,6 +47,32 @@ class Backend(unittest.TestCase):
                 with self.assertRaises(SystemExit):
                     self.admit('--backend', 'qemu', flag)
 
+class WorkSize(unittest.TestCase):
+    admit = Backend.admit
+
+    def test_default_and_explicit_sizes(self):
+        self.assertEqual(self.admit().work_size, 256)
+        self.assertEqual(self.admit('--work-size', '1024').work_size, 1024)
+
+    def test_refuses_unbounded_or_unaligned_sizes(self):
+        import contextlib, io
+        for size in ('128', '1088', '300', '0', '-256'):
+            with self.subTest(size=size), contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit):
+                    self.admit('--work-size', size)
+
+    def test_size_requires_work_volume(self):
+        import contextlib, io
+        old = sys.argv
+        sys.argv = [str(source), '--build', 'unused', '--efi', 'unused', '--output', 'unused',
+                    '--profile', 'wanderer', '--virtio-gpu', '--work-size', '512']
+        try:
+            with contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit):
+                    exec(code, {'__file__': str(source)})
+        finally:
+            sys.argv = old
+
 class BootBoundary(unittest.TestCase):
     def package_modules(self, root, profile):
         begin = next(i for i, node in enumerate(tree.body) if isinstance(node, ast.Assign)

@@ -580,8 +580,15 @@ File services have their own [protocol and qualification](HOST-SERVICES.md).
 
 Add `--work-volume` to the Wanderer/virtio-GPU `package-core.py` command.
 `make-disk.py` reads this requirement from `provenance.json` and creates a new
-320 MiB image: 64 MiB FAT boot filesystem followed by 256 MiB FAT16 labelled
-WORK. `make-disk.py --work-volume` also explicitly requests this layout.
+image: 64 MiB FAT boot filesystem followed by a FAT16 volume labelled WORK,
+256 MiB by default (a 320 MiB disk). `--work-size MIB` on `package-core.py`
+selects 256 to 1024 MiB in 64 MiB steps; the packager records `work_bytes` in
+the provenance and sizes the mount geometry (`HighCyl`) to match, and
+`make-disk.py` honours it. `make-disk.py --work-volume [--work-size MIB]` also
+explicitly requests the layout; an explicit size that disagrees with the
+packaged geometry is refused. The upper bound keeps mformat on FAT16 (2 GiB
+would select FAT32, which the canonical normaliser does not cover). A large
+application such as the native Zed executable (485 MB) needs a 1024 MiB WORK.
 Existing outputs are refused; this does not upgrade or resize existing images.
 
 Startup uses stock LoadResource for the non-expunging bus/storage HIDDs, then
@@ -718,7 +725,7 @@ POMAROS_VM_STATE_DIRECTORY="NEW_PROFILE" "NEW.app/Contents/MacOS/PomAROSVM"
 ```
 
 Use absolute profile paths when launching from another directory. The helper
-supports the fixed 64 MiB boot + 256 MiB WORK layout. It validates both FAT16
+supports the 64 MiB boot + sized FAT16 WORK layout. It validates both FAT16
 volumes, obtains exclusive locks on read-only inputs, copies the new boot volume
 and byte-identical existing WORK, then publishes a new file atomically without
 replacement. Both inputs remain untouched. A running VZ disk lease, symlink,
