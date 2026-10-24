@@ -26,8 +26,22 @@ if manifest.get('distribution') and not work_tree.is_dir():
     p.error('distribution requires its WORK runtime tree')
 if provenance.is_file() and json.loads(provenance.read_text()).get('work_volume', False):
     a.work_volume = True
-packaged_bytes = manifest.get('work_bytes') if manifest.get('work_volume') else None
-if a.work_size is not None and (a.work_size<256 or a.work_size>1024 or a.work_size%64):
+MIB = 1024*1024
+def bounded_work_size(mib):
+    return isinstance(mib, int) and not isinstance(mib, bool) and 256 <= mib <= 1024 and mib % 64 == 0
+packaged_bytes = None
+if 'work_bytes' in manifest:
+    # The consumer validates the recorded geometry as strictly as its own flag:
+    # a corrupt or incompatible provenance must not create an arbitrary volume.
+    recorded = manifest['work_bytes']
+    if manifest.get('work_volume') is not True and recorded not in (0, None):
+        p.error('provenance.json records work_bytes without work_volume')
+    if manifest.get('work_volume') is True:
+        if not (isinstance(recorded, int) and not isinstance(recorded, bool)
+                and recorded % MIB == 0 and bounded_work_size(recorded // MIB)):
+            p.error('provenance.json work_bytes must be 256 to 1024 MiB in 64 MiB steps')
+        packaged_bytes = recorded
+if a.work_size is not None and not bounded_work_size(a.work_size):
     p.error('--work-size takes 256 to 1024 MiB in 64 MiB steps (FAT16 bounded geometry)')
 if a.work_size is not None and packaged_bytes and packaged_bytes!=a.work_size*1024*1024:
     p.error('--work-size disagrees with the packaged WORK geometry in provenance.json')

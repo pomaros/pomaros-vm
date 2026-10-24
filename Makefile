@@ -240,7 +240,11 @@ test-page-arena:
 
 # Host-only gates do not start hardware virtualization or touch personal profiles.
 .PHONY: test-host
-test-host: test-host-services test-clipboard-codec test-clipboard-services test-vm-storage test-package-app test-package-backend test-configure-pin test-fetch-source
+test-host: test-host-services test-clipboard-codec test-clipboard-services test-vm-storage test-package-app test-package-backend test-configure-pin test-fetch-source test-launcher-options
+
+.PHONY: test-launcher-options
+test-launcher-options: build/pomaros-vm
+	python3 tests/launcher-options.py
 
 .PHONY: test-package-backend
 test-package-backend:

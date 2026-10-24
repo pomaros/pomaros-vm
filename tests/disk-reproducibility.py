@@ -71,8 +71,20 @@ with tempfile.TemporaryDirectory(prefix='vm-disk-repro-') as directory:
                                 '--output',str(tmp/f'disk-bad-{bad}.img'),'--work-volume','--work-size',bad],
                                capture_output=True)
         assert refused.returncode!=0 and not (tmp/f'disk-bad-{bad}.img').exists(),bad
+    # A corrupt or incompatible provenance must be refused before any output exists.
+    for bad in ({'work_volume':True,'work_bytes':True},{'work_volume':True,'work_bytes':'536870912'},
+                {'work_volume':True,'work_bytes':300*1024*1024},{'work_volume':True,'work_bytes':2048*1024*1024},
+                {'work_volume':True,'work_bytes':512*1024*1024+1},{'work_volume':False,'work_bytes':512*1024*1024}):
+        (tmp/'esp0'/'provenance.json').write_text(json.dumps(bad))
+        refused=subprocess.run(['python3',str(root/'tools/make-disk.py'),'--esp',str(tmp/'esp0'),
+                                '--output',str(tmp/'disk-bad-provenance.img')],capture_output=True)
+        assert refused.returncode!=0 and not (tmp/'disk-bad-provenance.img').exists(),bad
+    (tmp/'esp0'/'provenance.json').write_text(json.dumps({'work_volume':False,'work_bytes':0}))
+    subprocess.run(['python3',str(root/'tools/make-disk.py'),'--esp',str(tmp/'esp0'),
+                    '--output',str(tmp/'disk-zero-recorded.img')],check=True)
+    assert (tmp/'disk-zero-recorded.img').stat().st_size==64*1024*1024
     (tmp/'esp0'/'provenance.json').unlink()
     verdict['layouts'].append({'work':True,'work_bytes':512*1024*1024,'bytes':sized.stat().st_size,
-                               'packaged_size_honoured':True,'disagreement_refused':True})
+                               'packaged_size_honoured':True,'disagreement_refused':True,'corrupt_provenance_refused':True})
 verdict['result']='PASS'
 print(json.dumps(verdict))

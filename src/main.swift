@@ -10,6 +10,9 @@ let cpuOptions=suppliedOptions.filter { $0.hasPrefix("--cpus=") }
 let requestedCPUs=cpuOptions.first.flatMap { Int($0.dropFirst(7)) } ?? 1
 let memoryOptions=suppliedOptions.filter { $0.hasPrefix("--memory=") }
 let requestedMemoryMiB=memoryOptions.first.flatMap { UInt64($0.dropFirst(9)) } ?? 512
+// Bounds are compared in MiB: a huge request must be refused, never multiplied into an overflow trap.
+let minimumMemoryMiB=(VZVirtualMachineConfiguration.minimumAllowedMemorySize + 1048575) / 1048576
+let maximumMemoryMiB=VZVirtualMachineConfiguration.maximumAllowedMemorySize / 1048576
 
 @available(macOS 13.0, *)
 final class Application: NSObject, NSApplicationDelegate, NSWindowDelegate, VZVirtualMachineDelegate, VZVirtioSocketListenerDelegate {
@@ -370,9 +373,8 @@ if cpuOptions.count > 1 || (!cpuOptions.isEmpty && Int(cpuOptions[0].dropFirst(7
   fputs("--cpus requires one count between 1 and 64; guest SMP support is separate\n",stderr);exit(2)
 }
 if memoryOptions.count > 1 || (!memoryOptions.isEmpty && UInt64(memoryOptions[0].dropFirst(9)) == nil)
-  || requestedMemoryMiB * 1024 * 1024 < VZVirtualMachineConfiguration.minimumAllowedMemorySize
-  || requestedMemoryMiB * 1024 * 1024 > VZVirtualMachineConfiguration.maximumAllowedMemorySize {
-  fputs("--memory requires one guest size in MiB within this Mac's Virtualization.framework bounds (\(VZVirtualMachineConfiguration.minimumAllowedMemorySize / 1048576)..\(VZVirtualMachineConfiguration.maximumAllowedMemorySize / 1048576))\n",stderr);exit(2)
+  || requestedMemoryMiB < minimumMemoryMiB || requestedMemoryMiB > maximumMemoryMiB {
+  fputs("--memory requires one guest size in MiB within this Mac's Virtualization.framework bounds (\(minimumMemoryMiB)..\(maximumMemoryMiB))\n",stderr);exit(2)
 }
 if options.contains("--input-probe") && options.contains("--headless") && (!options.contains("--gpu-window") || !options.contains("--usb-input")) {
   fputs("--input-probe requires a VZ window and USB input\n",stderr);exit(2)
