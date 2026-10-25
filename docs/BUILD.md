@@ -866,3 +866,12 @@ runtime verdict. It identifies delivered bytes; it does not prove application
 startup or functional behavior. `tests/disk-reproducibility.py` checks equivalent
 images with different source metadata, nested WORK inputs, readback, invalid
 paths and preservation of an existing image.
+
+For a VZ application scenario using the normal file/clipboard provider, add
+`run-vz.py --host-services`. This exposes the provider without selecting the
+headless host-services diagnostic. Its presence is recorded separately from
+functional acceptance. Application tests need the complete matching runtime
+from the distribution workflow; the small `package-core` image alone does not
+ship all application libraries. Keep the application case verdict separate from
+the desktop verdict: reaching Wanderer cannot validate a program that failed
+during library loading.

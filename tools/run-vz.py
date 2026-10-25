@@ -19,6 +19,7 @@ p=argparse.ArgumentParser()
 p.add_argument('--windowed',action='store_true',help='normal host firmware/GPU window, even for a headless guest probe')
 p.add_argument('--require-desktop-session',type=int,metavar='SECONDS')
 p.add_argument('--require-host-services',action='store_true')
+p.add_argument('--host-services',action='store_true',help='expose the normal file/clipboard provider without selecting its diagnostic probe')
 p.add_argument('--require-desktop-clipboard',action='store_true')
 p.add_argument('--require-clipboard-sync',action='store_true')
 p.add_argument('--require-file-commands',action='store_true')
@@ -127,7 +128,7 @@ pixels_verified=False
 capture_count=0
 passed=False;reason='timeout';start=time.monotonic()
 with log.open('w') as out:
-    proc=subprocess.Popen([str(root/'build/pomaros-vm'),str(disk),str(a.output/'state'),'--headless','--force-stop',f'--cpus={a.cpus}']+(['--gpu-window'] if a.windowed or a.require_gpu_scanout or a.require_input else ['--gpu'] if a.require_gpu or a.desktop_startup else [])+(['--window-capture'] if a.windowed and a.require_exec_smp else [])+(['--usb-input'] if a.usb_input else [])+(['--input-probe'] if a.require_input else [])+(['--network'] if a.require_network_config or a.require_desktop_network else [])+(['--vsock-probe'] if a.require_vsock else [])+(['--host-services'] if a.require_host_services or a.require_desktop_clipboard or a.require_desktop_work else [])+(['--clipboard-test'] if a.require_clipboard_sync or a.require_desktop_clipboard or a.require_desktop_work else []),stdout=out,stderr=subprocess.STDOUT)
+    proc=subprocess.Popen([str(root/'build/pomaros-vm'),str(disk),str(a.output/'state'),'--headless','--force-stop',f'--cpus={a.cpus}']+(['--gpu-window'] if a.windowed or a.require_gpu_scanout or a.require_input else ['--gpu'] if a.require_gpu or a.desktop_startup else [])+(['--window-capture'] if a.windowed and a.require_exec_smp else [])+(['--usb-input'] if a.usb_input else [])+(['--input-probe'] if a.require_input else [])+(['--network'] if a.require_network_config or a.require_desktop_network else [])+(['--vsock-probe'] if a.require_vsock else [])+(['--host-services'] if a.host_services or a.require_host_services or a.require_desktop_clipboard or a.require_desktop_work else [])+(['--clipboard-test'] if a.require_clipboard_sync or a.require_desktop_clipboard or a.require_desktop_work else []),stdout=out,stderr=subprocess.STDOUT)
     try:
         while time.monotonic()-start<a.timeout:
             text=log.read_text(errors='replace')
@@ -233,6 +234,7 @@ if a.require_gpu_scanout and not pixels_verified and reason=='timeout' and marke
 boot=subprocess.run(['mtype','-i',str(disk),'::BOOT.LOG'],capture_output=True)
 (a.output/'firmware.log').write_bytes(boot.stdout)
 verdict={'result':'PASS' if passed else 'FAIL','reason':reason,
+         'host_services_exposed':bool(a.host_services or a.require_host_services or a.require_desktop_clipboard or a.require_desktop_work),
          'cpus':a.cpus,'secondary_execution_verified':passed and (a.require_smp_probe or a.require_exec_smp),'cpu_widget_image_captured':widget_captured, 'exec_smp_verified':passed and a.require_exec_smp,
          'sana_device_verified':passed and a.require_sana_device,
          'vsock_stream_verified':passed and a.require_vsock,

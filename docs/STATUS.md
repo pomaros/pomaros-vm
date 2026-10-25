@@ -66,6 +66,16 @@ and existing-image preservation pass the actual mtools-backed gate in
 `artifacts/consolidation-work-file-reproducibility.log`. Application runtime
 acceptance remains separate from this image-construction result.
 
+Ferail's functional example builds against the identified consolidated SDK.
+The first application attempt cannot open bz2.library in the diagnostic image;
+although the desktop gate passes, the complete 32-case checker rejects it.
+A second image includes the common distribution runtime (2,138 files) but a
+system requester prevents desktop acceptance before the application runs.
+That run remains FAIL. A QEMU/LLDB preflight proves independent register access,
+but its TCG replay stays in UEFI and does not diagnose this requester. Local
+receipts: `artifacts/consolidation-ferail-functional/`. Full functional and GUI
+qualification remain outstanding; no failure was relabeled as success.
+
 ## Public preview preparation
 
 Version 0.1.1 (`v0.1.1-preview.1`) packages the qualified public core below. New signed runtime, Apple tickets and corresponding-source asset inventories are prepared separately; earlier 0.1.0 DMGs remain unchanged. Optional TrueType families outside the reviewed OFL/Apache/Bitstream set are excluded, with their selectors. Public publication follows the release coordinator’s final checks.
