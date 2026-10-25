@@ -19,3 +19,7 @@ The secondary probe does not establish concurrent Exec scheduling.
 | `make test-host` | Host service framing, clipboard codec/services, personal disk safety and packaging admission; no VM execution. |
 | `python3 tests/package-backend.py` | VZ host bridge defaults and QEMU persistent desktop without a host bridge; unsupported bridge requests rejected. |
 | `python3 tests/configure-pin.py` | Source revision and guest x18 policy are admitted before configuration; mismatches create no build directory. |
+
+| Command | Scope |
+|---|---|
+| `python3 tests/check-cpu-widget-frame.py --help` | Production 1024x768 UP CPUWidget: unique live accounting readiness, exact static frame/CPU label, bounded load text and contiguous gauge, 620 immutable-wallpaper blocks and eleven alert/missing-background negative controls. `--pixels-only` is an offline oracle check and never runtime acceptance. |

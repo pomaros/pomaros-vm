@@ -2,6 +2,11 @@
 
 ## Common-core consolidation candidate
 
+A separate CPUWidget production oracle passes offline against the retained actual
+QEMU frame: exact static widget pixels, bounded dynamic text/gauge and 620
+wallpaper blocks below the screen bar, plus eleven refusal controls. Its
+`--pixels-only` mode makes no accounting/runtime claim.
+
 The full QEMU product built from the same core passes compilation and packaging.
 Its first supervised desktop attempt reaches accepted desktop, graphics IRQ and
 two HID bindings with QMP/LLDB ready before execution, but fails its obsolete
