@@ -271,6 +271,11 @@ if a.work_volume:
         subprocess.run([str(root/'tools/build-abi-probe'),'--sdk',str(sdk),
             '--crosstools',str(a.toolchain.resolve()),'--profile','desktop-shutdown' if a.shutdown_probe else 'desktop-work',str(command)],check=True)
         pci_files.append(('VMWORK',command))
+if a.profile == 'wanderer' and a.desktop_session is not None:
+    widget = output / 'CPUWidget'
+    subprocess.run([str(root / 'tools/build-abi-probe'), '--sdk', str(sdk),
+                    '--crosstools', str(a.toolchain.resolve()), '--profile', 'cpu-widget', str(widget)], check=True)
+    pci_files.append(('C/CPUWidget', widget))
 desktop_services = a.host_services and a.profile=='wanderer'
 if desktop_services:
     pci_files += [(name,sdk/'AROS'/name) for name in ['Tools/Editor','C/CPUInfo']]
@@ -283,7 +288,7 @@ def deferred_file(rel):
             'Libs/poseidon.library', 'Devs/USBHardware/pcixhci.device',
             'Classes/USB/hub.class', 'Classes/USB/hubss.class', 'Classes/USB/hid.class'}:
         return True
-    return (a.soak_probe and rel=='VMSOAK') or (a.work_volume and rel in {'VMWORK','C/Mount','C/LoadResource','L/fat-handler','Devs/WORK.mount','Devs/Drivers/bus.hidd','Devs/Drivers/storage.hidd','Devs/virtio.device'}) or (a.profile=='wanderer' and rel in {'C/Assign','C/MakeDir'}) or (a.network_stack and (rel.startswith('System/Network/') or rel in {'VMNET','Libs/rexxsyslib.library','Libs/commodities.library','Libs/keymap.library','Devs/Networks/virtionet.device'})) or (desktop_services and rel in {
+    return (a.soak_probe and rel=='VMSOAK') or (a.work_volume and rel in {'VMWORK','C/Mount','C/LoadResource','L/fat-handler','Devs/WORK.mount','Devs/Drivers/bus.hidd','Devs/Drivers/storage.hidd','Devs/virtio.device'}) or (a.profile=='wanderer' and rel in {'C/Assign','C/MakeDir','C/CPUWidget'}) or (a.network_stack and (rel.startswith('System/Network/') or rel in {'VMNET','Libs/rexxsyslib.library','Libs/commodities.library','Libs/keymap.library','Devs/Networks/virtionet.device'})) or (desktop_services and rel in {
         'C/VMExchange','C/VMSync','Devs/clipboard.device','Devs/vmbridge.device','VMCLIP','Tools/Editor','C/CPUInfo'})
 ramdisk = output / 'SYS.img'
 image_command = ['python3', str(root / 'tools/make-fat12-image.py'), '--abi-probe', str(probe)]
@@ -344,6 +349,9 @@ if a.work_volume:
 if a.work_probe:
     startup_lines=startup_lines.replace('SYS:C/Assign VMWorkReady: REMOVE\n',
         'SYS:C/Assign VMWorkReady: REMOVE\nSYS:VMWORK\n',1)
+if a.profile == 'wanderer' and a.desktop_session is not None:
+    duration = a.desktop_session if a.desktop_session.isdecimal() else '0'
+    startup_lines = 'Run >NIL: SYS:C/CPUWidget ' + duration + '\n' + (startup_lines or 'G4Ready\nEndCLI\n')
 if a.profile=='wanderer':
     startup_lines=('SYS:C/MakeDir RAM:T\nSYS:C/MakeDir RAM:ENV\n'
                    'SYS:C/MakeDir RAM:ENV/Sys\nSYS:C/Assign T: RAM:T\n'
@@ -383,7 +391,7 @@ subprocess.run(['python3', str(root / 'tools/boot_generation.py'), 'create',
                 '--bundle', str(destination), '--sequence', '1', '--slot', '0',
                 '--state', 'accepted', '--output', str(output / 'AROS/BOOT0.ID')], check=True)
 shutil.copyfile(efi, output / 'EFI/BOOT/BOOTAA64.EFI')
-inputs = [root / 'tools/desktop_contract.py'] + ([output/'AROS/CPUPROBE.CFG'] if (a.smp_probe or a.smp_exec) else []) + ([output/'AROS/SESSION.CFG'] if a.desktop_session is not None else []) + ([pci_probe] if a.pci_hidd else []) + [path for _, path in pci_files] + [stage2, efi, probe, ramdisk] + [path for _, path in components] + programs
+inputs = [root / 'tools/desktop_contract.py', root / 'src/guest/cpu-widget.c'] + ([output/'AROS/CPUPROBE.CFG'] if (a.smp_probe or a.smp_exec) else []) + ([output/'AROS/SESSION.CFG'] if a.desktop_session is not None else []) + ([pci_probe] if a.pci_hidd else []) + [path for _, path in pci_files] + [stage2, efi, probe, ramdisk] + [path for _, path in components] + programs
 manifest = {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in inputs}
 (output / 'provenance.json').write_text(json.dumps({
     'backend': a.backend, 'profile': a.profile, 'smp_exec': a.smp_exec, 'smp_probe': a.smp_probe, 'soak_probe': a.soak_probe, 'work_volume': a.work_volume, 'work_probe': a.work_probe, 'shutdown_probe': a.shutdown_probe, 'clipboard_probe': a.clipboard_probe, 'clipboard_sync': a.clipboard_sync, 'file_commands': a.file_commands, 'command_startup': a.command_startup, 'vsock_device': a.vsock_device, 'host_services': a.host_services, 'network_tcp': bool(a.network_tcp_request), 'network_dns': a.network_dns, 'network_probe': a.network_probe, 'network_stack': a.network_stack, 'virtionet_device': a.virtionet_device, 'input_probe': a.input_probe, 'desktop_session': a.desktop_session, 'usb_desktop': a.usb_desktop, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,

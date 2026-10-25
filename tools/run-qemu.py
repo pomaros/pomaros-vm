@@ -138,7 +138,7 @@ with (a.output/'host.log').open('w') as log:
                 except Exception as error:
                     (a.output/'capture-error.txt').write_text(str(error))
                     reason='gpu-capture-failed';break
-            if not widget_captured and ((a.require_smp_probe and text.count('[SMP] sample cpu=')>=5) or (a.require_exec_smp and '[SMP] load widget ready' in text)):
+            if not widget_captured and ((a.require_smp_probe and text.count('[SMP] sample cpu=')>=5) or (a.require_exec_smp and '[VM] CPU widget ready' in text)):
                 # Capture while the bounded session still owns the widget.
                 try:
                     sock=socket.socket(socket.AF_UNIX);sock.settimeout(3);sock.connect(str(qmp))

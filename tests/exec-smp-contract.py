@@ -12,10 +12,14 @@ rows = [f'[SMP] task cpu=0x{cpu:x} phase=0x{phase:x} start=0x{10+phase*30+cpu:x}
 valid = '\n'.join((*MARKERS, *rows, '[SMP] AP timer ticks=0xc8',
     '[SMP] AP compute timer ticks phase=0x0 ticks=0x64',
     '[SMP] AP compute timer ticks phase=0x1 ticks=0x64'))
+valid = valid.replace('[VM] CPU widget ready', '[VM] CPU widget ready cores=2 online=2 samples=2')
 assert exec_smp_matches(valid, 2)
 cases = {
     'single CPU': (valid, 1),
-    'missing widget': (valid.replace('[KI] alive window open', ''), 2),
+    'missing widget': (valid.replace('[VM] CPU widget ready cores=2 online=2 samples=2', ''), 2),
+    'wrong widget core count': (valid.replace('cores=2', 'cores=1'), 2),
+    'missing online core': (valid.replace('online=2', 'online=1'), 2),
+    'missing CPU sample': (valid.replace('samples=2', 'samples=1'), 2),
     'missing lifecycle marker': (valid.replace(MARKERS[-1], ''), 2),
     'duplicate lifecycle marker': (valid + '\n' + MARKERS[0], 2),
     'missing worker': (valid.replace(rows[0], ''), 2),

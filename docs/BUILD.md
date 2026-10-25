@@ -497,6 +497,14 @@ accepts an explicit 1–512 byte script with the Wanderer profile, without
 
 ### Desktop session policy
 
+A desktop session starts the user-space `CPUWidget` command. It waits for
+`Sys/DesktopAccepted`, reads the core's versioned per-CPU accounting records,
+then opens and paints its own window. A bounded session gives the widget the
+same duration; a live desktop leaves it open until its close gadget or Ctrl-C.
+Ordinary SMP qualification requires a rendered widget with one admitted, valid
+sample per requested CPU, followed by its clean shutdown. The kernel does not
+create the monitoring window.
+
 The product Startup-Sequence creates `RAM:T`, `RAM:ENV` and `RAM:ENV/Sys`,
 then assigns `T:` and `ENV:` before starting desktop services. This supplies
 the ordinary DOS environment namespace, including `Sys/DesktopAccepted`.

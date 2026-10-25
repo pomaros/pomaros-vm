@@ -4,13 +4,13 @@
 import re
 
 MARKERS = (
-    '[KI] alive window open',
+    '[VM] CPU widget ready',
     '[SMP] EL0 CPU anchor PASS',
     '[SMP] ordinary task concurrent compute + x18/FPSIMD PASS',
     '[SMP] ordinary task wake + concurrent compute PASS',
     '[SMP] ordinary task teardown PASS',
     '[SMP] Exec two-core tasks PASS',
-    '[SMP] load widget ready',
+    '[VM] CPU widget closed',
     '[SMP] Exec secondary stopped PASS',
 )
 WORKER = re.compile(
@@ -22,6 +22,9 @@ COMPUTE_TIMER = re.compile(
 
 def exec_smp_matches(text, cpus):
     if cpus < 2 or 'FAIL' in text or any(text.count(m) != 1 for m in MARKERS):
+        return False
+    widget = re.findall(r'\[VM\] CPU widget ready cores=(\d+) online=(\d+) samples=(\d+)', text)
+    if len(widget) != 1 or tuple(map(int, widget[0])) != (cpus, cpus, cpus):
         return False
     rows = [tuple(int(value, 16) for value in row) for row in WORKER.findall(text)]
     if len(rows) != 4:
