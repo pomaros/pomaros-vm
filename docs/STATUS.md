@@ -1,6 +1,14 @@
 # Qualification status
 
-## Common-core consolidation candidate
+## Clean common-core reference candidate
+
+CORE.lock selects local common main at
+`61510f3cb1e28071a9f8d962f42b4135ad275412`. This clean public export separates
+platform-specific DRM device enumeration and fixes documentation routes. Its
+new build/runtime qualification is pending; preceding fc028f evidence retains
+its original identity.
+
+## Pre-export consolidation qualification
 
 A separate CPUWidget production oracle passes offline against the retained actual
 QEMU frame: exact static widget pixels, bounded dynamic text/gauge and 620
