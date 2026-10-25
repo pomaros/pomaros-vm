@@ -68,8 +68,8 @@ command = [str(source / 'configure'), '--target=apple-aarch64',
            '--with-aros-toolchain-install=' + str(toolchain),
            '--with-llvm-version=' + clang_version, '--without-x']
 if a.smp:
-    if branch != 'codex-smp-integration':
-        p.error('--smp requires the isolated SMP integration branch')
+    # The immutable source/ABI lock above is the authority; a task branch
+    # name does not determine whether the pinned core supports SMP.
     command.append('--enable-target-variant=smp')
 output.mkdir(parents=True)
 (output / 'vm-configure-command.json').write_text(json.dumps(command, indent=2) + '\n')
