@@ -4,7 +4,7 @@
 set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 core=${AROS_CORE_SOURCE:-"$root/../aros-core"}
-build=${AROS_BUILD:-"$root/../Build/pomaros-vm/clean-core"}
+build=${AROS_BUILD:-"$root/../Build/pomaros-vm/reference-core"}
 [ -f "$build/arch/aarch64-apple/mmakefile" ] || {
     echo 'An isolated configured AROS Apple build is required; see docs/BUILD.md.' >&2
     exit 1

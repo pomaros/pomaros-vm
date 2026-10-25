@@ -3,7 +3,8 @@
 ## Common-core consolidation candidate
 
 The local candidate pin is public-ancestry core `97554f11ac4ae896bd4035e20808873be3a26b44`,
-checked out at the canonical `../aros-core` path. The VM build uses its own
+checked out at the canonical `../aros-core` path. The canonical build is
+`../Build/pomaros-vm/reference-core`. The VM build uses its own
 GIC/timer backend, unrestricted guest x18 and an isolated SMP configuration.
 The full build of the preceding pin reached AHI and exposed an unconditional
 private-driver configure entry. This candidate makes that driver optional and

@@ -18,7 +18,7 @@ app_identity=json.loads((a.app/'Contents/Resources/provenance.json').read_text()
 guest_identity=app_identity['guest']
 core_lock=dict(line.split('=',1) for line in (root/'CORE.lock').read_text().splitlines() if line and not line.startswith('#'))
 if guest_identity['source_revision']!=core_lock['CORE_REVISION']:parser.error('app core differs from CORE.lock')
-sdk=Path(os.environ.get('AROS_VM_SDK',root.parent/'Build/pomaros-vm/clean-core/bin/apple-aarch64')).resolve()
+sdk=Path(os.environ.get('AROS_VM_SDK',root.parent/'Build/pomaros-vm/reference-core/bin/apple-aarch64')).resolve()
 build=sdk.parents[1]
 build_identity=json.loads((build/'vm-build-environment.json').read_text())
 if build_identity['source_revision']!=guest_identity['source_revision']:parser.error('probe SDK differs from app core')
