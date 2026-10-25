@@ -49,7 +49,8 @@ if epoch is None:
 # Validate before creating a directory or interpolating into make syntax.
 subprocess.run([sys.executable,str(source/'scripts/build-date.py'),'--epoch',epoch],
                check=True,stdout=subprocess.DEVNULL)
-env=dict(os.environ,SOURCE_DATE_EPOCH=epoch,TZ='UTC')
+env=dict(os.environ,SOURCE_DATE_EPOCH=epoch,TZ='UTC',
+         PYTHON=os.environ.get('PYTHON', sys.executable))
 # Catalogs are source submodules, not optional pre-generated build artifacts.
 # Fetch exactly the pinned revisions required by core and desktop workloads.
 subprocess.run(['git', '-C', str(source), 'submodule', 'update', '--init', '--',

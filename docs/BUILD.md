@@ -115,6 +115,10 @@ positive kernel hash before using the build again.
 
 ## Fresh configuration
 
+Invoke `configure-core.py` with the Python environment containing the build
+dependencies (including Mako and PyYAML). The helper passes that interpreter to
+Autoconf; an explicit `PYTHON` environment setting takes precedence.
+
 ```sh
 python3 tools/configure-core.py --output "../Build/pomaros-vm/clean-core"
 make -C "../Build/pomaros-vm/clean-core" -j8 apple-boot-payloads
