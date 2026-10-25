@@ -2,11 +2,13 @@
 
 ## Common-core consolidation candidate
 
-The local candidate pin is public-ancestry core `1bb0c338c77e82246653506925709197ddbfa8d9`,
+The local candidate pin is public-ancestry core `97554f11ac4ae896bd4035e20808873be3a26b44`,
 checked out at the canonical `../aros-core` path. The VM build uses its own
 GIC/timer backend, unrestricted guest x18 and an isolated SMP configuration.
-Shared boot/desktop targets require no private platform definitions. Fresh
-build and runtime qualification are pending; the archived preview evidence below
+The full build of the preceding pin reached AHI and exposed an unconditional
+private-driver configure entry. This candidate makes that driver optional and
+keeps its prerequisites in the private layer. Fresh build and runtime
+qualification are pending; the archived preview evidence below
 does not qualify this candidate. No candidate source or product has been published.
 
 ## Public preview preparation
