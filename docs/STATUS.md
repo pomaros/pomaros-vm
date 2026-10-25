@@ -120,7 +120,7 @@ The macOS launcher uses Apple's ABI. The VM guest leaves x18 unrestricted; only 
 
 These bounded checks do not establish long-term desktop stability, real keyboard/pointer event delivery, full networking, audio or production SMP. QEMU has no VZ clipboard/file provider or coordinated guest flush/quit transport; its separate status documents that limitation. The earlier failed HVF/MMIO, screenshot and FAT runs remain preserved in local artifacts; their failure verdicts were not rewritten.
 
-The product repositories and curated shared [AROS core](https://github.com/pomaros/aros-core) are public. The historical core commits used by the archived signed artifacts remain in the private lineage. The native product repository remains empty and private. Build procedures live in [BUILD.md](BUILD.md) and [DISTRIBUTION.md](DISTRIBUTION.md); architecture lives in [PORTABILITY.md](PORTABILITY.md).
+The product repositories and curated shared [AROS core](https://github.com/pomaros/aros-core) are public. The historical core commits used by the archived signed artifacts remain in the private lineage. Native hardware development is maintained separately and is excluded from this product. Build procedures live in [BUILD.md](BUILD.md) and [DISTRIBUTION.md](DISTRIBUTION.md); architecture lives in [PORTABILITY.md](PORTABILITY.md).
 
 ## Signed internal distribution
 
@@ -135,3 +135,13 @@ These are internal development artifacts for John. No public binary download or 
 ## Public-source migration
 
 Builds acquire the curated official-history `pomaros/aros-core` fork through `CORE.lock` into the separate `../aros-core` checkout. The VM boot manifests exclude physical Apple PMGR, DART, RTKit, SPMI, SMC, PCIe, NVMe and SPI-HID drivers. `appleboot.device` remains because it supplies the VM RAM-backed system volume. The source acquisition and native-module admission checks do not establish a successful new guest build or boot. The archived runtime evidence above belongs to the unchanged earlier artifacts.
+
+## Configurable application capacity
+
+The launcher accepts bounded guest memory in MiB. WORK geometry is recorded
+by packaging and validated by disk creation, with sizes from 256 to 1024 MiB.
+The merged implementation retains identified WORK fixtures, owned-window
+capture and the independent host-services admission flags. Launcher refusal,
+package-backend and reproducible disk tests pass, including the 512 MiB WORK
+case and corrupt/mismatching geometry refusals. These are host checks; no
+larger-memory guest or application execution is claimed from them.

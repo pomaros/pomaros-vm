@@ -8,6 +8,11 @@ let suppliedOptions=Array(CommandLine.arguments.dropFirst(bundledLaunch ? 1:3))
 let launchOptions=Array(Set((bundledLaunch ? ["--network","--host-services"] : []) + suppliedOptions))
 let cpuOptions=suppliedOptions.filter { $0.hasPrefix("--cpus=") }
 let requestedCPUs=cpuOptions.first.flatMap { Int($0.dropFirst(7)) } ?? 1
+let memoryOptions=suppliedOptions.filter { $0.hasPrefix("--memory=") }
+let requestedMemoryMiB=memoryOptions.first.flatMap { UInt64($0.dropFirst(9)) } ?? 512
+// Bounds are compared in MiB: a huge request must be refused, never multiplied into an overflow trap.
+let minimumMemoryMiB=(VZVirtualMachineConfiguration.minimumAllowedMemorySize + 1048575) / 1048576
+let maximumMemoryMiB=VZVirtualMachineConfiguration.maximumAllowedMemorySize / 1048576
 
 @available(macOS 13.0, *)
 final class Application: NSObject, NSApplicationDelegate, NSWindowDelegate, VZVirtualMachineDelegate, VZVirtioSocketListenerDelegate {
@@ -91,7 +96,7 @@ final class Application: NSObject, NSApplicationDelegate, NSWindowDelegate, VZVi
       let config = VZVirtualMachineConfiguration()
       config.platform = VZGenericPlatformConfiguration()
       config.cpuCount = requestedCPUs
-      config.memorySize = 512 * 1024 * 1024
+      config.memorySize = requestedMemoryMiB * 1024 * 1024
       let boot = VZEFIBootLoader()
       let nvram = state.appendingPathComponent("nvram.bin")
       if FileManager.default.fileExists(atPath: nvram.path) {
@@ -367,12 +372,16 @@ if cpuOptions.count > 1 || (!cpuOptions.isEmpty && Int(cpuOptions[0].dropFirst(7
   || requestedCPUs < 1 || requestedCPUs > 64 {
   fputs("--cpus requires one count between 1 and 64; guest SMP support is separate\n",stderr);exit(2)
 }
+if memoryOptions.count > 1 || (!memoryOptions.isEmpty && UInt64(memoryOptions[0].dropFirst(9)) == nil)
+  || requestedMemoryMiB < minimumMemoryMiB || requestedMemoryMiB > maximumMemoryMiB {
+  fputs("--memory requires one guest size in MiB within this Mac's Virtualization.framework bounds (\(minimumMemoryMiB)..\(maximumMemoryMiB))\n",stderr);exit(2)
+}
 if options.contains("--input-probe") && options.contains("--headless") && (!options.contains("--gpu-window") || !options.contains("--usb-input")) {
   fputs("--input-probe requires a VZ window and USB input\n",stderr);exit(2)
 }
 if (!bundledLaunch && CommandLine.arguments.count < 3) || suppliedOptions.count != Set(suppliedOptions).count
-  || options.contains(where: { !$0.hasPrefix("--cpus=") && $0 != "--headless" && $0 != "--gpu" && $0 != "--gpu-window" && $0 != "--usb-input" && $0 != "--input-probe" && $0 != "--network" && $0 != "--vsock-probe" && $0 != "--host-services" && $0 != "--clipboard-test" && $0 != "--force-stop" && $0 != "--window-close-test" && $0 != "--transport-cut-test" && $0 != "--window-capture" }) {
-  fputs("usage: pomaros-vm DISK_IMAGE STATE_DIRECTORY [--cpus=N] [--headless] [--gpu] [--gpu-window] [--usb-input] [--input-probe] [--network] [--vsock-probe] [--host-services] [--clipboard-test] [--force-stop] [--window-close-test] [--transport-cut-test] [--window-capture]\n", stderr)
+  || options.contains(where: { !$0.hasPrefix("--cpus=") && !$0.hasPrefix("--memory=") && $0 != "--headless" && $0 != "--gpu" && $0 != "--gpu-window" && $0 != "--usb-input" && $0 != "--input-probe" && $0 != "--network" && $0 != "--vsock-probe" && $0 != "--host-services" && $0 != "--clipboard-test" && $0 != "--force-stop" && $0 != "--window-close-test" && $0 != "--transport-cut-test" && $0 != "--window-capture" }) {
+  fputs("usage: pomaros-vm DISK_IMAGE STATE_DIRECTORY [--cpus=N] [--memory=MIB] [--headless] [--gpu] [--gpu-window] [--usb-input] [--input-probe] [--network] [--vsock-probe] [--host-services] [--clipboard-test] [--force-stop] [--window-close-test] [--transport-cut-test] [--window-capture]\n", stderr)
   exit(2)
 }
 if #available(macOS 13.0, *) {

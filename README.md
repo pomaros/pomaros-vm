@@ -62,6 +62,9 @@ includes its guest system; first launch creates a personal profile in
 `~/Library/Application Support/PomAROS VM/Default/`. Network access uses the
 Mac's connection through VZ NAT, so AROS needs no Wi-Fi configuration.
 
+The guest gets 512 MiB of RAM unless the launcher is started with `--memory=MIB`
+(bounded by Virtualization.framework on this Mac); `run-vz.py --memory` passes it through.
+
 Press **Control+Option+Esc** to release mouse/keyboard input to macOS. Click the
 VM window to return to AROS. The shortcut is also in the application menu.
 

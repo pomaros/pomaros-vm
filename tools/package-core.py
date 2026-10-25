@@ -21,7 +21,9 @@ p.add_argument('--virtio-device', action='store_true')
 p.add_argument('--shutdown-probe', action='store_true')
 p.add_argument('--soak-probe', action='store_true')
 p.add_argument('--work-probe', action='store_true')
-p.add_argument('--work-volume', action='store_true', help='mount the appended 256 MiB WORK volume made by make-disk --work-volume')
+p.add_argument('--work-volume', action='store_true', help='mount the appended FAT16 WORK volume made by make-disk --work-volume')
+p.add_argument('--work-size', type=int, default=256, metavar='MIB',
+               help='WORK volume size in MiB, 256 to 1024 in 64 MiB steps (default 256); recorded for make-disk')
 p.add_argument('--virtionet-device', action='store_true')
 p.add_argument('--host-services', action='store_true')
 p.add_argument('--clipboard-sync', action='store_true')
@@ -68,6 +70,11 @@ if a.file_commands:
 if a.command_startup and (a.profile!='headless' or a.host_services or a.vsock_device):
     p.error('--command-startup requires headless without host services or vsock device')
 if a.work_volume and a.backend == 'vz': a.host_services=True
+if a.work_size<256 or a.work_size>1024 or a.work_size%64:
+    p.error('--work-size takes 256 to 1024 MiB in 64 MiB steps (FAT16 bounded geometry)')
+if a.work_size!=256 and not a.work_volume:
+    p.error('--work-size requires --work-volume')
+work_sectors=a.work_size*1024*1024//512
 if a.host_services: a.vsock_device=True
 if a.vsock_device and not (a.pci_hidd or (a.profile=='wanderer' and a.virtio_gpu)):
     p.error('--vsock-device requires --pci-hidd or a resident virtio-GPU desktop')
@@ -264,7 +271,8 @@ if a.work_volume:
     pci_files += [(rel,sdk/'AROS'/rel) for rel in ['C/Mount','C/LoadResource','L/fat-handler']]
     mountlist=output/'WORK.mount'
     mountlist.write_text('VMWORK0:\nFileSystem = L:fat-handler\nDevice = virtio.device\nUnit = 0\n'
-        'BlockSize = 512\nSurfaces = 1\nBlocksPerTrack = 1\nLowCyl = 131072\nHighCyl = 655359\n'
+        'BlockSize = 512\nSurfaces = 1\nBlocksPerTrack = 1\nLowCyl = 131072\n'
+        f'HighCyl = {131072+work_sectors-1}\n'
         'Buffers = 64\nBufMemType = 1\nMaxTransfer = 0x100000\n'
         'DosType = 0x46415401\nStackSize = 65536\nActivate = 1\n#\n')
     pci_files.append(('Devs/WORK.mount',mountlist))
@@ -398,7 +406,7 @@ shutil.copyfile(efi, output / 'EFI/BOOT/BOOTAA64.EFI')
 inputs = [root / 'tools/desktop_contract.py', root / 'src/guest/cpu-widget.c'] + ([output/'AROS/CPUPROBE.CFG'] if (a.smp_probe or a.smp_exec) else []) + ([output/'AROS/SESSION.CFG'] if a.desktop_session is not None else []) + ([pci_probe] if a.pci_hidd else []) + [path for _, path in pci_files] + [stage2, efi, probe, ramdisk] + [path for _, path in components] + programs
 manifest = {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in inputs}
 (output / 'provenance.json').write_text(json.dumps({
-    'backend': a.backend, 'profile': a.profile, 'smp_exec': a.smp_exec, 'smp_probe': a.smp_probe, 'soak_probe': a.soak_probe, 'work_volume': a.work_volume, 'work_probe': a.work_probe, 'shutdown_probe': a.shutdown_probe, 'clipboard_probe': a.clipboard_probe, 'clipboard_sync': a.clipboard_sync, 'file_commands': a.file_commands, 'command_startup': a.command_startup, 'vsock_device': a.vsock_device, 'host_services': a.host_services, 'network_tcp': bool(a.network_tcp_request), 'network_dns': a.network_dns, 'network_probe': a.network_probe, 'network_stack': a.network_stack, 'virtionet_device': a.virtionet_device, 'input_probe': a.input_probe, 'desktop_session': a.desktop_session, 'usb_desktop': a.usb_desktop, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,
+    'backend': a.backend, 'profile': a.profile, 'smp_exec': a.smp_exec, 'smp_probe': a.smp_probe, 'soak_probe': a.soak_probe, 'work_volume': a.work_volume, 'work_bytes': a.work_size*1024*1024 if a.work_volume else 0, 'work_probe': a.work_probe, 'shutdown_probe': a.shutdown_probe, 'clipboard_probe': a.clipboard_probe, 'clipboard_sync': a.clipboard_sync, 'file_commands': a.file_commands, 'command_startup': a.command_startup, 'vsock_device': a.vsock_device, 'host_services': a.host_services, 'network_tcp': bool(a.network_tcp_request), 'network_dns': a.network_dns, 'network_probe': a.network_probe, 'network_stack': a.network_stack, 'virtionet_device': a.virtionet_device, 'input_probe': a.input_probe, 'desktop_session': a.desktop_session, 'usb_desktop': a.usb_desktop, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,
     'source_revision': revision, 'source_lock': build_identity.get('source_lock'),
     'configure_command': configure_command,
     'build_environment': build_identity, 'toolchain': str(a.toolchain.resolve()),
