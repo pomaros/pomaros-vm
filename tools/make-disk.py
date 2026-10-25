@@ -6,7 +6,7 @@ import argparse
 import hashlib
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import subprocess
 import shutil
 import tempfile
@@ -16,7 +16,23 @@ p.add_argument('--esp',type=Path,required=True)
 p.add_argument('--output',type=Path,required=True)
 p.add_argument('--work-volume', action='store_true',
                help='append a new 256 MiB FAT WORK volume after the 64 MiB boot volume')
+p.add_argument('--work-file', action='append', default=[], metavar='REL=PATH',
+               help='add an identified application or fixture to the isolated WORK volume')
 a=p.parse_args()
+work_files={}
+for spec in a.work_file:
+    rel, separator, source=spec.partition('='); relative=PurePosixPath(rel)
+    if (not separator or not rel or rel=='.' or relative.is_absolute() or '..' in relative.parts
+            or rel!=relative.as_posix() or any(c in rel for c in ':\\\0*?<>|"')
+            or rel.casefold() in {name.casefold() for name in work_files}):
+        p.error('--work-file requires a unique relative destination and regular source')
+    source=Path(source).resolve()
+    if not source.is_file():p.error('missing WORK source: '+str(source))
+    with source.open('rb') as stream: digest=hashlib.file_digest(stream,'sha256').hexdigest()
+    work_files[rel]={'source':str(source),'bytes':source.stat().st_size,'sha256':digest}
+if work_files:a.work_volume=True
+inputs_path=Path(str(a.output)+'.work-files.json')
+if work_files and inputs_path.exists():p.error('WORK input receipt already exists')
 provenance = a.esp/'provenance.json'
 manifest = json.loads(provenance.read_text()) if provenance.is_file() else {}
 work_tree = a.esp/'WORK'
@@ -78,10 +94,32 @@ try:
                     actual=subprocess.check_output(['mtype','-i',str(volume),'::System/'+relative],env=env)
                     if hashlib.sha256(actual).hexdigest()!=expected['sha256']:
                         raise ValueError('distribution file roundtrip mismatch: '+relative)
+            made=set()
+            for relative,item in sorted(work_files.items()):
+                # No overwrite of distribution content, even with FAT case folding.
+                present=subprocess.run(['mdir','-i',str(volume),'::'+relative],
+                                       env=env,capture_output=True)
+                if present.returncode==0:raise ValueError('WORK destination exists: '+relative)
+                parents=list(PurePosixPath(relative).parents)[:-1]
+                for parent in reversed(parents):
+                    name=parent.as_posix()
+                    if name not in made:
+                        exists=subprocess.run(['mdir','-i',str(volume),'::'+name],
+                                              env=env,capture_output=True)
+                        if exists.returncode:run(['mmd','-i',str(volume),'::'+name])
+                        made.add(name)
+                run(['mcopy','-i',str(volume),item['source'],'::'+relative])
+                actual=subprocess.check_output(['mtype','-i',str(volume),'::'+relative],env=env)
+                if len(actual)!=item['bytes'] or hashlib.sha256(actual).hexdigest()!=item['sha256']:
+                    raise ValueError('WORK input changed or readback differs: '+relative)
             volume.write_bytes(normalize_fat16(volume.read_bytes()))
             with volume.open('rb') as source, a.output.open('ab') as target:
                 shutil.copyfileobj(source,target)
 except BaseException:
     a.output.unlink();raise
+if work_files:
+    with inputs_path.open('x') as stream:
+        json.dump({'work_offset':boot_bytes,'work_bytes':work_bytes,'files':work_files},stream,indent=2)
+        stream.write('\n')
 print(f'make-disk result=PASS bytes={boot_bytes+work_bytes} '
       f'work_offset={boot_bytes if work_bytes else 0} work_bytes={work_bytes}')

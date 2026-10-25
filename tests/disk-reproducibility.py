@@ -32,13 +32,21 @@ with tempfile.TemporaryDirectory(prefix='vm-disk-repro-') as directory:
         images=[]
         for side in range(2):
             image=tmp/f'disk-{work}-{side}.img';images.append(image)
+            application=tmp/f'application-{side}'
+            application.write_bytes(bytes(range(256))*16385)
+            os.utime(application,(946684800 if side==0 else 1893456000,)*2)
             subprocess.run(['python3',str(root/'tools/make-disk.py'),'--esp',str(tmp/f'esp{side}'),
-                            '--output',str(image)]+(['--work-volume'] if work else []),check=True,
+                            '--output',str(image)]+(['--work-file','Apps/Test.bin='+str(application)] if work else []),check=True,
                            env=dict(os.environ,TZ='Pacific/Honolulu' if side else 'Europe/Berlin'))
             for name,expected in fixtures.items():
                 actual=subprocess.check_output(['mtype','-i',str(image),'::'+name],
                                                env=dict(os.environ,LC_ALL='en_US.UTF-8'))
                 assert actual==expected,name
+            if work:
+                actual=subprocess.check_output(['mtype','-i',str(image)+'@@67108864','::Apps/Test.bin'])
+                assert actual==application.read_bytes()
+                receipt=json.loads(Path(str(image)+'.work-files.json').read_text())
+                assert receipt['files']['Apps/Test.bin']['sha256']==hashlib.sha256(actual).hexdigest()
         hashes=[]
         for image in images:
             with image.open('rb') as f:hashes.append(hashlib.file_digest(f,'sha256').hexdigest())
@@ -49,5 +57,10 @@ with tempfile.TemporaryDirectory(prefix='vm-disk-repro-') as directory:
         assert refusal.returncode!=0 and after==hashes[0]
         verdict['layouts'].append({'work':work,'sha256':hashes[0],
                                    'bytes':images[0].stat().st_size,'existing_output_unchanged':True})
+    rejected=tmp/'rejected.img'
+    for invalid in ('../escape','/absolute','.', 'Apps/a:volume','Apps/*.bin'):
+        result=subprocess.run(['python3',str(root/'tools/make-disk.py'),'--esp',str(tmp/'esp0'),
+                               '--output',str(rejected),'--work-file',invalid+'='+str(application)],capture_output=True)
+        assert result.returncode!=0 and not rejected.exists(),invalid
 verdict['result']='PASS'
 print(json.dumps(verdict))

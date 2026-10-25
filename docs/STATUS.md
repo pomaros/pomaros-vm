@@ -59,6 +59,13 @@ and product hashes. This contradicts treating worker-exit corruption as proven
 for this cohort, but does not qualify the full Ferail application or native M1.
 The earlier failures and original probe source snapshots remain retained.
 
+The application disk builder can add identified executables and fixtures to its
+separate WORK volume without rebuilding the common desktop. Exact readback,
+metadata-independent image reproducibility, nested destinations, invalid paths
+and existing-image preservation pass the actual mtools-backed gate in
+`artifacts/consolidation-work-file-reproducibility.log`. Application runtime
+acceptance remains separate from this image-construction result.
+
 ## Public preview preparation
 
 Version 0.1.1 (`v0.1.1-preview.1`) packages the qualified public core below. New signed runtime, Apple tickets and corresponding-source asset inventories are prepared separately; earlier 0.1.0 DMGs remain unchanged. Optional TrueType families outside the reviewed OFL/Apache/Bitstream set are excluded, with their selectors. Public publication follows the release coordinator’s final checks.

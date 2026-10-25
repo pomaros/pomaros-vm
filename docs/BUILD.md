@@ -851,3 +851,18 @@ the strict bounded desktop verdict. A separate variant uses `--cfg
 ferail_allocator` and `--extern aros_alloc=LIBRARY`, where LIBRARY is built from
 the Ferail checkout's allocator source with that same installed SDK. Retain its
 source hash; this variant covers 64-byte slabs and 8192-byte system allocations.
+
+For application iteration, package a desktop with `--work-volume`, then use
+`tools/make-disk.py --work-file Apps/App=/absolute/path/to/App`. Repeat the flag
+for data or fixtures. It creates an isolated 256 MiB WORK volume after the
+64 MiB boot volume; the existing mount geometry is unchanged. Application
+files do not grow the core bundle or the RAM SYS image. Run `WORK:Apps/App`
+from the guest shell or a custom startup scenario.
+
+The builder refuses duplicate/invalid paths and existing destinations, rereads
+each copied file and compares its exact size and SHA-256, and writes
+`DISK.img.work-files.json`. Keep that receipt with the executable, scenario and
+runtime verdict. It identifies delivered bytes; it does not prove application
+startup or functional behavior. `tests/disk-reproducibility.py` checks equivalent
+images with different source metadata, nested WORK inputs, readback, invalid
+paths and preservation of an existing image.
