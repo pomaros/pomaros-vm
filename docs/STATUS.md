@@ -39,6 +39,14 @@ receipts remain unchanged. Native SysMon, input and networking are not qualified
 by this gate. The archived preview
 evidence below does not qualify this candidate. Nothing has been published.
 
+The C pthread allocation-lifetime probe also passes 32 cycles: worker-allocated
+objects remain readable and freeable after join; parent allocations can be freed
+by a worker. The custom-startup VZ desktop gate passes in 36.96 seconds, with
+GPU completion and the bounded session. Evidence:
+`artifacts/consolidation-pthread-heap/`. This tests the SDK C link path, not
+Rust's global allocator or every independent stdc opener. It does not justify
+retiring Ferail's worker workaround until its Rust path is exercised.
+
 ## Public preview preparation
 
 Version 0.1.1 (`v0.1.1-preview.1`) packages the qualified public core below. New signed runtime, Apple tickets and corresponding-source asset inventories are prepared separately; earlier 0.1.0 DMGs remain unchanged. Optional TrueType families outside the reviewed OFL/Apache/Bitstream set are excluded, with their selectors. Public publication follows the release coordinator’s final checks.

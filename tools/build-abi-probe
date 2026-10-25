@@ -6,7 +6,7 @@ set -eu
 
 usage()
 {
-    echo "usage: build-abi-probe [--profile cli|tls|workbench|platform|pci|cpu-widget|usb-desktop|desktop-input|desktop-clipboard|desktop-network|desktop-work|desktop-shutdown|desktop-soak|stage6-transport|stage6-image] [--sdk SDK_ROOT] [--sdk-tools DIR] [--crosstools DIR] OUTPUT" >&2
+    echo "usage: build-abi-probe [--profile cli|tls|workbench|platform|pci|pthread-heap|cpu-widget|usb-desktop|desktop-input|desktop-clipboard|desktop-network|desktop-work|desktop-shutdown|desktop-soak|stage6-transport|stage6-image] [--sdk SDK_ROOT] [--sdk-tools DIR] [--crosstools DIR] OUTPUT" >&2
     exit 2
 }
 
@@ -52,6 +52,9 @@ done
 [ "$#" -eq 1 ] || usage
 
 case "$profile" in
+    pthread-heap)
+        source_file="$project_root/tests/pthread-heap-lifetime.c"
+        ;;
     cpu-widget)
         source_file="$project_root/src/guest/cpu-widget.c"
         ;;

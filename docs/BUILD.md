@@ -826,3 +826,12 @@ caffeinate -u -d -t 70 python3 tools/run-vz.py --disk DISK.img \
 Inspect `state/desktop-window.png` as well as the strict verdict. This validates
 the VM’s CPU widget and common execution backend; physical CPU inventory and
 SysMon on native hardware have their own qualification.
+
+`tools/build-abi-probe --profile pthread-heap OUTPUT` builds the C pthread heap
+lifetime regression against the selected SDK. Package it as
+`--extra-file PthreadHeap=OUTPUT` and select a custom `--startup-sequence` that
+runs `SYS:PthreadHeap` before `G4Ready` and `EndCLI`. Require the bounded desktop
+verdict and exactly one `[VM] pthread heap survives worker exit PASS cycles=32`
+record. Preserve source, SDK, executable and image hashes. The C probe covers
+worker-to-parent and parent-to-worker ownership across join; Rust allocator
+qualification is separate.
