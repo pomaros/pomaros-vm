@@ -23,8 +23,9 @@ ITS controller cannot install the current GICv2m-only PCI IRQ route. Under VZ,
 GPU IRQ completion, real timer waits, the IRQ chain, the Shell, the two-core
 execution/memory probes and final startup contract complete. The full VZ verdict
 is FAIL: expected CPU widget evidence is absent; the desktop-ready variable also
-fails with the diagnostic image's missing ENV setup. Restore product startup
-and qualify the widget rather than discarding those checks. The archived preview
+fails with the diagnostic image's missing ENV setup. The product Startup-Sequence creates and assigns ENV with its Sys directory;
+this correction awaits runtime qualification. Restore standalone widget startup
+and qualify it rather than discarding those checks. The archived preview
 evidence below does not qualify this candidate. Nothing has been published.
 
 ## Public preview preparation

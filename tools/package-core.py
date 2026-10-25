@@ -345,7 +345,9 @@ if a.work_probe:
     startup_lines=startup_lines.replace('SYS:C/Assign VMWorkReady: REMOVE\n',
         'SYS:C/Assign VMWorkReady: REMOVE\nSYS:VMWORK\n',1)
 if a.profile=='wanderer':
-    startup_lines='SYS:C/MakeDir RAM:T\nSYS:C/Assign T: RAM:T\n'+(startup_lines or 'G4Ready\nEndCLI\n')
+    startup_lines=('SYS:C/MakeDir RAM:T\nSYS:C/MakeDir RAM:ENV\n'
+                   'SYS:C/MakeDir RAM:ENV/Sys\nSYS:C/Assign T: RAM:T\n'
+                   'SYS:C/Assign ENV: RAM:ENV\n'+(startup_lines or 'G4Ready\nEndCLI\n'))
 if startup_lines is not None:
     startup=output/'Startup-Sequence'
     startup.write_text(startup_lines)

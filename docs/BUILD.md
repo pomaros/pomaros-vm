@@ -497,6 +497,10 @@ accepts an explicit 1–512 byte script with the Wanderer profile, without
 
 ### Desktop session policy
 
+The product Startup-Sequence creates `RAM:T`, `RAM:ENV` and `RAM:ENV/Sys`,
+then assigns `T:` and `ENV:` before starting desktop services. This supplies
+the ordinary DOS environment namespace, including `Sys/DesktopAccepted`.
+
 Build the EFI loader with `make -C boot/arosboot`. For a live desktop, package
 with `--profile wanderer --virtio-gpu --usb-desktop --desktop-session forever`.
 Use that loader with `--efi build/uefi/BOOTAA64.EFI`. Launch the resulting disk
