@@ -30,7 +30,7 @@ a.output.mkdir(parents=True)
 source=a.output/'source'
 configure=a.output/'configure-core.py'
 shutil.copyfile(root/'tools/configure-core.py',configure)
-targets=['kernel-hidd-virtiogfx','apple-wanderer-payloads','kernel-hidd-vmpci',
+targets=['kernel-hidd-virtiogfx','apple-wanderer-cell-payloads','kernel-hidd-vmpci',
          'kernel-hidd-bus','kernel-hidd-storage','kernel-virtio','kernel-usb-poseidon','kernel-usb-pcixhci','kernel-usb-classes-hub',
          'kernel-usb-classes-hubss','kernel-usb-classes-hid','workbench-c',
          'workbench-devs-networks-virtionet','workbench-network-stacks-arostcp',

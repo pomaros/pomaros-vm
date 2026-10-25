@@ -6,10 +6,14 @@ The local candidate pin is public-ancestry core `97554f11ac4ae896bd4035e20808873
 checked out at the canonical `../aros-core` path. The canonical build is
 `../Build/pomaros-vm/reference-core`. The VM build uses its own
 GIC/timer backend, unrestricted guest x18 and an isolated SMP configuration.
-The full build of the preceding pin reached AHI and exposed an unconditional
-private-driver configure entry. This candidate makes that driver optional and
-keeps its prerequisites in the private layer. Fresh build and runtime
-qualification are pending; the archived preview evidence below
+The fresh common-only SMP build passed in 675.5 seconds, including AHI with no
+physical Apple driver sources. The first HVF boot rejected a resident-count
+mismatch before DOS startup. LLDB inspection found three required common
+residents absent from the package: debug.library, processor.resource and
+entropy.resource. The manifest includes them, the full desktop target builds
+their closure, and the packager checks coverage against the pinned coldstart
+table before writing output. Five closure tests and five package-admission tests
+pass. Runtime requalification is pending; the archived preview evidence below
 does not qualify this candidate. No candidate source or product has been published.
 
 ## Public preview preparation

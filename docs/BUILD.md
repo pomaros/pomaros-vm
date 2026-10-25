@@ -8,7 +8,8 @@ metatargets to reuse the existing cross toolchain.
 The supported configuration builds into a new directory with
 `tools/configure-core.py`, followed by the payload target and
 `tools/package-core.py` as shown below. The packager consumes only products
-from that build and refuses missing components. No native object directory or
+from that build and refuses missing components. Desktop module coverage is
+checked against the pinned core's coldstart contract before assembly. No native object directory or
 seed bundle is needed. Core source comes from the public `pomaros/aros-core` fork into
 `../aros-core`, detached at `CORE.lock`. Use `python3 tools/fetch-core.py`
 before configuring. Qualification of new public-source builds is distinct from
@@ -151,7 +152,7 @@ Repeating packaging can verify byte-identical bundles; that is separate from
 comparing two independent complete builds. Build and package the desktop with:
 
 ```sh
-make -C "../Build/pomaros-vm/reference-core" -j8 apple-wanderer-payloads
+make -C "../Build/pomaros-vm/reference-core" -j8 apple-wanderer-cell-payloads
 make -C "../Build/pomaros-vm/reference-core" -j8 workbench-c
 python3 tools/package-core.py --build "../Build/pomaros-vm/reference-core" \
   --efi build/uefi-clean/BOOTAA64.EFI --profile wanderer --output build/fresh-wanderer
@@ -778,6 +779,9 @@ must already be clean at the pin; they are never reset or overwritten. The helpe
 creating any build directory. Experimental builds require an explicit
 `--core-lock FILE` with their actual source identity; product packages must use
 the product pin. Packages reject a source that changed after configuration.
+
+`make test-desktop-contract` checks the shipped desktop manifest and missing-resident
+negative controls against the pinned core table.
 
 `make test-host` includes source/ABI admission controls; a correct pin alone
 does not establish guest build or runtime qualification. See [STATUS.md](STATUS.md).

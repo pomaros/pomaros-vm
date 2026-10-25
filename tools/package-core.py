@@ -166,6 +166,12 @@ if a.virtio_gpu:
                 vm_modules[bus+'.hidd'] = 'Devs/Drivers/'+bus+'.hidd'
     modules = vm_modules
 components = [(name, sdk / 'AROS' / rel) for name, rel in modules.items()]
+if a.profile == 'wanderer':
+    from desktop_contract import require_desktop_residents
+    try:
+        require_desktop_residents(source, modules, a.virtio_gpu)
+    except ValueError as error:
+        p.error(str(error))
 efi = a.efi.resolve()
 programs = [sdk / 'AROS/System/Wanderer/Wanderer'] if a.profile == 'wanderer' else []
 for path in [stage2, efi] + [path for _, path in components] + programs:
@@ -375,7 +381,7 @@ subprocess.run(['python3', str(root / 'tools/boot_generation.py'), 'create',
                 '--bundle', str(destination), '--sequence', '1', '--slot', '0',
                 '--state', 'accepted', '--output', str(output / 'AROS/BOOT0.ID')], check=True)
 shutil.copyfile(efi, output / 'EFI/BOOT/BOOTAA64.EFI')
-inputs = ([output/'AROS/CPUPROBE.CFG'] if (a.smp_probe or a.smp_exec) else []) + ([output/'AROS/SESSION.CFG'] if a.desktop_session is not None else []) + ([pci_probe] if a.pci_hidd else []) + [path for _, path in pci_files] + [stage2, efi, probe, ramdisk] + [path for _, path in components] + programs
+inputs = [root / 'tools/desktop_contract.py'] + ([output/'AROS/CPUPROBE.CFG'] if (a.smp_probe or a.smp_exec) else []) + ([output/'AROS/SESSION.CFG'] if a.desktop_session is not None else []) + ([pci_probe] if a.pci_hidd else []) + [path for _, path in pci_files] + [stage2, efi, probe, ramdisk] + [path for _, path in components] + programs
 manifest = {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in inputs}
 (output / 'provenance.json').write_text(json.dumps({
     'backend': a.backend, 'profile': a.profile, 'smp_exec': a.smp_exec, 'smp_probe': a.smp_probe, 'soak_probe': a.soak_probe, 'work_volume': a.work_volume, 'work_probe': a.work_probe, 'shutdown_probe': a.shutdown_probe, 'clipboard_probe': a.clipboard_probe, 'clipboard_sync': a.clipboard_sync, 'file_commands': a.file_commands, 'command_startup': a.command_startup, 'vsock_device': a.vsock_device, 'host_services': a.host_services, 'network_tcp': bool(a.network_tcp_request), 'network_dns': a.network_dns, 'network_probe': a.network_probe, 'network_stack': a.network_stack, 'virtionet_device': a.virtionet_device, 'input_probe': a.input_probe, 'desktop_session': a.desktop_session, 'usb_desktop': a.usb_desktop, 'virtio_gpu': a.virtio_gpu, 'xhci_driver': a.xhci_driver, 'xhci_enumerate': a.xhci_enumerate, 'build': str(build), 'seed_bundle': None,
