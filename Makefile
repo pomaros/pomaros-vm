@@ -256,4 +256,5 @@ test-fetch-source:
 
 .PHONY: test-desktop-contract
 test-desktop-contract:
+	python3 $(AROS_CORE_SOURCE)/developer/debug/test/build/desktop_closure.py
 	python3 tests/desktop-contract.py

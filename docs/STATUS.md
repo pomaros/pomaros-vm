@@ -2,11 +2,16 @@
 
 ## Common-core consolidation candidate
 
-The local candidate pin is public-ancestry core `97554f11ac4ae896bd4035e20808873be3a26b44`,
+The local candidate pin is public-ancestry core `fc028f515e0d8b530b1da58ac036187c5ff133ed`,
 checked out at the canonical `../aros-core` path. The canonical build is
 `../Build/pomaros-vm/reference-core`. The VM build uses its own
 GIC/timer backend, unrestricted guest x18 and an isolated SMP configuration.
-The fresh common-only SMP build passed in 675.5 seconds, including AHI with no
+The common core also places debug/processor/entropy in every normal desktop
+build entrypoint, rather than only in a diagnostic cell. The transitive graph
+regression rejects the preceding incomplete targets. This pin needs a fresh
+build; the runtime evidence below refers to its predecessor.
+
+The preceding fresh common-only SMP build passed in 675.5 seconds, including AHI with no
 physical Apple driver sources. The first HVF boot rejected a resident-count
 mismatch before DOS startup. LLDB inspection found three required common
 residents absent from the package: debug.library, processor.resource and
