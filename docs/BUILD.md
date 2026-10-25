@@ -810,3 +810,19 @@ headless core guest. Before stopping a failed run it attempts a host process
 sample and window capture; kernel trap registers remain in serial output. VZ
 provides no public independent guest-register API. A failed capture is recorded
 rather than counted as guest or pixel acceptance.
+
+For a windowed SMP desktop gate, `--windowed --require-exec-smp` captures the
+launcher’s own window when CPUWidget reports a sample for every online CPU.
+Capture failure rejects the run. Keep the host display awake for this bounded
+visual test; no persistent power setting or global screen permission is needed:
+
+```sh
+caffeinate -u -d -t 70 python3 tools/run-vz.py --disk DISK.img \
+  --output artifacts/smp-desktop-NEW --windowed --desktop-startup \
+  --require-gpu-irq --require-exec-smp --cpus 2 \
+  --require-desktop-session 30 --timeout 60
+```
+
+Inspect `state/desktop-window.png` as well as the strict verdict. This validates
+the VM’s CPU widget and common execution backend; physical CPU inventory and
+SysMon on native hardware have their own qualification.

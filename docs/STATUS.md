@@ -8,8 +8,8 @@ checked out at the canonical `../aros-core` path. The canonical build is
 GIC/timer backend, unrestricted guest x18 and an isolated SMP configuration.
 The common core also places debug/processor/entropy in every normal desktop
 build entrypoint, rather than only in a diagnostic cell. The transitive graph
-regression rejects the preceding incomplete targets. This pin needs a fresh
-build; the runtime evidence below refers to its predecessor.
+regression rejects the preceding incomplete targets. The fresh normal desktop build passes in 723.02 seconds, including the three
+residents without diagnostic-only make targets.
 
 The preceding fresh common-only SMP build passed in 675.5 seconds, including AHI with no
 physical Apple driver sources. The first HVF boot rejected a resident-count
@@ -26,8 +26,17 @@ is FAIL: expected CPU widget evidence is absent; the desktop-ready variable also
 fails with the diagnostic image's missing ENV setup. The product Startup-Sequence creates and assigns ENV with its Sys directory.
 The standalone CPUWidget compiles against the public SDK and waits for desktop
 acceptance before opening. The SMP checker requires its real per-core sample
-counts and shutdown; 19 negative controls pass. These changes await runtime
-qualification, and the earlier VZ run remains refused. The archived preview
+counts and shutdown; 19 negative controls pass. The first windowed run of this pin reaches CPUWidget ready with two cores,
+two online CPUs and two samples. Its capture fails in the host ScreenCaptureKit
+service, so the run remains FAIL and does not qualify the UI. Evidence is under
+`artifacts/consolidation-common-fc028-widget-vz-2/`. The earlier VZ run remains refused. A bounded display-awake run passes in 36.96 seconds with GPU IRQ completion,
+the two-core execution/memory probes, the 30-second desktop session, CPUWidget
+shutdown and an owned-window capture. The captured image was inspected: Shell
+and separate CPU 0 / CPU 1 rows are visible. Evidence is under
+`artifacts/consolidation-common-fc028-widget-vz-awake/`. Keeping the host display
+awake removes the capture-service failure in this run; the preceding failure
+receipts remain unchanged. Native SysMon, input and networking are not qualified
+by this gate. The archived preview
 evidence below does not qualify this candidate. Nothing has been published.
 
 ## Public preview preparation

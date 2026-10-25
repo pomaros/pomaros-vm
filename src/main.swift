@@ -228,7 +228,7 @@ final class Application: NSObject, NSApplicationDelegate, NSWindowDelegate, VZVi
             }
             timer.resume()
           }
-          if launchOptions.contains("--window-close-test") || launchOptions.contains("--transport-cut-test") {
+          if launchOptions.contains("--window-close-test") || launchOptions.contains("--transport-cut-test") || launchOptions.contains("--window-capture") {
             let timer=DispatchSource.makeTimerSource(queue:.main)
             self.qualificationTimer=timer
             timer.schedule(deadline:.now(),repeating:0.1)
@@ -371,8 +371,8 @@ if options.contains("--input-probe") && options.contains("--headless") && (!opti
   fputs("--input-probe requires a VZ window and USB input\n",stderr);exit(2)
 }
 if (!bundledLaunch && CommandLine.arguments.count < 3) || suppliedOptions.count != Set(suppliedOptions).count
-  || options.contains(where: { !$0.hasPrefix("--cpus=") && $0 != "--headless" && $0 != "--gpu" && $0 != "--gpu-window" && $0 != "--usb-input" && $0 != "--input-probe" && $0 != "--network" && $0 != "--vsock-probe" && $0 != "--host-services" && $0 != "--clipboard-test" && $0 != "--force-stop" && $0 != "--window-close-test" && $0 != "--transport-cut-test" }) {
-  fputs("usage: pomaros-vm DISK_IMAGE STATE_DIRECTORY [--cpus=N] [--headless] [--gpu] [--gpu-window] [--usb-input] [--input-probe] [--network] [--vsock-probe] [--host-services] [--clipboard-test] [--force-stop] [--window-close-test] [--transport-cut-test]\n", stderr)
+  || options.contains(where: { !$0.hasPrefix("--cpus=") && $0 != "--headless" && $0 != "--gpu" && $0 != "--gpu-window" && $0 != "--usb-input" && $0 != "--input-probe" && $0 != "--network" && $0 != "--vsock-probe" && $0 != "--host-services" && $0 != "--clipboard-test" && $0 != "--force-stop" && $0 != "--window-close-test" && $0 != "--transport-cut-test" && $0 != "--window-capture" }) {
+  fputs("usage: pomaros-vm DISK_IMAGE STATE_DIRECTORY [--cpus=N] [--headless] [--gpu] [--gpu-window] [--usb-input] [--input-probe] [--network] [--vsock-probe] [--host-services] [--clipboard-test] [--force-stop] [--window-close-test] [--transport-cut-test] [--window-capture]\n", stderr)
   exit(2)
 }
 if #available(macOS 13.0, *) {
