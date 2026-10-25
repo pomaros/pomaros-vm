@@ -2,6 +2,15 @@
 
 ## Common-core consolidation candidate
 
+The full QEMU product built from the same core passes compilation and packaging.
+Its first supervised desktop attempt reaches accepted desktop, graphics IRQ and
+two HID bindings with QMP/LLDB ready before execution, but fails its obsolete
+kernel-widget marker. Its actual user-space CPUWidget displays unavailable
+samples. The widget's reader is changed to the accounting contract's CNTVCT
+origin rather than timer.device's relative EClock; target compilation is checked
+separately and runtime confirmation is pending. This does not alter the earlier
+VZ verdicts or qualify the new reader.
+
 The local candidate pin is public-ancestry core `fc028f515e0d8b530b1da58ac036187c5ff133ed`,
 checked out at the canonical `../aros-core` path. The canonical build is
 `../Build/pomaros-vm/reference-core`. The VM build uses its own

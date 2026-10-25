@@ -29,9 +29,12 @@ static void mark(const char *text)
 
 static uint64_t counter(void)
 {
-    struct EClockVal value;
-    ReadEClock(&value);
-    return ((uint64_t)value.ev_hi << 32) | value.ev_lo;
+    /* CPU accounting timestamps use CNTVCT, whereas ReadEClock counts from
+     * timer.device initialization. Equal frequencies do not imply equal
+     * origins; sampling with the latter can precede the accounting record. */
+    uint64_t value;
+    __asm__ volatile("isb\n\tmrs %0, cntvct_el0" : "=r"(value));
+    return value;
 }
 
 int main(int argc, char **argv)
