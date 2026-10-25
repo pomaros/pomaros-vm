@@ -347,7 +347,45 @@ static int find_console(uint64_t ecam,struct VMConsole *state) {
 }
 /* Bounded sequential writer shared with the reference FDT implementation.
  * Firmware discovery ends here; the kernel consumes the resulting FDT. */
-static int make_tree(void *memory, int capacity, const struct VMConsole *console, uint64_t rsdp, const struct VZInterrupts *irq, const struct VZPCI *pci, const char *session)
+/* The firmware's wall clock (QEMU's PL031, Virtualization.framework's RTC)
+ * as Unix seconds, with the virtual counter read at the same moment: the
+ * kernel has no RTC driver of its own in a virtual machine. */
+struct BootTime { uint64_t unix_seconds, counter; };
+
+static void read_boot_time(struct EFI_SYSTEM_TABLE *system, struct BootTime *out)
+{
+    struct EFI_RUNTIME_SERVICES *rt = system->runtime_services;
+    struct EFI_TIME t;
+    out->unix_seconds = out->counter = 0;
+    if (!rt || !rt->get_time || EFI_ERROR(rt->get_time(&t, NULL)))
+        return;
+    __asm__ volatile("isb; mrs %0, cntvct_el0" : "=r"(out->counter) :: "memory");
+    if (t.year < 1970 || t.month < 1 || t.month > 12 || t.day < 1 || t.day > 31 ||
+        t.hour > 23 || t.minute > 59 || t.second > 59) { out->counter = 0; return; }
+    /* Days from the civil date (proleptic Gregorian), Howard Hinnant's algorithm. */
+    int64_t y = (int64_t)t.year - (t.month <= 2);
+    int64_t era = (y >= 0 ? y : y - 399) / 400;
+    uint64_t yoe = (uint64_t)(y - era * 400);
+    uint64_t mp = (t.month + 9) % 12;
+    uint64_t doy = (153 * mp + 2) / 5 + t.day - 1;
+    uint64_t doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    int64_t days = era * 146097 + (int64_t)doe - 719468;
+    int64_t seconds = days * 86400 + t.hour * 3600 + t.minute * 60 + t.second;
+    if (t.time_zone != 2047 && t.time_zone >= -1440 && t.time_zone <= 1440)
+        seconds -= (int64_t)t.time_zone * 60;   /* UEFI 2.9+: TimeZone = local - UTC */
+    out->unix_seconds = seconds > 0 ? (uint64_t)seconds : 0;
+}
+
+static int decimal(char *buffer, uint64_t value)
+{
+    char digits[24]; int n = 0, i = 0;
+    do { digits[n++] = (char)('0' + value % 10); value /= 10; } while (value);
+    while (n) buffer[i++] = digits[--n];
+    buffer[i] = 0;
+    return i;
+}
+
+static int make_tree(void *memory, int capacity, const struct VMConsole *console, uint64_t rsdp, const struct VZInterrupts *irq, const struct VZPCI *pci, const char *session, const struct BootTime *time)
 {
     fdt64_t reg[2]={cpu_to_fdt64(console->region_start),
         cpu_to_fdt64(console->region_end-console->region_start)};
@@ -372,6 +410,13 @@ static int make_tree(void *memory, int capacity, const struct VMConsole *console
             FDT_STEP(fdt_property_string(memory,"aros,desktop-hold-seconds",session));
     }
     if (irq && irq->probe) FDT_STEP(fdt_property_string(memory,"aros,smp-probe","1"));
+    if (time && time->unix_seconds && time->counter) {
+        char text[24];
+        decimal(text, time->unix_seconds);
+        FDT_STEP(fdt_property_string(memory,"aros,boot-unix-seconds",text));
+        decimal(text, time->counter);
+        FDT_STEP(fdt_property_string(memory,"aros,boot-counter",text));
+    }
     FDT_STEP(fdt_end_node(memory));
     if (irq && irq->cpu_count) {
         FDT_STEP(fdt_begin_node(memory,"cpus"));
@@ -534,7 +579,9 @@ EFI_STATUS arosboot_vz_platform(EFI_HANDLE image,struct EFI_SYSTEM_TABLE *system
         return status;
     }
     system->boot_services->set_mem(memory,16384,0);
-    if(make_tree(memory,16384,console,rsdp,&interrupts,&pci,session)) {
+    struct BootTime boot_time;
+    read_boot_time(system,&boot_time);
+    if(make_tree(memory,16384,console,rsdp,&interrupts,&pci,session,&boot_time)) {
         arosboot_free_owned(system->boot_services,memory);
         arosboot_free_owned(system->boot_services,console);
         return EFI_LOAD_ERROR;

@@ -67,6 +67,26 @@ struct EFI_TABLE_HEADER {
     uint32_t reserved;
 };
 
+struct EFI_TIME {
+    uint16_t year;
+    uint8_t month;
+    uint8_t day;
+    uint8_t hour;
+    uint8_t minute;
+    uint8_t second;
+    uint8_t pad1;
+    uint32_t nanosecond;
+    int16_t time_zone;      /* minutes; 2047 when unspecified */
+    uint8_t daylight;
+    uint8_t pad2;
+};
+
+/* Only GetTime is used, before ExitBootServices. */
+struct EFI_RUNTIME_SERVICES {
+    struct EFI_TABLE_HEADER header;
+    EFI_STATUS (*get_time)(struct EFI_TIME *time, void *capabilities);
+};
+
 struct EFI_MEMORY_DESCRIPTOR {
     uint32_t type;
     uint32_t padding;
