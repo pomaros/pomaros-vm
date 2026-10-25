@@ -184,15 +184,17 @@ subprocess.run([str(root / 'tools/build-abi-probe'), '--sdk', str(sdk),
                 '--profile', 'platform' if a.profile == 'headless' else 'cli', str(probe)], check=True)
 pci_probe = output / 'PCIPROBE'
 pci_files = []
+extra_paths = set()
 for spec in a.extra_file:
     rel, separator, source = spec.partition('=')
     if not separator or not rel or not source:
         p.error(f'--extra-file expects REL=PATH, got {spec!r}')
     pci_files.append((rel, Path(source).resolve()))
+    extra_paths.add(rel)
 if a.pci_hidd:
     subprocess.run([str(root / 'tools/build-abi-probe'), '--sdk', str(sdk),
         '--crosstools', str(a.toolchain.resolve()), '--profile', 'pci', str(pci_probe)], check=True)
-    pci_files = [(rel, sdk/'AROS'/rel) for rel in ['Libs/oop.library',
+    pci_files += [(rel, sdk/'AROS'/rel) for rel in ['Libs/oop.library',
         'Devs/Drivers/hiddclass.hidd','Devs/Drivers/pci.hidd','Devs/Drivers/pciecam.hidd',
         'Devs/Drivers/vmpci.hidd']]
 if a.command_startup:
@@ -281,6 +283,8 @@ if desktop_services:
     pci_files += [(name,sdk/'AROS'/name) for name in ['Tools/Editor','C/CPUInfo']]
 expanded_system = a.network_stack or a.profile=='wanderer'
 def deferred_file(rel):
+    if expanded_system and rel in extra_paths:
+        return True
     # The expanded desktop image has room for USB drivers; retaining them in
     # the 1.44 MiB seed makes ordinary Wanderer growth exhaust FAT12 capacity.
     # Keep the seed's Wanderer executable/requirement marker unchanged.

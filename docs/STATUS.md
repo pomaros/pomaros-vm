@@ -47,6 +47,18 @@ GPU completion and the bounded session. Evidence:
 Rust's global allocator or every independent stdc opener. It does not justify
 retiring Ferail's worker workaround until its Rust path is exercised.
 
+The official Rust SDK is rebuilt against the consolidated native C SDK, with
+compiler commit 504869653f510b279c542e65ccd1ea9710c119ba unchanged. A Rust System
+allocator probe passes 32 transfers in each direction across joined worker exit
+(8192 bytes). The Ferail ArosAlloc variant also passes 32 cycles each at 64 and
+8192 bytes. Each bounded VZ desktop run completes in 36.96 seconds. The stdc,
+posixc, pthread and stdcio import archives used by the native Rust SDK are
+byte-identical to this VM SDK. Receipts and source hashes are under
+`artifacts/consolidation-pthread-heap/`; the installed SDK records its own input
+and product hashes. This contradicts treating worker-exit corruption as proven
+for this cohort, but does not qualify the full Ferail application or native M1.
+The earlier failures and original probe source snapshots remain retained.
+
 ## Public preview preparation
 
 Version 0.1.1 (`v0.1.1-preview.1`) packages the qualified public core below. New signed runtime, Apple tickets and corresponding-source asset inventories are prepared separately; earlier 0.1.0 DMGs remain unchanged. Optional TrueType families outside the reviewed OFL/Apache/Bitstream set are excluded, with their selectors. Public publication follows the release coordinator’s final checks.

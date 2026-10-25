@@ -835,3 +835,19 @@ verdict and exactly one `[VM] pthread heap survives worker exit PASS cycles=32`
 record. Preserve source, SDK, executable and image hashes. The C probe covers
 worker-to-parent and parent-to-worker ownership across join; Rust allocator
 qualification is separate.
+
+Desktop `--extra-file` inputs are added to the expanded SYS image, allowing
+ordinary Rust applications larger than the FAT12 bootstrap seed. Their hashes
+remain part of package provenance. PCI probe selection retains these inputs.
+
+`tests/rust-heap-lifetime.rs` exercises the same transfer through Rust Vec and
+thread join. Compile it using the installed official SDK's `bin/rustc`, its
+`share/aarch64-unknown-aros.json`, `-Zunstable-options`, its
+`bin/aarch64-aros-cc` linker and the matching C SDK library search directory.
+No standard-library rebuild is part of an application probe. Package the binary
+with `--extra-file` and run it before `G4Ready` in the custom startup. Require
+exactly one `[VM] Rust heap survives worker exit PASS cycles=32` record plus
+the strict bounded desktop verdict. A separate variant uses `--cfg
+ferail_allocator` and `--extern aros_alloc=LIBRARY`, where LIBRARY is built from
+the Ferail checkout's allocator source with that same installed SDK. Retain its
+source hash; this variant covers 64-byte slabs and 8192-byte system allocations.
