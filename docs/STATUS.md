@@ -13,8 +13,14 @@ residents absent from the package: debug.library, processor.resource and
 entropy.resource. The manifest includes them, the full desktop target builds
 their closure, and the packager checks coverage against the pinned coldstart
 table before writing output. Five closure tests and five package-admission tests
-pass. Runtime requalification is pending; the archived preview evidence below
-does not qualify this candidate. No candidate source or product has been published.
+pass. The corrected package passes the resident stage. QEMU/HVF with its default
+ITS controller cannot install the current GICv2m-only PCI IRQ route. Under VZ,
+GPU IRQ completion, real timer waits, the IRQ chain, the Shell, the two-core
+execution/memory probes and final startup contract complete. The full VZ verdict
+is FAIL: expected CPU widget evidence is absent; the desktop-ready variable also
+fails with the diagnostic image's missing ENV setup. Restore product startup
+and qualify the widget rather than discarding those checks. The archived preview
+evidence below does not qualify this candidate. Nothing has been published.
 
 ## Public preview preparation
 
