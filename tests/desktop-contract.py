@@ -10,9 +10,22 @@ import tempfile
 import unittest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
-from desktop_contract import require_desktop_residents, cpu_widget_ready_matches, production_desktop_ready
+from desktop_contract import require_desktop_residents, cpu_widget_ready_matches, production_desktop_ready, require_nonuniform_guest_viewport
 
 class Desktop(unittest.TestCase):
+    def test_host_chrome_does_not_qualify_a_blank_guest(self):
+        width, top = 1024, 32
+        toolbar = bytes(value for x in range(width) for value in (x % 256, 255, 255))
+        for color in ((0, 0, 0), (153, 153, 153), (255, 0, 0)):
+            rows = [toolbar] * top + [bytes(color) * width] * 768
+            with self.subTest(color=color), self.assertRaisesRegex(ValueError, 'guest viewport'):
+                require_nonuniform_guest_viewport(width, top + 768, rows)
+
+    def test_invalid_capture_geometry_refused(self):
+        for width, height, rows in ((1023, 800, []), (1024, 700, []), (1024, 800, [b''])):
+            with self.subTest(width=width, height=height), self.assertRaisesRegex(ValueError, 'geometry'):
+                require_nonuniform_guest_viewport(width, height, rows)
+
     def test_production_readiness(self):
         widget = '[VM] CPU widget ready cores=1 online=1 samples=1\n'
         valid = widget + '[KI] desktop stable at 3508 ms after reset\n[KI] desktop accepted\n[VM] desktop two HID bindings PASS\n'

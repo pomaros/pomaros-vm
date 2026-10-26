@@ -4,7 +4,7 @@
 """Bounded windowed acceptance of an exact signed VM distribution, with no guest probe."""
 from pathlib import Path
 import argparse,hashlib,json,shutil,subprocess,sys,time
-from desktop_contract import production_desktop_ready
+from desktop_contract import production_desktop_ready, require_nonuniform_guest_viewport
 
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--app',type=Path,required=True);parser.add_argument('--output',type=Path,required=True)
@@ -39,10 +39,13 @@ try:
         verdict['host_window_capture']=(state/'screenshot.done').exists()
         if verdict['host_window_capture']:
             shutil.copyfile(state/'desktop-window.png',out/'desktop-window.png')
+            frame=runpy.run_path(str(Path(__file__).resolve().parents[1]/'tests/check-aros-render-frame.py'))
+            verdict['guest_viewport']=require_nonuniform_guest_viewport(*frame['decode'](out/'desktop-window.png'))
         else:
             error=(state/'screenshot.error').read_text() if (state/'screenshot.error').exists() else 'owned-window-capture-timeout'
             verdict['capture_error']=error
             (out/'host-window-capture-error.txt').write_text(error)
+            raise RuntimeError('owned-window-capture-failed: '+error)
         (state/'window-close.request').write_text('close\n')
         assert process.wait(timeout=20)==0
         text=log.read_text(errors='replace')
