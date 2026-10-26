@@ -1,9 +1,13 @@
 # Building the guest
 
-The host builds with `make`; the UEFI loader builds with
-`make -C boot/arosboot`. `tools/build-core.sh` builds the changed bootstrap and
-kernel in an isolated, configured AROS build. It deliberately selects explicit
-metatargets to reuse the existing cross toolchain.
+The host builds with `make`; the UEFI loader requires GNU make 4 or later
+(`gmake` on macOS) and builds with
+`gmake -C boot/arosboot`. `tools/build-core.py --build DIR TARGET...` builds
+explicit targets in a source-bound VM SDK. It selects GNU make 4 or later and
+keeps nested named `make` calls on that executable; `AROS_MAKE` overrides the
+selection. The distribution builder uses the same host environment.
+`python3 tests/host-make.py` exercises nested response-file generation behind
+a misleading old named make and checks rejected overrides and shim cleanup.
 
 The supported configuration builds into a new directory with
 `tools/configure-core.py`, followed by the payload target and
@@ -122,8 +126,8 @@ Autoconf; an explicit `PYTHON` environment setting takes precedence.
 
 ```sh
 python3 tools/configure-core.py --output "../Build/pomaros-vm/reference-core"
-make -C "../Build/pomaros-vm/reference-core" -j8 apple-boot-payloads
-make -C boot/arosboot BUILD=../../build/uefi-clean
+python3 tools/build-core.py --build "../Build/pomaros-vm/reference-core" --jobs 8 apple-boot-payloads
+gmake -C boot/arosboot BUILD=../../build/uefi-clean
 python3 tools/package-core.py --build "../Build/pomaros-vm/reference-core" \
   --efi build/uefi-clean/BOOTAA64.EFI --output build/fresh-headless
 python3 tools/make-disk.py --esp build/fresh-headless --output build/fresh-headless.img
@@ -152,8 +156,8 @@ Repeating packaging can verify byte-identical bundles; that is separate from
 comparing two independent complete builds. Build and package the desktop with:
 
 ```sh
-make -C "../Build/pomaros-vm/reference-core" -j8 apple-wanderer-cell-payloads
-make -C "../Build/pomaros-vm/reference-core" -j8 workbench-c
+python3 tools/build-core.py --build "../Build/pomaros-vm/reference-core" --jobs 8 apple-wanderer-cell-payloads
+python3 tools/build-core.py --build "../Build/pomaros-vm/reference-core" --jobs 8 workbench-c
 python3 tools/package-core.py --build "../Build/pomaros-vm/reference-core" \
   --efi build/uefi-clean/BOOTAA64.EFI --profile wanderer --output build/fresh-wanderer
 python3 tools/run-qemu.py --esp build/fresh-wanderer --output artifacts/fresh-desktop \
@@ -195,7 +199,7 @@ constructor under ASan/UBSan, including failure at every allocation. This target
 is separate from the SDK-independent host test suite (`make test`).
 
 The generic PCI ECAM class can be built independently with
-`make -C "../Build/pomaros-vm/reference-core" -j8 kernel-hidd-pciecam`.
+`python3 tools/build-core.py --build "../Build/pomaros-vm/reference-core" --jobs 8 kernel-hidd-pciecam`.
 `make test-pci-ecam-class` uses the actual class methods and SDK structures under
 host sanitizers; it does not qualify class loading or device enumeration in a
 guest. The VM platform must supply admitted mappings and a configuration-write
@@ -216,7 +220,7 @@ retained bridge. The permanent module keeps its admitted mappings for the VM
 lifetime and reserves the boot console. DMA translation is limited to buffers
 allocated through its explicit platform policy. On a discovered GICv2m frame,
 the resident driver provides one MSI-X table entry per device.
-Build it with `make -C "../Build/pomaros-vm/reference-core" -j8 kernel-hidd-vmpci`;
+Build it with `python3 tools/build-core.py --build "../Build/pomaros-vm/reference-core" --jobs 8 kernel-hidd-vmpci`;
 this target is limited to the VM profile. Both resident markers are required
 by `--require-pci-hidd`. The default package without that option does not load
 the platform driver.
@@ -509,7 +513,7 @@ The product Startup-Sequence creates `RAM:T`, `RAM:ENV` and `RAM:ENV/Sys`,
 then assigns `T:` and `ENV:` before starting desktop services. This supplies
 the ordinary DOS environment namespace, including `Sys/DesktopAccepted`.
 
-Build the EFI loader with `make -C boot/arosboot`. For a live desktop, package
+Build the EFI loader with `gmake -C boot/arosboot`. For a live desktop, package
 with `--profile wanderer --virtio-gpu --usb-desktop --desktop-session forever`.
 Use that loader with `--efi build/uefi/BOOTAA64.EFI`. Launch the resulting disk
 with `build/pomaros-vm DISK_IMAGE STATE_DIRECTORY` to show its VZ window.

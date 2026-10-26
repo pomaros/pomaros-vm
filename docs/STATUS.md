@@ -1,5 +1,18 @@
 # Qualification status
 
+## Host GNU make selection
+
+The core-target and distribution builders select GNU make 4 or later and pin
+nested literal `make` calls to it. `AROS_MAKE` selects an explicit executable;
+missing/old overrides are rejected. The actual nested response-file test passes
+with a deliberately misleading make 3.81 earlier in PATH and verifies shim
+cleanup on success and injected failure (`make test-host-make`).
+The older direct generated-makefile/header-copy helper is removed; configured
+reference builds and isolated candidates use `tools/build-core.py`.
+A fresh SMP candidate is being rebuilt with this driver after its initial
+nested make 3.81 failure; no SMP runtime acceptance is claimed by these host tests.
+
+
 
 ## Production CPU widget readiness
 

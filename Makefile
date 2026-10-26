@@ -239,8 +239,12 @@ test-page-arena:
 	python3 tests/page-arena.py
 
 # Host-only gates do not start hardware virtualization or touch personal profiles.
+.PHONY: test-host-make
+test-host-make:
+	python3 -B tests/host-make.py
+
 .PHONY: test-host
-test-host: test-host-services test-clipboard-codec test-clipboard-services test-vm-storage test-package-app test-package-backend test-configure-pin test-fetch-source test-desktop-contract test-launcher-options
+test-host: test-host-make test-host-services test-clipboard-codec test-clipboard-services test-vm-storage test-package-app test-package-backend test-configure-pin test-fetch-source test-desktop-contract test-launcher-options
 
 .PHONY: test-launcher-options
 test-launcher-options: build/pomaros-vm

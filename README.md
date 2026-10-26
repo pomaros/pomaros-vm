@@ -110,7 +110,7 @@ mtools and dtc:
 ```sh
 make
 make test-host
-make -C boot/arosboot
+gmake -C boot/arosboot
 ```
 
 `make test-host` runs the host service, clipboard, storage and packaging gates.
@@ -120,6 +120,8 @@ under ASan/UBSan. `AROS_CORE_SOURCE` selects the kernel checkout; the default
 is `../aros-core`.
 
 `tools/configure-core.py` configures an independent VM guest build.
+`tools/build-core.py --build DIR --jobs 6 apple-wanderer-payloads` builds it
+with GNU make 4, including nested invocations. `AROS_MAKE` selects that executable.
 `tools/package-core.py` packages its freshly built modules and records their
 source revision and hashes. See the [complete build procedure](docs/BUILD.md).
 `tools/run-qemu.py --esp DIR --output NEW_DIR` runs

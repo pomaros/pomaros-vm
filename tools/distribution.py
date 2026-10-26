@@ -14,6 +14,7 @@ import subprocess
 import time
 from types import SimpleNamespace
 from fat_metadata import EPOCH, normalize_fat16
+from host_make import make_environment
 
 ROOT = Path(__file__).resolve().parents[1]
 # Runtime boundary derived from PomAROS/graft/make-aros-release.sh. Platform
@@ -66,8 +67,8 @@ def build_runtime(a):
     log = a.build / 'vm-distribution.log'
     if log.exists():
         log.rename(log.with_name('vm-distribution-' + str(time.time_ns()) + '.log'))
-    with log.open('w') as stream:
-        result = subprocess.run(['make', '-C', str(a.build), '-j' + str(a.jobs), '-f', 'Makefile', '-f', str(batch), 'vm-distribution'], stdout=stream, stderr=subprocess.STDOUT)
+    with log.open('w') as stream, make_environment(a.build) as (make, environment):
+        result = subprocess.run([str(make), '-C', str(a.build), '-j' + str(a.jobs), '-f', 'Makefile', '-f', str(batch), 'vm-distribution'], stdout=stream, stderr=subprocess.STDOUT, env=environment)
     if result.returncode or 'Nothing known about' in log.read_text(errors='replace'):
         raise RuntimeError('distribution build failed: ' + str(log))
     print('distribution build PASS: ' + str(log))
