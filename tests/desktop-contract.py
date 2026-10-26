@@ -10,9 +10,22 @@ import tempfile
 import unittest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
-from desktop_contract import require_desktop_residents
+from desktop_contract import require_desktop_residents, cpu_widget_ready_matches, production_desktop_ready
 
 class Desktop(unittest.TestCase):
+    def test_production_readiness(self):
+        widget = '[VM] CPU widget ready cores=1 online=1 samples=1\n'
+        valid = widget + '[KI] desktop stable at 3508 ms after reset\n[KI] desktop accepted\n[VM] desktop two HID bindings PASS\n'
+        self.assertTrue(production_desktop_ready(valid))
+        for bad in (valid + widget, valid.replace(widget, '[KI] alive window open\n'),
+                    valid.replace('online=1', 'online=0'), valid.replace('samples=1', 'samples=0'),
+                    valid.replace('cores=1', 'cores=2'), valid.replace('[KI] desktop accepted\n', ''),
+                    valid + '[KI] desktop accepted\n', valid.replace('samples=1', 'samples=1 extra')):
+            with self.subTest(text=bad):
+                self.assertFalse(production_desktop_ready(bad))
+        self.assertTrue(cpu_widget_ready_matches('[VM] CPU widget ready cores=2 online=2 samples=2\n', 2))
+        self.assertFalse(cpu_widget_ready_matches(widget, 0))
+
     def setUp(self):
         self.source = Path(os.environ.get('AROS_CORE_SOURCE', ROOT.parent / 'aros-core'))
         self.modules = json.loads((ROOT / 'boot/wanderer-modules.json').read_text())

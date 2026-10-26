@@ -30,7 +30,7 @@ the [shared toolchain recipe](https://github.com/pomaros/pomaros-hosted/blob/mai
 and the guest build/packaging tools consumed by `pomaros-qemu`. It contains no
 separate copy of the kernel. Guest packages record their exact core revision;
 macOS hosted binaries use a distinct ABI and cannot be reused as VM modules.
-The native product repository stays empty and private during preparation.
+Native Apple hardware implementations are maintained separately from this common guest source.
 
 The full desktop builds and boots in a normal window. Guest file exchange,
 clipboard reconnection and clean persistent shutdown pass the bounded VM test.

@@ -4,6 +4,7 @@
 """Bounded windowed acceptance of an exact signed VM distribution, with no guest probe."""
 from pathlib import Path
 import argparse,hashlib,json,shutil,subprocess,sys,time
+from desktop_contract import production_desktop_ready
 
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--app',type=Path,required=True);parser.add_argument('--output',type=Path,required=True)
@@ -26,7 +27,7 @@ try:
         while time.monotonic()<deadline:
             text=log.read_text(errors='replace')
             if process.poll() is not None or 'FAIL:' in text or '[B2Q] FAIL' in text:raise RuntimeError('guest-exit-or-failure')
-            if all(x in text for x in ('[KI] desktop stable','[KI] alive window open','[VM] desktop two HID bindings PASS')):break
+            if production_desktop_ready(text):break
             time.sleep(.1)
         else:raise RuntimeError('desktop-timeout')
         time.sleep(2)

@@ -1,5 +1,22 @@
 # Qualification status
 
+
+## Production CPU widget readiness
+
+The VZ distribution checker requires one complete CPUWidget report with one
+core, one online CPU and one sample, plus exactly one stable desktop,
+accepted desktop and two-HID-binding marker. Missing, duplicate, partial or
+inconsistent reports are refused. The native Alive-window marker is not part
+of this guest profile.
+
+The first aligned-core VZ run reached desktop acceptance in 3.508 seconds and
+quiesced the volume on window close, but its checker timed out waiting for that
+obsolete marker. Its original failure remains in
+`artifacts/consolidation-aligned-vz-desktop/`. Corrected runtime qualification
+is separate; six desktop-contract tests pass, including eight readiness
+negative controls. VM and QEMU packages use the same configured guest objects;
+Hosted binaries remain a distinct ABI.
+
 ## Common descriptor service in the default runtime
 
 The standard distribution builds and requires `fd.library` for both QEMU and
