@@ -7,6 +7,8 @@ root=Path(__file__).resolve().parents[1]
 parser=argparse.ArgumentParser(description="Bounded VZ image, forced stream cut and window close qualification")
 parser.add_argument('--app',type=Path,default=root/'artifacts/stage6-release/PomAROS VM.app')
 parser.add_argument('--output',type=Path,required=True)
+parser.add_argument('--core-lock',type=Path,default=root/'CORE.lock',
+                    help='explicit source lock for an isolated candidate')
 parser.add_argument('--prebuilt-probes',type=Path,help='reuse previously compiled probes with their exact source/toolchain/hash manifest')
 a=parser.parse_args();out=a.output.resolve()
 if out.exists():parser.error('output must be new')
@@ -16,7 +18,7 @@ seed=a.app/'Contents/Resources/System.img'
 launcher=a.app/'Contents/MacOS/PomAROSVM'
 app_identity=json.loads((a.app/'Contents/Resources/provenance.json').read_text())
 guest_identity=app_identity['guest']
-core_lock=dict(line.split('=',1) for line in (root/'CORE.lock').read_text().splitlines() if line and not line.startswith('#'))
+core_lock=dict(line.split('=',1) for line in a.core_lock.read_text().splitlines() if line and not line.startswith('#'))
 if guest_identity['source_revision']!=core_lock['CORE_REVISION']:parser.error('app core differs from CORE.lock')
 sdk=Path(os.environ.get('AROS_VM_SDK',root.parent/'Build/pomaros-vm/reference-core/bin/apple-aarch64')).resolve()
 build=sdk.parents[1]

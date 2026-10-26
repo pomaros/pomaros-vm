@@ -1,5 +1,20 @@
 # Qualification status
 
+## Current common-core reference
+
+`CORE.lock` selects common core `abd400e25164736de78dbf7f8cd317ae10156fba`.
+A freshly built VZ production app passes window capture and graceful volume
+quiescence in 12.62 seconds. A matching-SDK stage6 test passes forced transport
+cut and reopening, file transfer, clipboard reconnection and clean FAT readback
+in 11.24 seconds. Two-CPU VZ Exec SMP, USB HID bindings and graphics IRQ pass
+in a separate bounded diagnostic profile. QEMU TCG independently passes two-CPU
+Exec SMP with guest LLDB and a clean desktop/pixel gate. Input-event delivery,
+application GPU acceleration and physical Apple behaviour are not established.
+Evidence: `artifacts/consolidation-current-vz-production-check/` and
+`artifacts/consolidation-current-vz-stage6/`; QEMU evidence is recorded in the
+qualification journal. The test accepts an explicit candidate lock but defaults
+to this product's `CORE.lock`; mismatched app/lock and app/SDK are rejected.
+
 ## Shared DeviceTree host regression
 
 `tests/device-tree.py` delegates to the selected common core's
@@ -92,7 +107,7 @@ before packaging when the service is missing.
 
 ## Aligned common-core reference
 
-CORE.lock selects common main
+The preceding reference selected common main
 `afc0dbeefa12d65030ec0db8cd152a5518531913`. QEMU consumes the shared packaging
 code and passes the corrected default-runtime desktop in 20.71 seconds, with
 QMP/LLDB ready before execution, live CPU samples and strict frame controls.
