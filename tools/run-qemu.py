@@ -10,6 +10,7 @@ from pathlib import Path
 import shutil
 import socket
 import subprocess
+import tempfile
 import time
 from cpu_probe_contract import cpu_probe_matches
 from exec_smp_contract import exec_smp_matches
@@ -19,6 +20,8 @@ p.add_argument('--output',type=Path,required=True)
 p.add_argument('--accel',choices=['hvf','tcg'],default='hvf')
 p.add_argument('--windowed',action='store_true',help='normal Cocoa host window, never fullscreen')
 p.add_argument('--supervise',action='store_true',help='prove QMP register access while paused before guest execution')
+p.add_argument('--gdb',type=int,help='GDB stub on 127.0.0.1:PORT')
+p.add_argument('--gdb-wait',action='store_true',help='with --gdb and --supervise, leave the paused guest for the debugger to resume')
 p.add_argument('--console',choices=['pl011','virtio'],default='pl011')
 p.add_argument('--profile',choices=['core','wanderer'],default='wanderer')
 p.add_argument('--timeout',type=float,default=60)
@@ -40,6 +43,10 @@ p.add_argument('--gic-version',choices=['2','3'],default='3')
 p.add_argument('--dtb',type=Path)
 p.add_argument('--firmware',type=Path,default=Path('/opt/homebrew/share/qemu/edk2-aarch64-code.fd'))
 a = p.parse_args()
+if a.gdb is not None and not 1 <= a.gdb <= 65535:
+    p.error('--gdb requires a port from 1 to 65535')
+if a.gdb_wait and not (a.gdb and a.supervise):
+    p.error('--gdb-wait requires --gdb and --supervise')
 if a.require_exec_smp and a.require_smp_probe:
     p.error('select one CPU qualification protocol')
 if (a.require_smp_probe or a.require_exec_smp) and (a.cpus<2 or a.console!='virtio' or not a.virtio_desktop):
@@ -50,6 +57,10 @@ if a.require_gpu_irq and not a.virtio_desktop:p.error('--require-gpu-irq require
 if a.require_gpu_scanout and (not a.require_pci_hidd or a.console!='virtio'): p.error('--require-gpu-scanout requires PCI and virtio console')
 if a.require_msi_irq and not a.require_msi_frame: p.error('--require-msi-irq requires --require-msi-frame')
 if a.require_msi_frame and not a.require_pci_hidd: p.error('--require-msi-frame requires --require-pci-hidd')
+provenance = a.esp / 'provenance.json'
+package_profile = json.loads(provenance.read_text()) if provenance.is_file() else {}
+if package_profile.get('work_volume'):
+    p.error('ESP-only runner cannot supply an appended WORK volume; use a disk-image runner or package without --work-volume')
 if a.output.exists(): p.error('output must not exist')
 if a.console=='virtio' and (a.gic_version!='3' or (a.profile!='core' and not a.virtio_desktop) or a.dtb):
     p.error('virtio console qualification requires ACPI, GICv3 and a core or virtio-desktop profile')
@@ -58,7 +69,8 @@ a.output = a.output.resolve()
 esp = a.output/'esp'
 shutil.copytree(a.esp,esp)
 serial = a.output/'serial.log'
-qmp = a.output/'qmp.sock'
+sockets = tempfile.TemporaryDirectory(prefix='pv-qmp-', dir='/tmp')
+qmp = Path(sockets.name)/'qmp.sock'
 acpi='on' if a.console=='virtio' else 'off'
 firmware_serial = a.output/'firmware-serial.log' if a.console=='virtio' else serial
 command = ['qemu-system-aarch64','-accel',a.accel,'-M',f'virt,acpi={acpi},gic-version={a.gic_version}'+(f',msi={a.msi_controller}' if a.msi_controller!='auto' else ''),
@@ -74,9 +86,13 @@ if a.require_pci_hidd:
     command += ['-device','virtio-rng-pci,disable-legacy=on']
 if a.require_gpu_scanout or a.virtio_desktop:
     command += ['-device','virtio-gpu-pci,id=gpu,xres=1024,yres=768']
+if package_profile.get('usb_desktop'):
+    command += ['-device','qemu-xhci,id=xhci',
+                '-device','usb-kbd,bus=xhci.0','-device','usb-tablet,bus=xhci.0']
 if a.dtb:
     shutil.copyfile(a.dtb,a.output/'input.dtb')
     command += ['-dtb',str(a.output/'input.dtb')]
+if a.gdb: command += ['-gdb', f'tcp:127.0.0.1:{a.gdb}']
 if a.supervise: command += ['-S']
 (a.output/'command.json').write_text(json.dumps(command,indent=2)+'\n')
 pixels_verified=False
@@ -111,8 +127,9 @@ with (a.output/'host.log').open('w') as log:
                 if 'PC=' not in registers: raise RuntimeError('QMP preflight register read incomplete')
                 (a.output/'initial-registers.txt').write_text(registers)
                 supervisor_ready=True
-                stream.write(b'{"execute":"cont"}\n');stream.flush()
-                while 'return' not in json.loads(stream.readline()): pass
+                if not a.gdb_wait:
+                    stream.write(b'{"execute":"cont"}\n');stream.flush()
+                    while 'return' not in json.loads(stream.readline()): pass
         while time.monotonic()-started < a.timeout:
             text = serial.read_text(errors='replace') if serial.exists() else ''
             if 'FAIL:' in text or 'Synchronous Exception' in text:
@@ -239,7 +256,10 @@ with (a.output/'host.log').open('w') as log:
             proc.terminate()
             try: proc.wait(timeout=5)
             except subprocess.TimeoutExpired: proc.kill();proc.wait()
+        sockets.cleanup()
 verdict={'result':'PASS' if passed else 'FAIL','reason':reason,'backend':a.accel,
+         'gdb_port':a.gdb,'debugger_resume_required':a.gdb_wait,
+         'usb_desktop_profile':bool(package_profile.get('usb_desktop')),
          'host_windowed':a.windowed,'guest_headless_probe':a.profile=='core','supervisor_preflight':supervisor_ready,
          'cpus':a.cpus,'secondary_execution_verified':passed and (a.require_smp_probe or a.require_exec_smp),'widget_image_captured':widget_captured,'exec_smp_verified':passed and a.require_exec_smp and exec_smp_matches(text,a.cpus),
          'command_startup_verified':a.require_command_startup and passed,

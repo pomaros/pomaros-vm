@@ -1,5 +1,24 @@
 # Qualification status
 
+## Shared Exec SMP candidate
+
+Common core `434885690560824e84ffa17d2c97117a41895ca3` passes the bounded
+windowed TCG two-core Exec gate in 27.58 seconds. QMP verifies a paused guest with two CPUs before execution; guest LLDB lists
+both threads and reads initial registers before resuming. The gate requires overlapping computation with x18/FPSIMD
+preservation, timer delivery under computation, wake/teardown, both CPU widget
+records, widget capture and secondary CPU shutdown. Virtio graphics IRQ
+completion also passes. Evidence is
+`artifacts/consolidation-shared-smp-handoff/verdict.json`; exact tested runner
+bytes are recorded beside it. Physical hardware, general drivers and network
+qualification are outside this result. Product CORE.lock is not promoted.
+
+The first startup failure was a mismatched storage test profile: the debugger
+stops at Assign returning 20 for an absent appended WORK volume. The standalone
+ESP runner now refuses that incompatible profile before boot. A subsequent
+USB-desktop run exposed absent virtual xHCI hardware; the runner provisions the
+USB devices declared in the package. Neither preparation error required an OS
+change. Four profile/debugger rejection cases pass before output creation.
+
 ## Host GNU make selection
 
 The core-target and distribution builders select GNU make 4 or later and pin
@@ -9,8 +28,9 @@ with a deliberately misleading make 3.81 earlier in PATH and verifies shim
 cleanup on success and injected failure (`make test-host-make`).
 The older direct generated-makefile/header-copy helper is removed; configured
 reference builds and isolated candidates use `tools/build-core.py`.
-A fresh SMP candidate is being rebuilt with this driver after its initial
-nested make 3.81 failure; no SMP runtime acceptance is claimed by these host tests.
+The fresh SMP candidate rebuild passes payloads in 312.63 seconds and the
+complete distribution in 369.8 seconds; the initial make 3.81 failure is kept
+separately. Runtime evidence is scoped in the SMP section above.
 
 
 

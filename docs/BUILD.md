@@ -30,6 +30,32 @@ its imported copy in the APL core is `include/aros/apple/vmconsole.h`. Keep
 them identical when updating the protocol. The boot allocation schema adds
 `AROS_BOOT_ALLOCATION_EARLY_CONSOLE` for a single retained 4-KiB record. Pin the matching core with each image.
 
+## Supervised SMP guest
+
+Package an SMP-configured guest and run its standalone ESP profile:
+
+```sh
+python3 tools/package-core.py --build /path/to/smp-sdk --efi /path/to/BOOTAA64.EFI \
+  --output artifacts/smp-esp --profile wanderer --virtio-gpu --usb-desktop \
+  --smp-exec --desktop-session 12
+python3 tools/run-qemu.py --esp artifacts/smp-esp --output artifacts/smp-run \
+  --accel tcg --windowed --cpus 2 --console virtio --virtio-desktop \
+  --require-exec-smp --require-gpu-irq --msi-controller gicv2m \
+  --supervise --gdb 23470 --gdb-wait
+```
+
+Both output directories must be new; resume the paused guest through LLDB. A declared USB desktop
+profile supplies xHCI, keyboard and tablet devices automatically. The ESP-only
+runner refuses packages requiring an appended WORK volume; those require a
+full disk-image runner.
+
+`--gdb PORT --gdb-wait` with `--supervise` leaves the guest paused after QMP
+preflight. Attach LLDB to `gdb-remote PORT`, inspect both CPU threads and resume
+from LLDB. QMP sockets use a short temporary path independent of artifact path
+length. The runner retains per-CPU registers and inspection on failure. A CPU
+count or debugger connection alone does not satisfy the concurrent-task gate.
+`make test-qemu-profile` checks impossible storage/debugger profiles before I/O.
+
 ## Portable platform probes
 
 ```sh
