@@ -1,5 +1,19 @@
 # Qualification status
 
+## Shared DeviceTree host regression
+
+`tests/device-tree.py` delegates to the selected common core's
+`developer/debug/test/openfirmware_host/run.py`; the product carries no second
+command fixture or expectation table. `AROS_CORE_SOURCE` selects a core Git
+checkout containing that shared runner, defaulting to the adjacent `aros-core`.
+The command and fixture at core `bee943f575c` pass fourteen sanitizer scenarios
+and an exact ROM-tag dependency mutation in
+`artifacts/consolidation-device-tree-shared-final/`. The old VM fixture's
+expectation of a ROM tag for a disk-loaded resource was stale. Host resource
+construction also passes twenty-one nodes and seventy-two allocation failures
+with the explicit shared SMP SDK. Neither result promotes CORE.lock or qualifies
+a guest/native runtime.
+
 ## Shared Exec SMP candidate
 
 Common core `434885690560824e84ffa17d2c97117a41895ca3` passes the bounded
