@@ -12,10 +12,26 @@ of this guest profile.
 The first aligned-core VZ run reached desktop acceptance in 3.508 seconds and
 quiesced the volume on window close, but its checker timed out waiting for that
 obsolete marker. Its original failure remains in
-`artifacts/consolidation-aligned-vz-desktop/`. Corrected runtime qualification
-is separate; six desktop-contract tests pass, including eight readiness
-negative controls. VM and QEMU packages use the same configured guest objects;
-Hosted binaries remain a distinct ABI.
+`artifacts/consolidation-aligned-vz-desktop/`. The corrected strict checker
+passes in 11.25 seconds with a captured, nonuniform guest viewport, exact
+readiness counts, GPU completion, HID bindings, guest quiescence and unchanged
+seed. Evidence: `artifacts/consolidation-aligned-vz-desktop-strict-fixed/`.
+Eight desktop-contract tests refuse inconsistent readiness, invalid geometry
+and blank guest pixels even when the macOS title bar contains content. The
+window capture check does not claim QEMU's pixel-exact glyph/wallpaper oracle.
+An intermediate missing-import failure and the original timeout remain intact;
+three superseded runtime disk copies were retired after verified quiescence,
+with hashes in `artifacts/consolidation-redundant-vz-disks-retirement.json`.
+
+The matching-SDK stage6 run passes in 11.29 seconds: forced transport cut,
+held-session failure, reopen, file put/get, clipboard reconnection, MultiView
+JPEG pixels, capture and coordinated shutdown. Both persisted fixtures are
+readable with normal mtools; FAT copies agree, the clean-shutdown bit is set,
+and the seed is unchanged. Evidence: `artifacts/consolidation-aligned-vz-stage6/`.
+VM and QEMU packages consume the same configured guest objects at
+`../Build/pomaros-qemu/rust-aligned-core`; Hosted binaries remain a distinct ABI.
+The immutable app records its actual producer revision; later checker changes
+do not relabel that artifact.
 
 ## Common descriptor service in the default runtime
 
@@ -35,8 +51,9 @@ code and passes the corrected default-runtime desktop in 20.71 seconds, with
 QMP/LLDB ready before execution, live CPU samples and strict frame controls.
 The same image passes all six Rust socket-poll cases in 18.2 seconds under TCG
 with its guest debugger attached before execution. These are local QEMU
-qualifications; Virtualization.framework runtime qualification of this pin is
-pending. Older evidence below retains its original source identity.
+qualifications. The VZ desktop and stage6 qualifications above cover the same
+pin on Virtualization.framework. Application and physical native GPU acceptance
+are separate. Older evidence below retains its original source identity.
 
 ## Pre-export consolidation qualification
 
