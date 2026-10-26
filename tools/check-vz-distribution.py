@@ -3,7 +3,7 @@
 # Copyright (c) 2026 John Knipper
 """Bounded windowed acceptance of an exact signed VM distribution, with no guest probe."""
 from pathlib import Path
-import argparse,hashlib,json,shutil,subprocess,sys,time
+import argparse,hashlib,json,runpy,shutil,subprocess,sys,time
 from desktop_contract import production_desktop_ready, require_nonuniform_guest_viewport
 
 parser=argparse.ArgumentParser(description=__doc__)
