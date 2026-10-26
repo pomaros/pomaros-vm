@@ -10,13 +10,16 @@ image qualification must include the descriptor service, not infer its presence
 from a desktop boot. `python3 -B tests/distribution-closure.py` exercises refusal
 before packaging when the service is missing.
 
-## Clean common-core reference candidate
+## Aligned common-core reference
 
-CORE.lock selects local common main at
-`61510f3cb1e28071a9f8d962f42b4135ad275412`. This clean public export separates
-platform-specific DRM device enumeration and fixes documentation routes. Its
-new build/runtime qualification is pending; preceding fc028f evidence retains
-its original identity.
+CORE.lock selects common main
+`afc0dbeefa12d65030ec0db8cd152a5518531913`. QEMU consumes the shared packaging
+code and passes the corrected default-runtime desktop in 20.71 seconds, with
+QMP/LLDB ready before execution, live CPU samples and strict frame controls.
+The same image passes all six Rust socket-poll cases in 18.2 seconds under TCG
+with its guest debugger attached before execution. These are local QEMU
+qualifications; Virtualization.framework runtime qualification of this pin is
+pending. Older evidence below retains its original source identity.
 
 ## Pre-export consolidation qualification
 
