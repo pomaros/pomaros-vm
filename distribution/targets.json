@@ -15,6 +15,7 @@
   "kernel-usb-classes-hubss",
   "kernel-usb-classes-hid",
   "workbench-devs-networks-virtionet",
+  "workbench-libs-fd",
   "workbench-network-stacks-arostcp",
   "network-dhcp-client",
   "workbench-devs-vmbridge",

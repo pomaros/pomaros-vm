@@ -1,5 +1,15 @@
 # Qualification status
 
+## Common descriptor service in the default runtime
+
+The standard distribution builds and requires `fd.library` for both QEMU and
+Virtualization.framework products. Without that shared descriptor service,
+the native AROSTCP socket interface returns ENOSYS even though classic network
+traffic and the desktop can work. A QEMU Rust poll probe exposed this omission;
+image qualification must include the descriptor service, not infer its presence
+from a desktop boot. `python3 -B tests/distribution-closure.py` exercises refusal
+before packaging when the service is missing.
+
 ## Clean common-core reference candidate
 
 CORE.lock selects local common main at
