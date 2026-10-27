@@ -18,6 +18,7 @@ from runtime_context_contract import runtime_context_matches
 p = argparse.ArgumentParser()
 p.add_argument('--esp',type=Path,required=True)
 p.add_argument('--output',type=Path,required=True)
+p.add_argument('--work-disk',type=Path,help='isolated make-disk image containing the appended writable WORK volume; copied before use')
 p.add_argument('--accel',choices=['hvf','tcg'],default='hvf')
 p.add_argument('--windowed',action='store_true',help='normal Cocoa host window, never fullscreen')
 p.add_argument('--supervise',action='store_true',help='prove QMP register access while paused before guest execution')
@@ -61,8 +62,17 @@ if a.require_msi_irq and not a.require_msi_frame: p.error('--require-msi-irq req
 if a.require_msi_frame and not a.require_pci_hidd: p.error('--require-msi-frame requires --require-pci-hidd')
 provenance = a.esp / 'provenance.json'
 package_profile = json.loads(provenance.read_text()) if provenance.is_file() else {}
-if package_profile.get('work_volume'):
-    p.error('ESP-only runner cannot supply an appended WORK volume; use a disk-image runner or package without --work-volume')
+if package_profile.get('work_volume') and a.work_disk is None:
+    p.error('ESP-only runner cannot supply an appended WORK volume; provide --work-disk made from this package')
+if a.work_disk is not None:
+    if not package_profile.get('work_volume'):
+        p.error('--work-disk requires a WORK-volume package')
+    expected = package_profile.get('work_bytes')
+    if (not isinstance(expected, int) or isinstance(expected, bool) or
+            expected < 256*1024*1024 or expected > 1024*1024*1024 or expected % (64*1024*1024)):
+        p.error('WORK package has invalid work_bytes geometry')
+    if not a.work_disk.is_file() or a.work_disk.stat().st_size != 64*1024*1024 + expected:
+        p.error('--work-disk must be a regular image matching the packaged WORK geometry')
 if a.output.exists(): p.error('output must not exist')
 if a.console=='virtio' and (a.gic_version!='3' or (a.profile!='core' and not a.virtio_desktop) or a.dtb):
     p.error('virtio console qualification requires ACPI, GICv3 and a core or virtio-desktop profile')
@@ -70,6 +80,13 @@ a.output.mkdir(parents=True)
 a.output = a.output.resolve()
 esp = a.output/'esp'
 shutil.copytree(a.esp,esp)
+work_input = None
+if a.work_disk is not None:
+    work_input = {'source':str(a.work_disk.resolve()), 'bytes':a.work_disk.stat().st_size}
+    with a.work_disk.open('rb') as stream:
+        work_input['sha256'] = hashlib.file_digest(stream,'sha256').hexdigest()
+    shutil.copyfile(a.work_disk,a.output/'work.img')
+    (a.output/'work-input.json').write_text(json.dumps(work_input,indent=2)+'\n')
 serial = a.output/'serial.log'
 sockets = tempfile.TemporaryDirectory(prefix='pv-qmp-', dir='/tmp')
 qmp = Path(sockets.name)/'qmp.sock'
@@ -84,6 +101,9 @@ if a.console=='virtio':
     command += ['-chardev',f'file,id=vmconsole,path={serial}',
                 '-device','virtio-serial-pci,disable-legacy=on,id=vmconsole',
                 '-device','virtconsole,chardev=vmconsole,bus=vmconsole.0,name=aros.console']
+if a.work_disk is not None:
+    command += ['-drive',f'if=none,id=work,format=raw,file={a.output / "work.img"}',
+                '-device','virtio-blk-pci,disable-legacy=on,drive=work']
 if a.require_pci_hidd:
     command += ['-device','virtio-rng-pci,disable-legacy=on']
 if a.require_gpu_scanout or a.virtio_desktop:
@@ -261,6 +281,7 @@ with (a.output/'host.log').open('w') as log:
             except subprocess.TimeoutExpired: proc.kill();proc.wait()
         sockets.cleanup()
 verdict={'result':'PASS' if passed else 'FAIL','reason':reason,'backend':a.accel,
+         'work_disk_input':work_input,
          'gdb_port':a.gdb,'debugger_resume_required':a.gdb_wait,
          'usb_desktop_profile':bool(package_profile.get('usb_desktop')),
          'host_windowed':a.windowed,'guest_headless_probe':a.profile=='core','supervisor_preflight':supervisor_ready,

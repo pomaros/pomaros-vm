@@ -30,13 +30,14 @@ The secondary probe does not establish concurrent Exec scheduling.
 builds the APL guest client in `tests/runtime-context.c` with debug information,
 frame pointers and strict symbol resolution. Package it as `C/RuntimeContextProbe`
 with that SDK's posixc/stdc/stdcio/fd libraries, then invoke it in an isolated
-guest startup. It creates its own RAM directory, changes logical cwd, opens a
+guest startup with `--resize-path VMWORK0:RuntimeResizeProbe` and an attached
+writable WORK image (`run-qemu.py --work-disk IMAGE`). It creates its own RAM directory, changes logical cwd, opens a
 file and changes native stdin before pthread_create, forcing the code-pin open
 to select another runtime instance. The worker checks both cwd and the retained
 descriptor, then performs a relative open. A native gate lets the creator
 seed errno before the worker provokes a shared-library EBADF; the worker checks
 its initial zero/error result and the creator verifies isolation through join. After successful join and cleanup, it checks native DOS shrink/regrow and
-zero extension on RAM: and the packaged FAT SYS: volume before CRT fill can
+zero extension on RAM: and the selected writable FAT volume before CRT fill can
 hide a handler defect. CRT seek, metadata, sync, both resize widths, position
 preservation and invalid-size/read-only refusal must then pass on each volume.
 Only successful completion emits

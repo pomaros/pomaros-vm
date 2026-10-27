@@ -21,7 +21,18 @@ with tempfile.TemporaryDirectory(prefix='qemu-profile-') as temporary:
             '--esp',str(esp),'--output',str(output),*arguments],capture_output=True,text=True,timeout=10)
         assert result.returncode==2 and message in result.stderr,result.stderr
         assert not output.exists()
-print('qemu-profile result=PASS refused=4 no-output-or-target-I/O')
+    disk=root/'work.img';disk.write_bytes(b'wrong geometry')
+    for i,manifest in enumerate([{'work_volume':False},
+            {'work_volume':True,'work_bytes':True},
+            {'work_volume':True,'work_bytes':256*1024*1024}]):
+        (esp/'provenance.json').write_text(json.dumps(manifest))
+        output=root/f'bad-work-{i}'
+        result=subprocess.run([sys.executable,str(ROOT/'tools/run-qemu.py'),
+            '--esp',str(esp),'--output',str(output),'--work-disk',str(disk)],
+            capture_output=True,text=True,timeout=10)
+        assert result.returncode==2,result.stderr
+        assert not output.exists()
+print('qemu-profile result=PASS refused=7 no-output-or-target-I/O')
 
 sys.path.insert(0, str(ROOT / 'tools'))
 from runtime_context_contract import PASS, runtime_context_matches

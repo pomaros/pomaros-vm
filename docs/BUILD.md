@@ -85,10 +85,11 @@ symbols at that address. Kernel symbols require observed runtime section
 addresses; transport preflight alone does not establish symbolic debugging.
 
 The runtime-context client also checks native DOS and CRT resize on RAM: and
-the FAT SYS: volume; its exact result requires both the worker context and
+an explicitly selected writable FAT volume; its exact result requires both the worker context and
 file-operation cases. Stage 16 identifies the creator/worker errno isolation
 handshake before joining; worker failures name their check. Stages 30–36 identify RAM operations and 60–66 identify
-FAT operations.
+FAT operations. Invoke the client with `--resize-path VMWORK0:RuntimeResizeProbe`.
+The retained `SYS:` boot image is read-only and cannot serve as this fixture.
 
 For `tests/runtime-context.c`, the optional `--debugger` argument prints the
 runtime addresses of `main` and `debugger_gate`, then waits. AROS relocatable
@@ -98,7 +99,9 @@ symbol offset. Use `target modules add ELF`, then `target modules load --file EL
 .text TEXT_ADDRESS .bss BSS_ADDRESS`. A single slide for this ELF is incorrect.
 Set software breakpoints at `probe_failed` and `probe_succeeded`, disable memory
 caching (`settings set target.process.disable-memory-cache true`), and write 1
-to the gate. On failure, inspect `probe_stage`, `probe_errno`, `probe_error` and
+to the gate. Select CPU thread 1 before reading guest virtual memory after inspecting all
+threads: the halted secondary may have no active address translation.
+On failure, inspect `probe_stage`, `probe_errno`, `probe_error` and
 `probe_ioerr` before continuing. The stage identifies the operation in the source.
 
 The desktop acceptance runner has its own deadlines; a foreground debugger gate
@@ -109,9 +112,13 @@ Avoid hardware watchpoints on QEMU 11.0.1 TCG SMP: an observed write watchpoint
 hung the host in `cpu_check_watchpoint`/TB invalidation while QMP waited for the
 vCPU. Software breakpoints worked for the same guest.
  A declared USB desktop
-profile supplies xHCI, keyboard and tablet devices automatically. The ESP-only
-runner refuses packages requiring an appended WORK volume; those require a
-full disk-image runner.
+profile supplies xHCI, keyboard and tablet devices automatically. For a WORK
+package, create the disk with `tools/make-disk.py --esp ESP --output IMAGE` and
+pass `--work-disk IMAGE` to `tools/run-qemu.py`. The runner checks the declared
+geometry, hashes the input, copies it into the run directory, and attaches that
+copy through virtio-blk. The ESP remains the firmware boot source; the packaged
+mount list selects the appended WORK partition. The input image is preserved.
+A WORK package without its disk is rejected before launching QEMU.
 
 `--gdb PORT --gdb-wait` with `--supervise` leaves the guest paused after QMP
 preflight. Attach LLDB to `gdb-remote PORT`, inspect both CPU threads and resume

@@ -177,13 +177,26 @@ int main(int argc, char **argv)
     pthread_t thread;
     int error, creator_errno;
     char *original_directory;
-    if (argc == 2 && !strcmp(argv[1], "--debugger"))
+    const char *resize_path = NULL;
+    int debug = 0;
+    for (int i = 1; i < argc; i++)
+    {
+        if (!strcmp(argv[i], "--debugger")) debug = 1;
+        else if (!strcmp(argv[i], "--resize-path") && i + 1 < argc)
+            resize_path = argv[++i];
+        else return 20;
+    }
+    if (!resize_path)
+    {
+        mark("CRT_ADMISSION FAIL: --resize-path on a writable FAT volume required\n");
+        return 20;
+    }
+    if (debug)
     {
         mark("CRT_DEBUG main="); address((IPTR)main);
         mark(" gate="); address((IPTR)&debugger_gate); mark("\n");
         while (!debugger_gate) Delay(1);
     }
-    else if (argc != 1) return 20;
     probe_stage = 1;
     original_directory = getcwd(NULL, 0);
     if (!original_directory) goto failed;
@@ -241,7 +254,7 @@ int main(int argc, char **argv)
     if (rmdir("RAM:RuntimeContextProbe")) goto failed;
     free(original_directory);
     if (file_resize("RAM:RuntimeResizeProbe", 30) ||
-        file_resize("SYS:RuntimeResizeProbe", 60)) goto failed;
+        file_resize(resize_path, 60)) goto failed;
     return probe_succeeded();
 failed:
     probe_errno = errno;

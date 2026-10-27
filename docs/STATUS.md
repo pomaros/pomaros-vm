@@ -1,5 +1,28 @@
 # Qualification status
 
+## Candidate CRT and writable FAT qualification
+
+Common source `b6013ea4f2b04f3ec669606ec87f17ba9d9a3694` completes the
+87-target SMP runtime build. Its SDK-linked runtime-context client passes the
+combined two-CPU QEMU TCG CRT/SMP gate in 28.85 seconds, following independent
+LLDB register/memory/step/resume-interrupt preflight. Both RAM and writable FAT
+native/CRT resize, zero extension, position preservation, metadata and errno
+checks complete. Evidence: `artifacts/consolidation-common-crt-fat/`.
+
+The first fixture wrongly targeted read-only boot SYS:. Debugger inspection
+locates its refusal at FAT stage 60, IoErr 214. The corrected client requires
+`--resize-path`; QEMU attaches an isolated copy of a geometry-checked WORK
+image through `--work-disk`. The original image hash remains unchanged. Seven
+invalid runner profiles and eight marker-contract negative controls pass.
+
+This is a candidate regression, not product-pin promotion, VZ production,
+application or physical hardware acceptance. No QEMU diagnostic trace was
+requested. Three non-GPU enumeration refusals retain a stale IRQ-lock stage
+label; subsequent graphics registration and the SMP workload complete. The
+separate headless command-startup check and coherent product qualification are
+pending; `CORE.lock` remains the reference identified below.
+
+
 ## Current common-core reference
 
 `CORE.lock` selects common core `63de2673bec7b6c1c4226a7909ec9614d5cc4a91`.
