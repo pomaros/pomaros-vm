@@ -1,9 +1,12 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 John Knipper
 from pathlib import Path
+from contextlib import ExitStack
 import argparse
-import hashlib,json,os,re,shutil,struct,subprocess,time
+import hashlib,json,os,re,shutil,struct,subprocess,time,sys
 root=Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(root/'tools'))
+from host_display import keep_display_awake
 parser=argparse.ArgumentParser(description="Bounded VZ image, forced stream cut and window close qualification")
 parser.add_argument('--app',type=Path,default=root/'artifacts/stage6-release/PomAROS VM.app')
 parser.add_argument('--output',type=Path,required=True)
@@ -56,10 +59,11 @@ subprocess.run(['mcopy','-o','-i',offset,str(out/'stage6-transport'),'::System/C
 subprocess.run(['mcopy','-o','-i',offset,str(out/'stage6-image'),'::System/C/Stage6Image'],check=True)
 args=[str(launcher),str(disk),str(state),'--headless','--gpu','--gpu-window','--usb-input','--network','--host-services','--clipboard-test','--window-close-test','--transport-cut-test']
 verdict=dict(source_revision=guest_identity['source_revision'],build_environment=build_identity,toolchain=str(toolchain),host_windowed=True,result='FAIL',reason='not-run',seed_sha256=hashlib.sha256(seed.read_bytes()).hexdigest(),launcher_sha256=hashlib.sha256(launcher.read_bytes()).hexdigest(),probe_sha256=hashlib.sha256((out/'stage6-transport').read_bytes()).hexdigest())
-start=time.monotonic();log=out/'console.log';proc=None
+start=time.monotonic();log=out/'console.log';proc=None;resources=ExitStack()
 try:
   with log.open('wb') as output:
     proc=subprocess.Popen(args,stdout=output,stderr=subprocess.STDOUT)
+    resources.enter_context(keep_display_awake(proc))
     def until(markers,seconds):
       limit=time.monotonic()+seconds
       while time.monotonic()<limit:
@@ -121,5 +125,6 @@ finally:
           (out/'failure-capture.log').write_bytes(shot.stdout+shot.stderr)
         except Exception as error:(out/'failure-capture-error.txt').write_text(str(error))
     proc.kill();proc.wait();verdict['forced_cleanup']=True
+  resources.close()
   (out/'verdict.json').write_text(json.dumps(verdict,indent=2)+'\n')
 print(json.dumps(verdict));raise SystemExit(verdict['result']!='PASS')

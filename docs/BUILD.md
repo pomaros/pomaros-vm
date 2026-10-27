@@ -6,6 +6,10 @@ The host builds with `make`; the UEFI loader requires GNU make 4 or later
 explicit targets in a source-bound VM SDK. It selects GNU make 4 or later and
 keeps nested named `make` calls on that executable; `AROS_MAKE` overrides the
 selection. The distribution builder uses the same host environment.
+Owned-window VZ capture gates use a temporary `caffeinate` assertion bound to
+their VM process, waking an idle display and keeping it available until that
+test ends. They release the assertion on completion and preserve macOS power
+preferences; an unavailable or failed capture remains a failed gate.
 `python3 tests/host-make.py` exercises nested response-file generation behind
 a misleading old named make and checks rejected overrides and shim cleanup.
 

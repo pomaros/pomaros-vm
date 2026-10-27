@@ -3,8 +3,10 @@
 # Copyright (c) 2026 John Knipper
 """Bounded windowed acceptance of an exact signed VM distribution, with no guest probe."""
 from pathlib import Path
+from contextlib import ExitStack
 import argparse,hashlib,json,runpy,shutil,subprocess,sys,time
 from desktop_contract import production_desktop_ready, require_nonuniform_guest_viewport
+from host_display import keep_display_awake
 
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--app',type=Path,required=True);parser.add_argument('--output',type=Path,required=True)
@@ -19,10 +21,11 @@ command=[str(launcher),str(disk),str(state),'--headless','--gpu','--gpu-window',
 (out/'command.json').write_text(json.dumps(command,indent=2)+'\n')
 verdict={'result':'FAIL','windowed':True,'guest_probe_injected':False,'source_revision':guest['source_revision'],
          'seed_sha256':hashlib.sha256(seed.read_bytes()).hexdigest(),'launcher_sha256':hashlib.sha256(launcher.read_bytes()).hexdigest()}
-process=None;start=time.monotonic();log=out/'console.log'
+process=None;start=time.monotonic();log=out/'console.log';resources=ExitStack()
 try:
     with log.open('wb') as output:
         process=subprocess.Popen(command,stdout=output,stderr=subprocess.STDOUT)
+        resources.enter_context(keep_display_awake(process))
         deadline=time.monotonic()+45
         while time.monotonic()<deadline:
             text=log.read_text(errors='replace')
@@ -64,6 +67,7 @@ finally:
         (state/'window-close.request').write_text('close\n')
         try:process.wait(timeout=20)
         except subprocess.TimeoutExpired:process.kill();process.wait();verdict['forced_cleanup']=True
+    resources.close()
     verdict['seconds']=round(time.monotonic()-start,2)
     (out/'verdict.json').write_text(json.dumps(verdict,indent=2)+'\n')
 print(json.dumps(verdict));sys.exit(verdict['result']!='PASS')

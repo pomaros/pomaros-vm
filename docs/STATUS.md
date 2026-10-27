@@ -2,21 +2,29 @@
 
 ## Current common-core reference
 
-`CORE.lock` selects common core `b974ae789adf34f2b22944a799267ee838239496`
-as a source input. The retained runtime evidence below belongs to common core
-`abd400e25164736de78dbf7f8cd317ae10156fba`; changing a source pin does not
-requalify those binaries.
-A freshly built VZ production app passes window capture and graceful volume
-quiescence in 12.62 seconds. A matching-SDK stage6 test passes forced transport
-cut and reopening, file transfer, clipboard reconnection and clean FAT readback
-in 11.24 seconds. Two-CPU VZ Exec SMP, USB HID bindings and graphics IRQ pass
-in a separate bounded diagnostic profile. QEMU TCG independently passes two-CPU
-Exec SMP with guest LLDB and a clean desktop/pixel gate. Input-event delivery,
-application GPU acceleration and physical Apple behaviour are not established.
-Evidence: `artifacts/consolidation-current-vz-production-check/` and
-`artifacts/consolidation-current-vz-stage6/`; QEMU evidence is recorded in the
-qualification journal. The test accepts an explicit candidate lock but defaults
-to this product's `CORE.lock`; mismatched app/lock and app/SDK are rejected.
+`CORE.lock` selects common core `63de2673bec7b6c1c4226a7909ec9614d5cc4a91`.
+The complete 83-target runtime and image assembly pass. A locally signed VZ
+production app passes owned-window capture and graceful volume shutdown in
+12.39 seconds. Matching-SDK stage6 passes forced transport cut, held-session
+failure, reopening, file PUT/GET, clipboard reconnection, JPEG rendering and
+clean FAT readback in11.28 seconds. QEMU TCG separately passes the bounded
+two-CPU Exec/x18/FPSIMD/timer/wake/teardown and Virtio IRQ scenario in29.02s,
+with an independent LLDB preflight. Evidence:
+`artifacts/consolidation-reference-vz-production-awake/`,
+`artifacts/consolidation-reference-vz-stage6/` and
+`artifacts/consolidation-reference-qemu/`.
+
+The first VZ attempt fails its window capture while the main display is asleep
+(online1, active0, asleep1). Waking the display changes it to active1/asleep0;
+the same unchanged app then passes. Capture test runners hold a temporary
+user/display assertion tied to their owned VM process and release it on exit.
+They do not change power preferences or skip the capture gate. Evidence:
+`artifacts/consolidation-vz-capture-diagnostic/`.
+
+This reference does not establish semantic physical input, application GPU
+acceleration, broad driver/SMP workloads or native Apple hardware behaviour.
+The app and probe manifests keep their exact producer and guest identities;
+promoting this source pin does not relabel older binaries.
 
 ## Shared DeviceTree host regression
 
@@ -313,9 +321,10 @@ Evidence: `artifacts/consolidation-reference-cohort/` and
 
 The CPU widget capture confirms two labeled processors; it captures the initial
 inventory state, not established utilization percentages. The SMP runner does
-not apply the empty-desktop pixel gate (`desktop_checked=false`). This result
+not apply the empty-desktop pixel gate (`desktop_checked=false`). This QEMU result alone
 does not qualify production VZ, semantic input, apps, GPU workloads or physical
-Apple hardware and does not promote the release pin. LLDB's batch exit1 is from
+Apple hardware; VZ promotion is supported by the separate current-reference
+checks above. LLDB's batch exit1 is from
 a backtrace command issued after QEMU's normal exit; the preflight protocol is
 recorded independently. Its automatic disassembly at the halted secondary's
 zero PC also reports an unmapped read after firmware resumes; the explicit
