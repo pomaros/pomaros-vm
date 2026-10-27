@@ -1,6 +1,6 @@
 # Qualification status
 
-## Candidate full-desktop refusal
+## Native CurrentDir correction and candidate desktop
 
 The complete desktop package from common core
 `b6013ea4f2b04f3ec669606ec87f17ba9d9a3694` builds with 3,875 runtime files.
@@ -18,9 +18,22 @@ the NetDB cause. The corrected fixture releases that lock and takes a shared
 Lock, matching NetDB. Common candidate `35fb4bf30ec` completes the fresh
 87-target SDK build and the full two-CPU QEMU CRT/RAM/FAT/SMP gate in40.21s,
 with independent LLDB preflight. Native CurrentDir/relative DOS Open passes.
-Evidence: `artifacts/consolidation-native-cwd-shared-fixed/`. The separate
-exclusive-lock limitation is open; the full desktop and product pin promotion
-remain pending. `CORE.lock` retains the qualified reference.
+Evidence: `artifacts/consolidation-native-cwd-shared-fixed/`. The exact shared-lock client fails on the previous b601 boot bundle, with
+only its SYS client replaced; all kernel/resident component bytes are unchanged
+(`artifacts/consolidation-native-cwd-shared-old-bundle/control-result.json`).
+Overriding CRT files on SYS alone is not an old-code control because resident
+CRT modules take precedence; that discarded attempt is explicitly marked invalid.
+
+The signed production VZ desktop passes normal startup, window capture and
+graceful quiescence in12.53s, with the normal network stack enabled and no NetDB
+requester. Matching-SDK stage6 passes cut/held-session refusal, reopen, file
+PUT/GET, clipboard reconnect, JPEG and clean FAT shutdown in11.20s. Evidence:
+`artifacts/consolidation-native-cwd-fixed/vz-production/` and `vz-stage6/`.
+These do not establish external network traffic or native installed acceptance.
+The exclusive-lock limitation is open: native CurrentDir with CreateDir's
+exclusive lock cannot be copied into the owned resolver context (DOS202).
+`CORE.lock` retains the preceding reference pending coordinated product
+qualification and review of that native API regression.
 
 ## Candidate CRT and writable FAT qualification
 
