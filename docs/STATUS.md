@@ -1,5 +1,22 @@
 # Qualification status
 
+## Candidate full-desktop refusal
+
+The complete desktop package from common core
+`b6013ea4f2b04f3ec669606ec87f17ba9d9a3694` builds with 3,875 runtime files.
+Its signed VZ production test fails: an AROSTCP NetDB error requester prevents
+CPUWidget desktop acceptance. The owned-window inspection shows
+`Fatal error in NetDB file Work:System/System/Network/arostcp/db/netdb at line 1, col 25`:
+`readnetdb: object not found`. The packaged netdb includes `interfaces`, and
+that file is present. Inspection exits normally through window close.
+Evidence: `artifacts/consolidation-common-b601-vz-production/` and
+`artifacts/consolidation-common-b601-vz-inspection/`.
+
+The POSIX path resolver's interaction with native `CurrentDir()` is under
+review; it is a hypothesis, not a debugger-confirmed cause. The earlier narrow
+CRT/FAT gate does not establish a functioning full desktop. `CORE.lock` and
+the preceding qualified product remain unchanged. The candidate is not promoted.
+
 ## Candidate CRT and writable FAT qualification
 
 Common source `b6013ea4f2b04f3ec669606ec87f17ba9d9a3694` completes the
