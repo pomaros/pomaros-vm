@@ -54,7 +54,9 @@ subprocess.run([sys.executable,str(source/'scripts/build-date.py'),'--epoch',epo
 workspace_python = root.parent / 'build-venv/bin/python3'
 build_python = str(a.python) if a.python else os.environ.get('PYTHON') or (
     str(workspace_python) if workspace_python.is_file() else sys.executable)
-build_python = str(Path(shutil.which(build_python) or build_python).expanduser().resolve())
+# Keep the venv entry point: resolving its final symlink selects the base
+# interpreter and loses the environment's site-packages.
+build_python = str(Path(shutil.which(build_python) or build_python).expanduser().absolute())
 try:
     check = subprocess.run([build_python, '-c', 'import mako, yaml'],
                            capture_output=True, text=True, timeout=15)

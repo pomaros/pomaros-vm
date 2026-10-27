@@ -2,7 +2,10 @@
 
 ## Current common-core reference
 
-`CORE.lock` selects common core `abd400e25164736de78dbf7f8cd317ae10156fba`.
+`CORE.lock` selects common core `b974ae789adf34f2b22944a799267ee838239496`
+as a source input. The retained runtime evidence below belongs to common core
+`abd400e25164736de78dbf7f8cd317ae10156fba`; changing a source pin does not
+requalify those binaries.
 A freshly built VZ production app passes window capture and graceful volume
 quiescence in 12.62 seconds. A matching-SDK stage6 test passes forced transport
 cut and reopening, file transfer, clipboard reconnection and clean FAT readback
@@ -279,13 +282,16 @@ larger-memory guest or application execution is claimed from them.
 
 ## Consolidated cohort preparation
 
-The SMP candidate configured from common core `54acf75075cd7c6e6f576df3a18df1e91edfe621`
-is building in `../Build/pomaros-vm-candidate`, using the explicit qualification
-lock and a clean canonical source. Evidence is under
-`artifacts/consolidation-current-cohort/`; no new guest acceptance is claimed.
-The first configuration failed because the invoking host Python lacked PyYAML;
-its failed configure logs were retained and the incomplete generated directory
-was removed before a successful configuration with the build environment.
-The configuration tool selects and checks its build Python before output
-creation, with an explicit `--python` override. Other product pins and the
-qualified images retain their recorded source identities.
+The SMP payload build from common core `54acf75075cd7c6e6f576df3a18df1e91edfe621`
+completed in 693.20 seconds with unchanged source identities. Evidence is under
+`artifacts/consolidation-current-cohort/`; no guest acceptance is claimed.
+The next qualification input is common core `63de2673bec7b6c1c4226a7909ec9614d5cc4a91`,
+including empty lifecycle-set definitions and remote Signal/Virtio waiter fixes.
+This is an explicit experimental lock, separate from the product's release pin.
+
+The configuration tool checks its selected build Python before creating output.
+It preserves the venv executable path rather than resolving its final symlink to
+the system interpreter. A real symlinked-venv regression verifies that dependency
+imports use the selected environment; pin/ABI refusal tests also pass. The failed
+configuration did not create a build directory. Other product pins and qualified
+images retain their recorded source identities.
