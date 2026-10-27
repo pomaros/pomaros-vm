@@ -19,6 +19,29 @@ spec.loader.exec_module(module)
 
 
 class Closure(unittest.TestCase):
+    def test_fresh_runtime_build_bootstraps_host_tools(self):
+        with tempfile.TemporaryDirectory() as folder:
+            build = Path(folder)
+            # Exercise the generated batch with real GNU make. The configured
+            # SDK initially has no MetaMake; features must create it before
+            # the actual distribution command can run.
+            (build / 'mmake-input').write_text(
+                '#!/bin/sh\nset -eu\ntest -f toolchain-ready\n'
+                'printf "%s\\n" "$@" > built-targets\n')
+            (build / 'Makefile').write_text(
+                'MMAKE := ./mmake\nCALL := env\n'
+                '.PHONY: crosstools-toolchain features\n'
+                'crosstools-toolchain:\n\ttouch toolchain-ready\n'
+                'features:\n\tcp mmake-input mmake\n\tchmod +x mmake\n')
+            args = SimpleNamespace(build=build, jobs=2)
+            with patch.object(module, 'config', return_value=(build, build)), \
+                 patch.object(module.subprocess, 'check_output', return_value=''), \
+                 patch.object(module, 'run'):
+                module.build_runtime(args)
+            expected = ['AROS.' + name for name in
+                        json.loads((ROOT / 'distribution/targets.json').read_text())]
+            self.assertEqual((build / 'built-targets').read_text().splitlines(), expected)
+
     def test_descriptor_service_is_required_for_each_backend(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

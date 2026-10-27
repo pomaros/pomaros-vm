@@ -295,3 +295,9 @@ the system interpreter. A real symlinked-venv regression verifies that dependenc
 imports use the selected environment; pin/ABI refusal tests also pass. The failed
 configuration did not create a build directory. Other product pins and qualified
 images retain their recorded source identities.
+
+The runtime build bootstraps configured files, the cross toolchain and host
+features before invoking MetaMake. A fresh configured SDK previously failed
+because MetaMake did not exist yet. The regression runs the generated batch
+with real GNU make and an initially absent MetaMake, verifies prerequisite
+completion and checks the complete runtime target list passed to it.

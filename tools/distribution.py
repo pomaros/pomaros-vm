@@ -62,7 +62,7 @@ def build_runtime(a):
     run(['git', '-C', source, 'submodule', 'update', '--init', '--jobs', '4', '--', *paths])
     targets = json.loads((ROOT / 'distribution/targets.json').read_text())
     batch = a.build / 'vm-distribution.mk'
-    batch.write_text('.PHONY: vm-distribution\nvm-distribution:\n\t@+$(CALL) $(MMAKE) $(MMAKE_OPTIONS) ' +
+    batch.write_text('.PHONY: vm-distribution\nvm-distribution: $(CONFIGUREFILES) crosstools-toolchain features\n\t@+$(CALL) $(MMAKE) $(MMAKE_OPTIONS) ' +
                      ' '.join('AROS.' + target for target in targets) + '\n')
     log = a.build / 'vm-distribution.log'
     if log.exists():
