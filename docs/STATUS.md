@@ -301,3 +301,22 @@ features before invoking MetaMake. A fresh configured SDK previously failed
 because MetaMake did not exist yet. The regression runs the generated batch
 with real GNU make and an initially absent MetaMake, verifies prerequisite
 completion and checks the complete runtime target list passed to it.
+
+The core63 qualification completes all 83 public VM runtime targets in983.62s
+with unchanged source identities, then packages the SMP/USB/Virtio image.
+The windowed two-CPU QEMU TCG run passes in29.02s: concurrent ordinary Exec
+tasks with x18/FPSIMD preservation, timer delivery under computation, wakeup,
+teardown, secondary shutdown and Virtio graphics IRQ. LLDB attached before
+execution and verified registers, memory, stepping and resume/interruption.
+Evidence: `artifacts/consolidation-reference-cohort/` and
+`artifacts/consolidation-reference-qemu/verdict.json`.
+
+The CPU widget capture confirms two labeled processors; it captures the initial
+inventory state, not established utilization percentages. The SMP runner does
+not apply the empty-desktop pixel gate (`desktop_checked=false`). This result
+does not qualify production VZ, semantic input, apps, GPU workloads or physical
+Apple hardware and does not promote the release pin. LLDB's batch exit1 is from
+a backtrace command issued after QEMU's normal exit; the preflight protocol is
+recorded independently. Its automatic disassembly at the halted secondary's
+zero PC also reports an unmapped read after firmware resumes; the explicit
+initial memory read and instruction step succeeded.
