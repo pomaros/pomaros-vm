@@ -54,7 +54,12 @@ The public StdCBase layout changes; runtime plus Ferail/Zed/Chromium consumers
 must be rebuilt coherently. The first fresh 87-target build stops in 150.16
 seconds because the early stdc import archive lacks generated task.resource
 headers. Build fix `443b0e68138` adds the missing MetaMake prerequisite; its
-replacement ABI build is pending. Failed generated SDK outputs are retired,
+replacement ABI build passes all 87 targets in 787.38 seconds, then strict
+client link and image packaging pass. Independent LLDB transport preflight
+passes. The guest gate times out after 90.14 seconds following input.device
+dead-end device-open alert 0xB5040000, with no CRT client result recorded.
+Registers, stack and instruction snapshots are preserved; the exact refused
+device/cause needs a debugger-owned reproduction before any source variant. Failed generated SDK outputs are retired,
 with logs retained and downloaded archives moved to the shared cache.
 The correction has not yet passed the linked guest gate. The client now
 requires initial worker errno zero, shared-library EBADF propagation and creator
