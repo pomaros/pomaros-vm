@@ -42,7 +42,7 @@ class Closure(unittest.TestCase):
                         json.loads((ROOT / 'distribution/targets.json').read_text())]
             self.assertEqual((build / 'built-targets').read_text().splitlines(), expected)
 
-    def test_descriptor_service_is_required_for_each_backend(self):
+    def test_runtime_services_are_required_for_each_backend(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             sdk = root / 'AROS'
@@ -53,19 +53,24 @@ class Closure(unittest.TestCase):
             build.mkdir()
             (build / 'vm-configure-command.json').write_text(json.dumps([
                 '/source/configure', '--with-aros-toolchain-install=' + str(tools)]))
-            for name in module.REQUIRED:
-                if name != 'Libs/fd.library':
-                    p = sdk / name
-                    p.parent.mkdir(parents=True, exist_ok=True)
-                    p.touch()
-            for backend in ('qemu', 'vz'):
-                output = root / backend
-                args = SimpleNamespace(build=build, output=output, backend=backend)
-                with patch.object(module, 'config', return_value=(sdk, root)), \
-                     patch.object(module, 'run', side_effect=AssertionError('packaging ran before closure gate')):
-                    with self.assertRaisesRegex(ValueError, 'missing Libs/fd.library'):
-                        module.package(args)
-                self.assertFalse(output.exists())
+            services = ['Libs/fd.library', 'Libs/posixc.library',
+                        'Libs/stdc.library', 'Libs/stdcio.library']
+            for missing in services:
+                with self.subTest(missing=missing):
+                    for name in module.REQUIRED:
+                        p = sdk / name
+                        p.parent.mkdir(parents=True, exist_ok=True)
+                        p.touch()
+                    (sdk / missing).unlink()
+                    for backend in ('qemu', 'vz'):
+                        output = root / backend
+                        args = SimpleNamespace(build=build, output=output, backend=backend)
+                        with patch.object(module, 'config', return_value=(sdk, root)), \
+                             patch.object(module, 'run', side_effect=AssertionError('packaging ran before closure gate')):
+                            with self.assertRaisesRegex(ValueError, 'missing ' + missing):
+                                module.package(args)
+                        self.assertFalse(output.exists())
+
 
 
 if __name__ == '__main__':

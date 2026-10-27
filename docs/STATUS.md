@@ -29,7 +29,11 @@ promoting this source pin does not relabel older binaries.
 ## CRT and file-resize candidate
 
 Common core `a7c9dc7401cd1c4898385d9a4dbbf9cae6913ddb` is building as an
-isolated SMP candidate; the production source lock is unchanged. The expanded
+isolated SMP candidate; the production source lock is unchanged. The distribution
+closure adds explicit stdc/stdcio/posixc modules and the pthread link library
+(87 requested targets). Packaging refuses missing CRT modules on either backend;
+the host closure regression passes. The already-running 83-target graph is
+followed by one incremental pass over that complete closure. The expanded
 runtime-context client compiles for AArch64 SMP and its exact-result host
 contract passes with seven rejected controls, including the former narrower
 success marker. It checks DOS shrink/regrow and exposed zeros on RAM and FAT

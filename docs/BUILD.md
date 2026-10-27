@@ -1,5 +1,9 @@
 # Building the guest
 
+The standard distribution explicitly builds stdc, stdcio and posixc shared
+libraries and the pthread link library. Packaging requires all three CRT modules
+alongside fd.library on both VM backends.
+
 The host builds with `make`; the UEFI loader requires GNU make 4 or later
 (`gmake` on macOS) and builds with
 `gmake -C boot/arosboot`. `tools/build-core.py --build DIR TARGET...` builds

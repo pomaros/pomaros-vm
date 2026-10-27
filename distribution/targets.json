@@ -81,5 +81,9 @@
   "workbench-devs-keymaps",
   "kernel-fs-afs",
   "kernel-fs-sfs",
-  "kernel-fs-cdfs"
+  "kernel-fs-cdfs",
+  "compiler-stdc",
+  "compiler-stdcio",
+  "compiler-posixc",
+  "linklibs-pthread"
 ]

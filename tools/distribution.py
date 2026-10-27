@@ -27,7 +27,7 @@ EXCLUDED = {'Zed', 'ZedAros', 'Ferail', 'Feraille', 'Moonstone', 'Developer',
 FONT_SOURCE_FAMILIES = {'barlow', 'bellefair', 'bitstream', 'opensans', 'spectral', 'work-sans'}
 FONT_FILE_PATTERN = re.compile(r'(?:Barlow-|Bellefair-|OpenSans-|Spectral-|WorkSans-|Vera)[A-Za-z0-9-]+\.ttf$')
 FONT_SELECTOR_PREFIXES = ('Barlow ', 'Bellefair ', 'Open Sans ', 'Spectral ', 'Vera ', 'Work Sans ')
-REQUIRED = ['Libs/fd.library', 'Libs/jfif.library', 'Libs/png.library', 'Libs/z1.library', 'Libs/freetype2.library', 'Libs/kms.library', 'C/DeviceTree', 'C/CPUInfo', 'C/LoadKeymap', 'C/ConClip', 'System/FixFonts', 'System/Network/AROSTCP/C/AROSTCP', 'C/Copy', 'C/List', 'C/Execute', 'C/AddDataTypes',
+REQUIRED = ['Libs/posixc.library', 'Libs/stdc.library', 'Libs/stdcio.library', 'Libs/fd.library', 'Libs/jfif.library', 'Libs/png.library', 'Libs/z1.library', 'Libs/freetype2.library', 'Libs/kms.library', 'C/DeviceTree', 'C/CPUInfo', 'C/LoadKeymap', 'C/ConClip', 'System/FixFonts', 'System/Network/AROSTCP/C/AROSTCP', 'C/Copy', 'C/List', 'C/Execute', 'C/AddDataTypes',
             'C/Assign', 'C/MakeDir', 'C/Mount', 'C/LoadResource',
             'L/pipe-handler', 'L/afs-handler', 'L/sfs-handler', 'C/IPrefs', 'C/VMExchange', 'C/VMSync', 'System/Wanderer/Wanderer',
             'Tools/Editor', 'Tools/Calculator', 'Utilities/Clock',
