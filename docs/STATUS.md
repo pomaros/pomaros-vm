@@ -12,14 +12,15 @@ that file is present. Inspection exits normally through window close.
 Evidence: `artifacts/consolidation-common-b601-vz-production/` and
 `artifacts/consolidation-common-b601-vz-inspection/`.
 
-The SDK-linked runtime-context client reproduces a native `CurrentDir()`
-followed by a failing relative DOS `Open()` with the candidate CRT loaded
-(`artifacts/consolidation-native-cwd-baseline/`). The same NetDB reader is
-unchanged from the qualified reference. Common candidate
-`35fb4bf30ec` synchronizes native Process directory changes into owned path
-contexts; HOST ownership/scope checks pass, including four compiling negative
-controls. A fresh matching SDK build and guest/full-desktop validation are
-pending. `CORE.lock` and the preceding qualified product remain unchanged.
+The first native-CWD fixture used CreateDir's exclusive lock; LLDB inspection
+shows that its copy fails with DOS error202, so that failure does not establish
+the NetDB cause. The corrected fixture releases that lock and takes a shared
+Lock, matching NetDB. Common candidate `35fb4bf30ec` completes the fresh
+87-target SDK build and the full two-CPU QEMU CRT/RAM/FAT/SMP gate in40.21s,
+with independent LLDB preflight. Native CurrentDir/relative DOS Open passes.
+Evidence: `artifacts/consolidation-native-cwd-shared-fixed/`. The separate
+exclusive-lock limitation is open; the full desktop and product pin promotion
+remain pending. `CORE.lock` retains the qualified reference.
 
 ## Candidate CRT and writable FAT qualification
 

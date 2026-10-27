@@ -180,6 +180,11 @@ static int native_current_directory(void)
     probe_stage = 100;
     directory = CreateDir((CONST_STRPTR)"RAM:RuntimeNativeDirectory");
     if (!directory) return -1;
+    /* CreateDir returns an exclusive lock, which DOS cannot duplicate.
+       Match NetDB's shared Lock before selecting the native directory. */
+    UnLock(directory);
+    directory = Lock((CONST_STRPTR)"RAM:RuntimeNativeDirectory", SHARED_LOCK);
+    if (!directory) return -1;
     file = Open((CONST_STRPTR)"RAM:RuntimeNativeDirectory/marker", MODE_NEWFILE);
     if (!file) { UnLock(directory); return -1; }
     Close(file);
