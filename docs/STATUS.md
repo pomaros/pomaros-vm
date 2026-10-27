@@ -26,6 +26,17 @@ acceleration, broad driver/SMP workloads or native Apple hardware behaviour.
 The app and probe manifests keep their exact producer and guest identities;
 promoting this source pin does not relabel older binaries.
 
+## CRT and file-resize candidate
+
+Common core `a7c9dc7401cd1c4898385d9a4dbbf9cae6913ddb` is building as an
+isolated SMP candidate; the production source lock is unchanged. The expanded
+runtime-context client compiles for AArch64 SMP and its exact-result host
+contract passes with seven rejected controls, including the former narrower
+success marker. It checks DOS shrink/regrow and exposed zeros on RAM and FAT
+before exercising CRT seek, metadata, sync and both resize widths on each.
+The full candidate build, link, guest execution and promotion are pending;
+compilation alone is not a runtime qualification.
+
 ## Shared DeviceTree host regression
 
 `tests/device-tree.py` delegates to the selected common core's

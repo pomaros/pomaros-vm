@@ -74,6 +74,11 @@ entry, PC 0 is firmware, not the kernel ELF's address 0. Do not load kernel
 symbols at that address. Kernel symbols require observed runtime section
 addresses; transport preflight alone does not establish symbolic debugging.
 
+The runtime-context client also checks native DOS and CRT resize on RAM: and
+the FAT SYS: volume; its exact result requires both the worker context and
+file-operation cases. Stages 30–36 identify RAM operations and 60–66 identify
+FAT operations.
+
 For `tests/runtime-context.c`, the optional `--debugger` argument prints the
 runtime addresses of `main` and `debugger_gate`, then waits. AROS relocatable
 ELFs place their sections independently: derive `.text` from runtime `main`

@@ -28,6 +28,7 @@ from runtime_context_contract import PASS, runtime_context_matches
 assert runtime_context_matches('boot\r\n' + PASS + '\r\nshutdown')
 for rejected in ['', PASS + '\n' + PASS, 'prefix ' + PASS,
                  PASS + ' partial', PASS + '\nCRT_ADMISSION FAIL: write',
-                 'CRT_ADMISSION PASS: different result']:
+                 'CRT_ADMISSION PASS: different result',
+                 'CRT_ADMISSION PASS: selected cwd and descriptors survive pin instance switch']:
     assert not runtime_context_matches(rejected), rejected
-print('runtime-context-contract result=PASS exact-client-result six-negative-controls')
+print('runtime-context-contract result=PASS exact-client-result seven-negative-controls')

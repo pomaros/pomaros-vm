@@ -2,6 +2,7 @@
  * Distributed under the AROS Public License 1.1. */
 /* Linked guest probe: a code-pin open selects another per-task runtime while
  * the worker must inherit the creator's logical cwd and descriptor namespace. */
+#define _LARGEFILE64_SOURCE
 #include <dos/dos.h>
 #include <proto/dos.h>
 #include <proto/exec.h>
@@ -11,6 +12,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <sys/stat.h>
 
 static void mark(const char *text)
 {
@@ -73,8 +75,86 @@ static __attribute__((noinline)) int probe_failed(void)
 
 static __attribute__((noinline)) int probe_succeeded(void)
 {
-    mark("CRT_ADMISSION PASS: selected cwd and descriptors survive pin instance switch\n");
+    mark("CRT_ADMISSION PASS: selected cwd and descriptors survive pin instance switch; RAM/FAT resize verified\n");
     return 0;
+}
+
+/* Run on both RAM: and the packaged FAT SYS: volume. Native DOS growth
+   precedes CRT growth so the CRT fill cannot hide a handler initialization bug. */
+static int file_resize(const char *path, ULONG stage)
+{
+    unsigned char buffer[512];
+    BPTR native;
+    struct stat sb;
+    struct stat64 wide;
+    int fd, readonly;
+    probe_stage = stage;
+    memset(buffer, 0x7b, sizeof(buffer));
+    native = Open((CONST_STRPTR)path, MODE_NEWFILE);
+    if (!native) return -1;
+    if (Write(native, buffer, sizeof(buffer)) != sizeof(buffer)) goto native_failed;
+    probe_stage = stage + 1;
+    if (Seek(native, 13, OFFSET_BEGINNING) == -1 ||
+        SetFileSize(native, 9, OFFSET_BEGINNING) != 9 ||
+        Seek(native, 0, OFFSET_CURRENT) != 13 ||
+        SetFileSize(native, 3000, OFFSET_BEGINNING) != 3000 ||
+        Seek(native, 0, OFFSET_CURRENT) != 13 ||
+        Seek(native, 0, OFFSET_BEGINNING) == -1) goto native_failed;
+    probe_stage = stage + 2;
+    for (int offset = 0; offset < 3000;)
+    {
+        int count = 3000 - offset;
+        if (count > (int)sizeof(buffer)) count = sizeof(buffer);
+        if (Read(native, buffer, count) != count) goto native_failed;
+        for (int i = 0; i < count; i++)
+            if (buffer[i] != (offset + i < 9 ? 0x7b : 0)) goto native_failed;
+        offset += count;
+    }
+    if (!Close(native)) return -1;
+    probe_stage = stage + 3;
+    fd = open(path, O_RDWR);
+    if (fd < 0) return -1;
+    if (lseek(fd, 7500, SEEK_SET) != 7500 || ftruncate(fd, 6500) ||
+        lseek(fd, 0, SEEK_CUR) != 7500 || fstat(fd, &sb) || sb.st_size != 6500 ||
+        fsync(fd)) goto crt_failed;
+    probe_stage = stage + 4;
+    if (lseek(fd, 0, SEEK_SET) != 0) goto crt_failed;
+    for (int offset = 0; offset < 6500;)
+    {
+        int count = 6500 - offset;
+        if (count > (int)sizeof(buffer)) count = sizeof(buffer);
+        if (read(fd, buffer, count) != count) goto crt_failed;
+        for (int i = 0; i < count; i++)
+            if (buffer[i] != (offset + i < 9 ? 0x7b : 0)) goto crt_failed;
+        offset += count;
+    }
+    probe_stage = stage + 5;
+    if (lseek64(fd, 7500, SEEK_SET) != 7500 || ftruncate64(fd, 13) ||
+        lseek64(fd, 0, SEEK_CUR) != 7500 || fstat64(fd, &wide) || wide.st_size != 13 ||
+        ftruncate64(fd, 2000) || lseek64(fd, 0, SEEK_CUR) != 7500)
+        goto crt_failed;
+    errno = 0;
+    if (ftruncate64(fd, -1) != -1 || errno != EINVAL) goto crt_failed;
+    if (close(fd)) return -1;
+    probe_stage = stage + 6;
+    readonly = open(path, O_RDONLY);
+    if (readonly < 0) return -1;
+    errno = 0;
+    int refused = ftruncate(readonly, 1), error = errno;
+    if (close(readonly) || refused != -1 || error != EBADF || unlink(path)) return -1;
+    return 0;
+crt_failed:
+    {
+        int error = errno; LONG ioerror = IoErr();
+        close(fd); errno = error; SetIoErr(ioerror);
+        return -1;
+    }
+native_failed:
+    {
+        int error = errno; LONG ioerror = IoErr();
+        Close(native); errno = error; SetIoErr(ioerror);
+        return -1;
+    }
 }
 
 int main(int argc, char **argv)
@@ -137,6 +217,8 @@ int main(int argc, char **argv)
     probe_stage = 15;
     if (rmdir("RAM:RuntimeContextProbe")) goto failed;
     free(original_directory);
+    if (file_resize("RAM:RuntimeResizeProbe", 30) ||
+        file_resize("SYS:RuntimeResizeProbe", 60)) goto failed;
     return probe_succeeded();
 failed:
     probe_errno = errno;

@@ -33,7 +33,11 @@ with that SDK's posixc/stdc/stdcio/fd libraries, then invoke it in an isolated
 guest startup. It creates its own RAM directory, changes logical cwd, opens a
 file and changes native stdin before pthread_create, forcing the code-pin open
 to select another runtime instance. The worker checks both cwd and the retained
-descriptor, then performs a relative open. Successful join and cleanup precede
+descriptor, then performs a relative open. After successful join and cleanup, it checks native DOS shrink/regrow and
+zero extension on RAM: and the packaged FAT SYS: volume before CRT fill can
+hide a handler defect. CRT seek, metadata, sync, both resize widths, position
+preservation and invalid-size/read-only refusal must then pass on each volume.
+Only successful completion emits
 the unique `CRT_ADMISSION PASS` marker on Exec's debug channel.
 
 A successful compile/link or desktop boot does not pass this client: require
