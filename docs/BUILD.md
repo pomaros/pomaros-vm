@@ -5,7 +5,10 @@ The host builds with `make`; the UEFI loader requires GNU make 4 or later
 `gmake -C boot/arosboot`. `tools/build-core.py --build DIR TARGET...` builds
 explicit targets in a source-bound VM SDK. It selects GNU make 4 or later and
 keeps nested named `make` calls on that executable; `AROS_MAKE` overrides the
-selection. The distribution builder uses the same host environment.
+selection. Requested core targets enter one MetaMake dependency graph after
+one shared host-tool bootstrap, preserving parallel compilation without
+concurrent independent configure runs. The distribution builder uses the same
+host environment and graph pattern.
 Owned-window VZ capture gates use a temporary `caffeinate` assertion bound to
 their VM process, waking an idle display and keeping it available until that
 test ends. They release the assertion on completion and preserve macOS power

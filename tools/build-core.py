@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import tempfile
 sys.dont_write_bytecode = True
 from distribution import config
 from host_make import make_environment
@@ -30,9 +31,20 @@ def main():
         return source
     try:
         source = validate()
-        with make_environment(build) as (make, environment):
-            subprocess.run([str(make), '-C', str(build), '-j'+str(args.jobs), *args.targets],
-                           env=environment, check=True)
+        # AROS dispatches unknown top-level goals through separate recursive
+        # .DEFAULT recipes. Parallel goals would bootstrap the same host tools
+        # concurrently. Submit all requested roots to one MetaMake graph, as
+        # the distribution builder does, after one shared bootstrap.
+        with tempfile.TemporaryDirectory(prefix='.core-targets-', dir=build) as temporary:
+            batch = Path(temporary) / 'targets.mk'
+            batch.write_text('.PHONY: pomaros-core-targets\n'
+                'pomaros-core-targets: $(CONFIGUREFILES) crosstools-toolchain features\n'
+                '\t@+$(CALL) $(MMAKE) $(MMAKE_OPTIONS) ' +
+                ' '.join('AROS.' + target for target in args.targets) + '\n')
+            with make_environment(build) as (make, environment):
+                subprocess.run([str(make), '-C', str(build), '-j'+str(args.jobs),
+                    '-f', 'Makefile', '-f', str(batch), 'pomaros-core-targets'],
+                    env=environment, check=True)
         if validate() != source:
             raise ValueError('configured source changed during build')
     except (OSError, ValueError, subprocess.SubprocessError) as error:
