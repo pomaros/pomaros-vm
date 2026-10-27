@@ -12,10 +12,14 @@ that file is present. Inspection exits normally through window close.
 Evidence: `artifacts/consolidation-common-b601-vz-production/` and
 `artifacts/consolidation-common-b601-vz-inspection/`.
 
-The POSIX path resolver's interaction with native `CurrentDir()` is under
-review; it is a hypothesis, not a debugger-confirmed cause. The earlier narrow
-CRT/FAT gate does not establish a functioning full desktop. `CORE.lock` and
-the preceding qualified product remain unchanged. The candidate is not promoted.
+The SDK-linked runtime-context client reproduces a native `CurrentDir()`
+followed by a failing relative DOS `Open()` with the candidate CRT loaded
+(`artifacts/consolidation-native-cwd-baseline/`). The same NetDB reader is
+unchanged from the qualified reference. Common candidate
+`35fb4bf30ec` synchronizes native Process directory changes into owned path
+contexts; HOST ownership/scope checks pass, including four compiling negative
+controls. A fresh matching SDK build and guest/full-desktop validation are
+pending. `CORE.lock` and the preceding qualified product remain unchanged.
 
 ## Candidate CRT and writable FAT qualification
 

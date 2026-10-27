@@ -171,6 +171,35 @@ native_failed:
     }
 }
 
+/* Native DOS CurrentDir remains authoritative when a CRT is loaded. NetDB
+   temporarily selects its db directory before opening a relative include. */
+static int native_current_directory(void)
+{
+    BPTR directory, old, file;
+    LONG error;
+    probe_stage = 100;
+    directory = CreateDir((CONST_STRPTR)"RAM:RuntimeNativeDirectory");
+    if (!directory) return -1;
+    file = Open((CONST_STRPTR)"RAM:RuntimeNativeDirectory/marker", MODE_NEWFILE);
+    if (!file) { UnLock(directory); return -1; }
+    Close(file);
+    old = CurrentDir(directory);
+    probe_stage = 101;
+    file = Open((CONST_STRPTR)"marker", MODE_OLDFILE);
+    error = IoErr();
+    UnLock(CurrentDir(old));
+    if (file) Close(file);
+    DeleteFile((CONST_STRPTR)"RAM:RuntimeNativeDirectory/marker");
+    DeleteFile((CONST_STRPTR)"RAM:RuntimeNativeDirectory");
+    if (!file) {
+        mark("CRT_NATIVE_CWD FAIL: native CurrentDir ignored by relative DOS Open\n");
+        SetIoErr(error);
+        return -1;
+    }
+    mark("CRT_NATIVE_CWD PASS: native CurrentDir selects relative DOS Open\n");
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     BPTR directory, original_input, shadow;
@@ -200,6 +229,7 @@ int main(int argc, char **argv)
     probe_stage = 1;
     original_directory = getcwd(NULL, 0);
     if (!original_directory) goto failed;
+    if (native_current_directory()) goto failed;
     probe_stage = 2;
     directory = CreateDir((CONST_STRPTR)"RAM:RuntimeContextProbe");
     if (!directory) goto failed;
