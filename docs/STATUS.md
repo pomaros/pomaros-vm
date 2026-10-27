@@ -71,7 +71,10 @@ SDK attempt exposed two simultaneous `.DEFAULT` recipes configuring MetaMake
 in the same directory; its retained log contains interleaved configure probes
 and corrupted feature detection. The real GNU make boundary regression checks
 one bootstrap, grouped graph roots and cleanup after a failing graph. The
-corrected fresh CRT cohort rebuild has not yet passed.
+corrected fresh SMP POSIXC/pthread module rebuild passes in 315.284 seconds
+and the diagnostic client links against that SDK. The complete 83-target VM
+runtime and guest execution remain under qualification. Product CORE.lock
+keeps its qualified source cohort.
 The older direct generated-makefile/header-copy helper is removed; configured
 reference builds and isolated candidates use `tools/build-core.py`.
 The fresh SMP candidate rebuild passes payloads in 312.63 seconds and the
