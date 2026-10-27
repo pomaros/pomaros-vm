@@ -72,9 +72,22 @@ in the same directory; its retained log contains interleaved configure probes
 and corrupted feature detection. The real GNU make boundary regression checks
 one bootstrap, grouped graph roots and cleanup after a failing graph. The
 corrected fresh SMP POSIXC/pthread module rebuild passes in 315.284 seconds
-and the diagnostic client links against that SDK. The complete 83-target VM
-runtime and guest execution remain under qualification. Product CORE.lock
-keeps its qualified source cohort.
+and the complete 83-target runtime passes in 600.567 seconds, from clean core
+`5663d3874bec85bfcca71a3a549ab668514dbf48`. The canonical runtime-context
+client passes the two-CPU QEMU SMP/startup gate in 29.25 seconds: selected cwd,
+retained descriptor and relative open survive a code-pin instance switch.
+Product CORE.lock keeps its qualified source cohort; this focused candidate run
+does not qualify all context consumers, hot reload, applications or native Apple.
+
+The client initially failed at write with EBADF. Live LLDB inspection located
+stage 6 and an Exec pointer returned by open. Native exec_regcall_stubs.o exports
+strong library lifecycle symbols named open/close; the builder selected those
+before the POSIXC weak wrappers. Resolving the CRT archives first fixes the
+client without changing the OS. The guest regression requires both its unique
+PASS marker and the complete normal startup/SMP verdict. Debugger transport,
+section-specific symbol loading and exploratory-run boundaries are documented
+in BUILD.md. Hardware watchpoints hung QEMU 11.0.1 MTTCG in host watchpoint/TB
+invalidation; software breakpoints supported the diagnosis.
 The older direct generated-makefile/header-copy helper is removed; configured
 reference builds and isolated candidates use `tools/build-core.py`.
 The fresh SMP candidate rebuild passes payloads in 312.63 seconds and the

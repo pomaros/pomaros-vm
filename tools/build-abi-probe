@@ -6,7 +6,7 @@ set -eu
 
 usage()
 {
-    echo "usage: build-abi-probe [--profile cli|tls|workbench|platform|pci|pthread-heap|cpu-widget|usb-desktop|desktop-input|desktop-clipboard|desktop-network|desktop-work|desktop-shutdown|desktop-soak|stage6-transport|stage6-image] [--sdk SDK_ROOT] [--sdk-tools DIR] [--crosstools DIR] OUTPUT" >&2
+    echo "usage: build-abi-probe [--profile cli|tls|workbench|platform|pci|pthread-heap|runtime-context|cpu-widget|usb-desktop|desktop-input|desktop-clipboard|desktop-network|desktop-work|desktop-shutdown|desktop-soak|stage6-transport|stage6-image] [--sdk SDK_ROOT] [--sdk-tools DIR] [--crosstools DIR] OUTPUT" >&2
     exit 2
 }
 
@@ -52,6 +52,9 @@ done
 [ "$#" -eq 1 ] || usage
 
 case "$profile" in
+    runtime-context)
+        source_file="$project_root/tests/runtime-context.c"
+        ;;
     pthread-heap)
         source_file="$project_root/tests/pthread-heap-lifetime.c"
         ;;
@@ -156,6 +159,14 @@ fi
 if [ "$profile" = pci ]; then
     set -- "$project_root/tests/virtio-block-queue.c" "$project_root/tests/virtio-device.c" "$project_root/tests/xhci-device.c" "$project_root/tests/virtio-network.c" "$project_root/tests/virtionet-device.c" "$project_root/tests/network-stack.c" "$project_root/tests/virtio-vsock.c" "$project_root/tests/vmbridge-device.c" "$project_root/tests/host-services.c" "$project_root/tests/clipboard-sync.c"
 fi
+if [ "$profile" = runtime-context ]; then
+    set -- "$@" -O1 -g -fno-omit-frame-pointer -fno-optimize-sibling-calls -Wl,--no-undefined
+else
+    set -- "$@" -Wl,--allow-multiple-definition
+fi
+# Resolve CRT functions before native stubs. exec_regcall_stubs.o also exports
+# library lifecycle names open/close; selecting it first binds POSIX clients to
+# the wrong ABI even though the link has no undefined symbols.
 "$clang" \
     --target=aarch64-unknown-aros \
     -mcmodel=large -fno-pic -fno-pie -femulated-tls \
@@ -170,9 +181,8 @@ fi
     -nostartfiles -nodefaultlibs \
     -L"$library_dir" -L"$crosstools/lib/generic" \
     "$library_dir/startup.o" "$source_file" "$@" -o "$temporary_output" \
-    -Wl,--allow-multiple-definition \
-    -Wl,--start-group -ldos -lexec -laros -lautoinit -llibinit -lutility \
-    -lamiga -larossupport -lpthread -lposixc -lstdcio -lstdc \
+    -Wl,--start-group -lpthread -lposixc -lstdcio -lstdc \
+    -ldos -lexec -laros -lautoinit -llibinit -lutility -lamiga -larossupport \
     -lclang_rt.builtins-aarch64 -Wl,--end-group
 
 chmod 0644 "$temporary_output"

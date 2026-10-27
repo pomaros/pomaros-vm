@@ -57,7 +57,42 @@ python3 tools/run-qemu.py --esp artifacts/smp-esp --output artifacts/smp-run \
   --supervise --gdb 23470 --gdb-wait
 ```
 
-Both output directories must be new; resume the paused guest through LLDB. A declared USB desktop
+Both output directories must be new; resume the paused guest through LLDB.
+To check the debugger connection before the workload, connect filelessly with
+`gdb-remote 127.0.0.1:23470` while QMP has the guest stopped, then run:
+
+```text
+command script import /absolute/path/to/pomaros-vm/tests/debugger_preflight.py
+command script add -f debugger_preflight.qualify vm-debugger-preflight
+vm-debugger-preflight --cpus 2 --output /absolute/path/to/new-debugger-result.json
+```
+
+The preflight verifies registers, memory, an instruction step, resume and an
+independent interrupt; it leaves the guest stopped. Continue for interactive
+inspection or use `process detach` to resume the supervised runner. At firmware
+entry, PC 0 is firmware, not the kernel ELF's address 0. Do not load kernel
+symbols at that address. Kernel symbols require observed runtime section
+addresses; transport preflight alone does not establish symbolic debugging.
+
+For `tests/runtime-context.c`, the optional `--debugger` argument prints the
+runtime addresses of `main` and `debugger_gate`, then waits. AROS relocatable
+ELFs place their sections independently: derive `.text` from runtime `main`
+minus its ELF symbol offset, and `.bss` from runtime `debugger_gate` minus its
+symbol offset. Use `target modules add ELF`, then `target modules load --file ELF
+.text TEXT_ADDRESS .bss BSS_ADDRESS`. A single slide for this ELF is incorrect.
+Set software breakpoints at `probe_failed` and `probe_succeeded`, disable memory
+caching (`settings set target.process.disable-memory-cache true`), and write 1
+to the gate. On failure, inspect `probe_stage`, `probe_errno`, `probe_error` and
+`probe_ioerr` before continuing. The stage identifies the operation in the source.
+
+The desktop acceptance runner has its own deadlines; a foreground debugger gate
+can trip them. For a longer investigation, run the recorded QEMU command under
+an explicit bounded process owner without that acceptance watchdog, QMP-stop it,
+and attach LLDB. Keep this diagnostic run distinct from product acceptance.
+Avoid hardware watchpoints on QEMU 11.0.1 TCG SMP: an observed write watchpoint
+hung the host in `cpu_check_watchpoint`/TB invalidation while QMP waited for the
+vCPU. Software breakpoints worked for the same guest.
+ A declared USB desktop
 profile supplies xHCI, keyboard and tablet devices automatically. The ESP-only
 runner refuses packages requiring an appended WORK volume; those require a
 full disk-image runner.

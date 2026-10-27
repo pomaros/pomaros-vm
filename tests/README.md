@@ -23,3 +23,27 @@ The secondary probe does not establish concurrent Exec scheduling.
 | Command | Scope |
 |---|---|
 | `python3 tests/check-cpu-widget-frame.py --help` | Production 1024x768 UP CPUWidget: unique live accounting readiness, exact static frame/CPU label, bounded load text and contiguous gauge, 620 immutable-wallpaper blocks and eleven alert/missing-background negative controls. `--pixels-only` is an offline oracle check and never runtime acceptance. |
+
+## CRT worker context
+
+`tools/build-abi-probe --profile runtime-context --sdk /path/to/sdk/bin/apple-aarch64 OUTPUT`
+builds the APL guest client in `tests/runtime-context.c` with debug information,
+frame pointers and strict symbol resolution. Package it as `C/RuntimeContextProbe`
+with that SDK's posixc/stdc/stdcio/fd libraries, then invoke it in an isolated
+guest startup. It creates its own RAM directory, changes logical cwd, opens a
+file and changes native stdin before pthread_create, forcing the code-pin open
+to select another runtime instance. The worker checks both cwd and the retained
+descriptor, then performs a relative open. Successful join and cleanup precede
+the unique `CRT_ADMISSION PASS` marker on Exec's debug channel.
+
+A successful compile/link or desktop boot does not pass this client: require
+its exact marker once, no `CRT_ADMISSION FAIL`, and the normal guest verdict.
+Keep the matching binary, source, runtime-library hashes and startup image.
+This checks one worker and one instance switch; it does not establish arbitrary
+creator removal, hot reload, all file-operation races or physical hardware.
+
+The runtime-context client also guards native/CRT symbol collisions: POSIX
+`open` and `close` must resolve through POSIXC, before the native Exec archive's
+library lifecycle stubs of those names. A successful link alone misses this.
+Optional `--debugger` prints section anchors and waits for LLDB; see
+[the debugger procedure](../docs/BUILD.md). The ordinary invocation does not wait.
