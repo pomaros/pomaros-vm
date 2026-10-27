@@ -38,6 +38,10 @@ the unique `CRT_ADMISSION PASS` marker on Exec's debug channel.
 
 A successful compile/link or desktop boot does not pass this client: require
 its exact marker once, no `CRT_ADMISSION FAIL`, and the normal guest verdict.
+Use `tools/run-qemu.py --require-runtime-context` with the normal run arguments;
+the verdict records `runtime_context_verified` only when both contracts pass.
+`make test-qemu-profile` rejects missing, duplicate, prefixed, partial,
+contradictory and unrelated client results.
 Keep the matching binary, source, runtime-library hashes and startup image.
 This checks one worker and one instance switch; it does not establish arbitrary
 creator removal, hot reload, all file-operation races or physical hardware.

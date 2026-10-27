@@ -22,3 +22,12 @@ with tempfile.TemporaryDirectory(prefix='qemu-profile-') as temporary:
         assert result.returncode==2 and message in result.stderr,result.stderr
         assert not output.exists()
 print('qemu-profile result=PASS refused=4 no-output-or-target-I/O')
+
+sys.path.insert(0, str(ROOT / 'tools'))
+from runtime_context_contract import PASS, runtime_context_matches
+assert runtime_context_matches('boot\r\n' + PASS + '\r\nshutdown')
+for rejected in ['', PASS + '\n' + PASS, 'prefix ' + PASS,
+                 PASS + ' partial', PASS + '\nCRT_ADMISSION FAIL: write',
+                 'CRT_ADMISSION PASS: different result']:
+    assert not runtime_context_matches(rejected), rejected
+print('runtime-context-contract result=PASS exact-client-result six-negative-controls')

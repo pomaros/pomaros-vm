@@ -84,7 +84,10 @@ stage 6 and an Exec pointer returned by open. Native exec_regcall_stubs.o export
 strong library lifecycle symbols named open/close; the builder selected those
 before the POSIXC weak wrappers. Resolving the CRT archives first fixes the
 client without changing the OS. The guest regression requires both its unique
-PASS marker and the complete normal startup/SMP verdict. Debugger transport,
+PASS marker and the complete normal startup/SMP verdict. The runner's
+`--require-runtime-context` enforces this directly; the final run passes in
+31.54 seconds with `runtime_context_verified=true`. Its exact-marker parser
+rejects six missing/duplicate/partial/contradictory controls. Debugger transport,
 section-specific symbol loading and exploratory-run boundaries are documented
 in BUILD.md. Hardware watchpoints hung QEMU 11.0.1 MTTCG in host watchpoint/TB
 invalidation; software breakpoints supported the diagnosis.

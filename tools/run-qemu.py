@@ -14,6 +14,7 @@ import tempfile
 import time
 from cpu_probe_contract import cpu_probe_matches
 from exec_smp_contract import exec_smp_matches
+from runtime_context_contract import runtime_context_matches
 p = argparse.ArgumentParser()
 p.add_argument('--esp',type=Path,required=True)
 p.add_argument('--output',type=Path,required=True)
@@ -34,6 +35,7 @@ p.add_argument('--require-gpu-irq',action='store_true')
 p.add_argument('--msi-controller',choices=['auto','gicv2m','its','off'],default='auto')
 p.add_argument('--require-timer',action='store_true')
 p.add_argument('--require-command-startup',action='store_true')
+p.add_argument('--require-runtime-context',action='store_true',help='require the exact CRT worker cwd/descriptor client result')
 p.add_argument('--require-platform',action='store_true')
 p.add_argument('--require-pci-hidd',action='store_true')
 p.add_argument('--require-msi-frame',action='store_true')
@@ -186,6 +188,7 @@ with (a.output/'host.log').open('w') as log:
                 passed=passed and (not a.require_command_startup or (text.count('[VM] command startup without service PASS')==1 and text.count('[VMExchange] main argc=')==1))
                 passed=passed and (not a.require_smp_probe or (cpu_probe_matches(text) and widget_captured and text.count("[KI] alive window open")==1))
                 passed=passed and (not a.require_exec_smp or (exec_smp_matches(text,a.cpus) and widget_captured))
+                passed=passed and (not a.require_runtime_context or runtime_context_matches(text))
                 reason='startup-contract' if passed else 'proof-missing';break
             if proc.poll() is not None:
                 reason='early-exit';break
@@ -263,6 +266,7 @@ verdict={'result':'PASS' if passed else 'FAIL','reason':reason,'backend':a.accel
          'host_windowed':a.windowed,'guest_headless_probe':a.profile=='core','supervisor_preflight':supervisor_ready,
          'cpus':a.cpus,'secondary_execution_verified':passed and (a.require_smp_probe or a.require_exec_smp),'widget_image_captured':widget_captured,'exec_smp_verified':passed and a.require_exec_smp and exec_smp_matches(text,a.cpus),
          'command_startup_verified':a.require_command_startup and passed,
+         'runtime_context_required':a.require_runtime_context,'runtime_context_verified':a.require_runtime_context and passed and runtime_context_matches(text),
          'profile':a.profile,'virtio_desktop':a.virtio_desktop,'gpu_scanout_required':a.require_gpu_scanout,'pixels_verified':pixels_verified, 'console':a.console, 'desktop_checked':a.profile == 'wanderer' and passed and not (a.require_smp_probe or a.require_exec_smp),
          'seconds':round(time.monotonic()-started,2),'hardware_virtualization':a.accel=='hvf',
          'gic_version':int(a.gic_version),'msi_controller':a.msi_controller,'gpu_irq_verified':passed and a.require_gpu_irq,'timer_required':a.require_timer,'platform_required':a.require_platform,'pci_hidd_required':a.require_pci_hidd,'msi_frame_required':a.require_msi_frame,'msi_irq_required':a.require_msi_irq,'irq_chain_required':a.require_irq_chain,
