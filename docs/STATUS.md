@@ -50,9 +50,16 @@ FAT client cases follow the failed RAM case and have not executed.
 Source correction `550f8a5a24e` introduces shared native task errno ownership,
 StdC worker admission, owner/binding close guards and program-entry reset.
 Scoped ASan/UBSan, TSan, pthread admission regressions and six AArch64 TUs pass.
-The public StdCBase layout changes; a fresh 87-target ABI cohort is building,
-and runtime plus Ferail/Zed/Chromium consumers must be rebuilt coherently.
-The correction has not yet passed the linked guest gate. The freestanding
+The public StdCBase layout changes; runtime plus Ferail/Zed/Chromium consumers
+must be rebuilt coherently. The first fresh 87-target build stops in 150.16
+seconds because the early stdc import archive lacks generated task.resource
+headers. Build fix `443b0e68138` adds the missing MetaMake prerequisite; its
+replacement ABI build is pending. Failed generated SDK outputs are retired,
+with logs retained and downloaded archives moved to the shared cache.
+The correction has not yet passed the linked guest gate. The client now
+requires initial worker errno zero, shared-library EBADF propagation and creator
+isolation across join. Its exact-result host contract passes eight rejected
+controls. The freestanding
 static bootstrap object compiles without shared imports; static threaded C is
 outside this qualification. No current product pin or binary is promoted.
 

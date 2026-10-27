@@ -20,6 +20,12 @@ preferences; an unavailable or failed capture remains a failed gate.
 `python3 tests/host-make.py` exercises nested response-file generation behind
 a misleading old named make and checks rejected overrides and shim cleanup.
 
+The configuration tool shares downloaded external archives through workspace
+`Build/portssources`, creating the cache after its preflight checks.
+`--ports-sources DIR` selects another existing cache. The absolute path is
+recorded in the configure command; SDKs retain their own generated sources and
+objects. An invalid explicit cache is rejected before creating the SDK.
+
 The configuration tool selects the build interpreter through `--python`, then
 `PYTHON`, then the workspace `../build-venv/bin/python3` when present, and finally
 the invoking interpreter. It verifies Mako and PyYAML before creating the build
@@ -80,7 +86,8 @@ addresses; transport preflight alone does not establish symbolic debugging.
 
 The runtime-context client also checks native DOS and CRT resize on RAM: and
 the FAT SYS: volume; its exact result requires both the worker context and
-file-operation cases. Stages 30–36 identify RAM operations and 60–66 identify
+file-operation cases. Stage 16 identifies the creator/worker errno isolation
+handshake before joining; worker failures name their check. Stages 30–36 identify RAM operations and 60–66 identify
 FAT operations.
 
 For `tests/runtime-context.c`, the optional `--debugger` argument prints the

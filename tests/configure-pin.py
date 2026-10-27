@@ -63,16 +63,19 @@ class Pin(unittest.TestCase):
             revision = git('rev-parse', 'HEAD')
             # Dependency pins are commonly checked out detached.
             git('checkout', '-q', '--detach', revision)
-            for expected, policy, message in [(revision, 'unrestricted', 'cross-toolchain'),
-                    ('0' * 40, 'unrestricted', 'differs from CORE.lock'),
-                    (revision, 'reserved', 'differs from CORE.lock')]:
+            for expected, policy, message, extra in [(revision, 'unrestricted', 'cross-toolchain', []),
+                    ('0' * 40, 'unrestricted', 'differs from CORE.lock', []),
+                    (revision, 'reserved', 'differs from CORE.lock', []),
+                    (revision, 'unrestricted', 'ports sources cache', ['--ports-sources', str(root / 'missing-cache')]),
+                    (revision, 'unrestricted', 'ports sources cache', ['--ports-sources', str(source / 'source')]),
+                    (revision, 'unrestricted', 'cross-toolchain', ['--ports-sources', str(source)])]:
                 with self.subTest(expected=expected, policy=policy):
                     lock = root / 'CORE.lock'
                     lock.write_text(f'CORE_REVISION={expected}\nCORE_TARGET=apple-aarch64\nCORE_X18_POLICY={policy}\n')
                     output = root / 'build'
                     result = subprocess.run(['python3', str(ROOT / 'tools/configure-core.py'),
                         '--source', str(source), '--output', str(output), '--core-lock', str(lock),
-                        '--toolchain', str(root / 'missing')], capture_output=True, text=True)
+                        '--toolchain', str(root / 'missing'), *extra], capture_output=True, text=True)
                     self.assertNotEqual(result.returncode, 0)
                     self.assertIn(message, result.stderr)
                     self.assertFalse(output.exists())

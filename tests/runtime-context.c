@@ -23,34 +23,48 @@ static const char token[] = "owned-context";
 static int held;
 static char creator_directory[512];
 static const char *worker_failure;
+static ULONG worker_gate, worker_done;
 
 static void *worker(void *unused)
 {
     char buffer[sizeof(token)], directory[sizeof(creator_directory)];
     int relative;
     (void)unused;
+    while (!__atomic_load_n(&worker_gate, __ATOMIC_ACQUIRE)) Delay(1);
+    if (errno != 0)
+    {
+        worker_failure = "worker initial errno";
+        goto done;
+    }
+    if (lseek(-1, 0, SEEK_SET) != -1 || errno != EBADF)
+    {
+        worker_failure = "worker shared-module errno";
+        goto done;
+    }
     if (!getcwd(directory, sizeof(directory)) ||
         strcmp(directory, creator_directory))
     {
         worker_failure = "worker cwd";
-        return NULL;
+        goto done;
     }
     if (read(held, buffer, sizeof(token)) != (ssize_t)sizeof(token) ||
         memcmp(buffer, token, sizeof(token)))
     {
         worker_failure = "captured descriptor";
-        return NULL;
+        goto done;
     }
     relative = open("token", O_RDONLY);
     if (relative < 0)
     {
         worker_failure = "relative open";
-        return NULL;
+        goto done;
     }
     if (read(relative, buffer, sizeof(token)) != (ssize_t)sizeof(token) ||
         memcmp(buffer, token, sizeof(token)))
         worker_failure = "relative contents";
     if (close(relative)) worker_failure = "relative close";
+done:
+    __atomic_store_n(&worker_done, 1, __ATOMIC_RELEASE);
     return NULL;
 }
 
@@ -69,13 +83,13 @@ static void address(IPTR value)
 
 static __attribute__((noinline)) int probe_failed(void)
 {
-    mark("CRT_ADMISSION FAIL: creator setup, admission, join or cleanup\n");
+    mark("CRT_ADMISSION FAIL: setup, admission, task errno, file resize or cleanup\n");
     return 20;
 }
 
 static __attribute__((noinline)) int probe_succeeded(void)
 {
-    mark("CRT_ADMISSION PASS: selected cwd and descriptors survive pin instance switch; RAM/FAT resize verified\n");
+    mark("CRT_ADMISSION PASS: selected cwd and descriptors survive pin instance switch; task errno and RAM/FAT resize verified\n");
     return 0;
 }
 
@@ -161,7 +175,7 @@ int main(int argc, char **argv)
 {
     BPTR directory, original_input, shadow;
     pthread_t thread;
-    int error;
+    int error, creator_errno;
     char *original_directory;
     if (argc == 2 && !strcmp(argv[1], "--debugger"))
     {
@@ -199,9 +213,18 @@ int main(int argc, char **argv)
     SelectInput(original_input);
     Close(shadow);
     if (error) goto failed;
+    probe_stage = 16;
+    errno = EDOM;
+    __atomic_store_n(&worker_gate, 1, __ATOMIC_RELEASE);
+    while (!__atomic_load_n(&worker_done, __ATOMIC_ACQUIRE)) Delay(1);
+    creator_errno = errno;
     probe_stage = 10;
     probe_error = error = pthread_join(thread, NULL);
     if (error) goto failed;
+    if (creator_errno != EDOM || errno != EDOM)
+    {
+        worker_failure = "creator errno isolation";
+    }
     probe_stage = 11;
     if (worker_failure)
     {

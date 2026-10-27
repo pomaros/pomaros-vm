@@ -22,12 +22,17 @@ p.add_argument('--source-date-epoch', default=os.environ.get('SOURCE_DATE_EPOCH'
                help='build timestamp; defaults to the source commit timestamp')
 p.add_argument('--source', type=Path, default=Path(os.environ.get('AROS_CORE_SOURCE', root.parent / 'aros-core')))
 p.add_argument('--toolchain', type=Path, default=root.parent / 'aros-crosstools')
+p.add_argument('--ports-sources', type=Path, help='existing external-archive cache; defaults to workspace Build/portssources')
 p.add_argument('--source-branch', action='append', default=[],
                help='an additional core branch accepted as the isolated VM source')
 a = p.parse_args()
 source = a.source.resolve()
 output = a.output.resolve()
 toolchain = a.toolchain.resolve()
+ports_sources = (a.ports_sources or root.parent / 'Build/portssources').resolve()
+if ((a.ports_sources is not None and not ports_sources.is_dir()) or
+        (ports_sources.exists() and not ports_sources.is_dir())):
+    p.error('ports sources cache must be an existing directory')
 lock = dict(line.strip().split('=', 1) for line in a.core_lock.read_text().splitlines()
             if line.strip() and not line.startswith('#'))
 revision = subprocess.check_output(['git', '-C', str(source), 'rev-parse', 'HEAD'], text=True).strip()
@@ -82,10 +87,12 @@ command = [str(source / 'configure'), '--target=apple-aarch64',
            '--enable-vm-guest', '--with-toolchain=llvm', '--with-aros-toolchain=yes',
            '--with-aros-toolchain-install=' + str(toolchain),
            '--with-llvm-version=' + clang_version, '--without-x']
+command.append('--with-portssources=' + str(ports_sources))
 if a.smp:
     # The immutable source/ABI lock above is the authority; a task branch
     # name does not determine whether the pinned core supports SMP.
     command.append('--enable-target-variant=smp')
+ports_sources.mkdir(parents=True, exist_ok=True)
 output.mkdir(parents=True)
 (output / 'vm-configure-command.json').write_text(json.dumps(command, indent=2) + '\n')
 with (output / 'vm-configure.log').open('w') as log:
