@@ -44,7 +44,12 @@ restriction from those failures. Exact runs and identities are recorded in
 
 `tools/package-core.py --profile wanderer --virtio-gpu --usb-desktop
 --host-services --network-stack --desktop-session forever` includes the
-resident SANA driver and starts AROSTCP from Startup-Sequence. Network commands,
+resident SANA driver and starts AROSTCP from Startup-Sequence. The package
+includes the SDK's `System/Network/Services` executables and matching
+`System/Network/AROSTCP/db/services.d` definitions. AROSTCP registers
+`netservices.library` and its service manager launches the DHCP daemon, which
+owns dhclient. Packaging refuses missing DHCP service inputs; including
+`dhclient` alone is insufficient. Network commands,
 dependencies and configuration use the expanded 16 MiB SYS image. Startup first creates RAM:T and assigns T: with standard AROS MakeDir/Assign.
 Logs go to `T:AROSTCP.log`; command output goes to `T:AROSTCP-startup.log`.
 Launch this package with `--gpu --usb-input --host-services --network` so

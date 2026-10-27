@@ -1,19 +1,32 @@
 # Qualification status
 
-## Native exclusive-directory candidate
+## Native path candidate
 
-Common candidate `7bc6a38c6c2` adds a version2 resolver acceptance policy.
-A native Process operation with an exclusive cwd runs directly in its owning
-Process; explicit POSIX scopes and ordinary Tasks remain mediated. A declined
-ordinary Task operation is refused before any Process-field access. Registry
-ownership stays active through policy and invocation. The actual DOS dispatch
-HOST gate passes six compiled mutation controls; the actual POSIX policy and
-owned-context gate passes seven. Actual selected-context push/pop and the
-vfork scope regression pass; a changed native directory cannot overwrite a
-selected context and exclusive native fallback cannot bypass it. The earlier
-SDK build was deliberately stopped when this omission was reproduced; its
-partial output was retired. Guest qualification and the matching fresh SDK
-are pending. The runtime-context client includes both native lock modes.
+Common candidate `7bc6a38c6c2` completes the fresh87-target SMP SDK build.
+The SDK-linked client passes native exclusive and shared CurrentDir, the
+CRT worker/errno cases, RAM/FAT resize and two-CPU SMP in40.81s, following an
+independent LLDB register/memory/step/resume-interrupt preflight. Evidence:
+`artifacts/consolidation-native-path-reference/qemu/`.
+
+The version2 DOS resolver policy preserves native exclusive Process operations
+without lending their locks; ordinary Tasks and explicit operation/selected
+context scopes stay mediated. The actual ownership/snapshot/policy fixtures
+pass seven named compiling mutation controls, and the actual vfork scope gate
+passes. Full native hardware acceptance is separate.
+
+The real VZ network gate passes DHCP, DHCP-provided DNS and three checked
+64KiB bidirectional TCP transactions with both guest and host-peer acceptance
+in23.71s, alongside desktop/HID/GPU IRQ. The live host NAT endpoint is verified.
+Evidence: `artifacts/consolidation-native-path-reference/network-complete/`.
+The preceding diagnostic package omitted the SDK's DHCP service executable
+and service definitions; its DHCP failure remains under `network/`. The complete
+production runtime already contained these files. Packaging includes the
+existing service payload and refuses missing inputs; no stack/driver rewrite
+was made. The raw VZ bundle inspected under QEMU stopped at its bootstrap
+contract before the desktop workload, so it is not a DHCP reproduction.
+
+Full signed VZ production, matching-SDK stage6 and coordinated product pin/native
+build alignment remain pending. `CORE.lock` retains the preceding reference.
 
 ## Native CurrentDir correction and candidate desktop
 

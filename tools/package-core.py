@@ -233,6 +233,18 @@ if a.network_stack:
         pci_files.append(('Libs/'+name+'.library',sdk/'AROS/Libs'/(name+'.library')))
     for name in ['AROSTCP','dhclient']:
         pci_files.append(('System/Network/AROSTCP/C/'+name,sdk/'AROS/System/Network/AROSTCP/C'/name))
+    # The stack's service manager launches DHCP through services.d; the
+    # dhclient executable alone cannot configure an interface. Keep the
+    # SDK's service definitions and executables together, as on the complete
+    # runtime volume. netservices.library is registered by AROSTCP itself.
+    network = sdk / 'AROS/System/Network'
+    for required in ('Services/dhcpd', 'AROSTCP/db/services.d/dhcp'):
+        if not (network / required).is_file():
+            p.error('network service input missing: ' + str(network / required))
+    for directory in ('Services', 'AROSTCP/db/services.d'):
+        for path in sorted((network / directory).rglob('*')):
+            if path.is_file():
+                pci_files.append(('System/Network/' + path.relative_to(network).as_posix(), path))
     # Keep the standard tree: DHCP defaults and AROSTCP ProgramDir agree.
     configs={
         'general.config':'USELOOPBACK=YES\nDEBUGSANA=NO\nGATEWAY=NO\nHOSTNAME=pomaros-'+('vm' if a.backend == 'vz' else 'qemu')+'\nOPENGUI=NO\n',
