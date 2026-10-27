@@ -276,3 +276,16 @@ capture and the independent host-services admission flags. Launcher refusal,
 package-backend and reproducible disk tests pass, including the 512 MiB WORK
 case and corrupt/mismatching geometry refusals. These are host checks; no
 larger-memory guest or application execution is claimed from them.
+
+## Consolidated cohort preparation
+
+The SMP candidate configured from common core `54acf75075cd7c6e6f576df3a18df1e91edfe621`
+is building in `../Build/pomaros-vm-candidate`, using the explicit qualification
+lock and a clean canonical source. Evidence is under
+`artifacts/consolidation-current-cohort/`; no new guest acceptance is claimed.
+The first configuration failed because the invoking host Python lacked PyYAML;
+its failed configure logs were retained and the incomplete generated directory
+was removed before a successful configuration with the build environment.
+The configuration tool selects and checks its build Python before output
+creation, with an explicit `--python` override. Other product pins and the
+qualified images retain their recorded source identities.

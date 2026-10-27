@@ -9,6 +9,12 @@ selection. The distribution builder uses the same host environment.
 `python3 tests/host-make.py` exercises nested response-file generation behind
 a misleading old named make and checks rejected overrides and shim cleanup.
 
+The configuration tool selects the build interpreter through `--python`, then
+`PYTHON`, then the workspace `../build-venv/bin/python3` when present, and finally
+the invoking interpreter. It verifies Mako and PyYAML before creating the build
+directory. This interpreter is recorded through configure; invoking the tool
+from a different host Python does not silently change the build environment.
+
 The supported configuration builds into a new directory with
 `tools/configure-core.py`, followed by the payload target and
 `tools/package-core.py` as shown below. The packager consumes only products

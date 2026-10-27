@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import sys
 from pathlib import Path
 import subprocess
@@ -13,6 +14,7 @@ import subprocess
 root = Path(__file__).resolve().parents[1]
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--output', type=Path, required=True)
+p.add_argument('--python', type=Path, help='build Python with mako and PyYAML; overrides PYTHON')
 p.add_argument('--smp', action='store_true', help='isolated experimental Exec SMP build')
 p.add_argument('--core-lock', type=Path, default=root / 'CORE.lock',
                help='shared source pin; use an explicit lock file for experimental builds')
@@ -49,8 +51,18 @@ if epoch is None:
 # Validate before creating a directory or interpolating into make syntax.
 subprocess.run([sys.executable,str(source/'scripts/build-date.py'),'--epoch',epoch],
                check=True,stdout=subprocess.DEVNULL)
-env=dict(os.environ,SOURCE_DATE_EPOCH=epoch,TZ='UTC',
-         PYTHON=os.environ.get('PYTHON', sys.executable))
+workspace_python = root.parent / 'build-venv/bin/python3'
+build_python = str(a.python) if a.python else os.environ.get('PYTHON') or (
+    str(workspace_python) if workspace_python.is_file() else sys.executable)
+build_python = str(Path(shutil.which(build_python) or build_python).expanduser().resolve())
+try:
+    check = subprocess.run([build_python, '-c', 'import mako, yaml'],
+                           capture_output=True, text=True, timeout=15)
+except (OSError, subprocess.SubprocessError) as error:
+    p.error('cannot use selected build Python: ' + str(error))
+if check.returncode:
+    p.error('build Python requires mako and PyYAML; select --python or PYTHON: ' + build_python)
+env=dict(os.environ,SOURCE_DATE_EPOCH=epoch,TZ='UTC', PYTHON=build_python)
 # Catalogs are source submodules, not optional pre-generated build artifacts.
 # Fetch exactly the pinned revisions required by core and desktop workloads.
 subprocess.run(['git', '-C', str(source), 'submodule', 'update', '--init', '--',
