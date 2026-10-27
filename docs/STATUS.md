@@ -26,6 +26,14 @@ acceleration, broad driver/SMP workloads or native Apple hardware behaviour.
 The app and probe manifests keep their exact producer and guest identities;
 promoting this source pin does not relabel older binaries.
 
+## Local artifact retention
+
+11 superseded generated application bundles are removed from local
+artifact runs. The core-63de2673bec reference application is retained at
+`artifacts/consolidation-reference-vz-distribution/PomAROS VM.app`. Test verdicts and provenance metadata remain available;
+separate disk profiles are preserved. This cleanup does not change source
+pins, qualify a candidate or relabel an existing binary.
+
 ## CRT and file-resize candidate
 
 Common core `a7c9dc7401cd1c4898385d9a4dbbf9cae6913ddb` passes the isolated SMP
@@ -58,8 +66,17 @@ replacement ABI build passes all 87 targets in 787.38 seconds, then strict
 client link and image packaging pass. Independent LLDB transport preflight
 passes. The guest gate times out after 90.14 seconds following input.device
 dead-end device-open alert 0xB5040000, with no CRT client result recorded.
-Registers, stack and instruction snapshots are preserved; the exact refused
-device/cause needs a debugger-owned reproduction before any source variant. Failed generated SDK outputs are retired,
+LLDB identifies keyboard.device's nested keyboard.hidd open refusal and
+establishes that errno initialization rejects task.resource because its
+resource header leaves lib_NegSize zero. Core b061818e34f admits the published
+API version instead; its complete 87-target build passes in 843.87 seconds.
+The correctly configured gicv2m guest reaches RAM stage 36. A breakpoint then
+captures read-only ftruncate returning 0 with errno 0: the guard uses Unix-style
+access-mode assumptions, while AROS uses read/write bits 1/2/3. Core
+3982c72e268 corrects the write-bit check; the fixture imports the public AROS
+constants and passes 19 ASan/UBSan and TSan records plus two complete AArch64
+translation units. Linked correction and FAT guest cases remain unqualified.
+The superseded intermediate a7c9dc SDK is retired; evidence is retained. Failed generated SDK outputs are retired,
 with logs retained and downloaded archives moved to the shared cache.
 The correction has not yet passed the linked guest gate. The client now
 requires initial worker errno zero, shared-library EBADF propagation and creator
