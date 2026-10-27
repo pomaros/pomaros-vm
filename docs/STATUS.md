@@ -40,7 +40,7 @@ construction also passes twenty-one nodes and seventy-two allocation failures
 with the explicit shared SMP SDK. Neither result promotes CORE.lock or qualifies
 a guest/native runtime.
 
-## Shared Exec SMP candidate
+## Earlier Exec SMP checkpoint
 
 Common core `434885690560824e84ffa17d2c97117a41895ca3` passes the bounded
 windowed TCG two-core Exec gate in 27.58 seconds. QMP verifies a paused guest with two CPUs before execution; guest LLDB lists
@@ -293,9 +293,9 @@ larger-memory guest or application execution is claimed from them.
 The SMP payload build from common core `54acf75075cd7c6e6f576df3a18df1e91edfe621`
 completed in 693.20 seconds with unchanged source identities. Evidence is under
 `artifacts/consolidation-current-cohort/`; no guest acceptance is claimed.
-The next qualification input is common core `63de2673bec7b6c1c4226a7909ec9614d5cc4a91`,
+The completed common-core cohort uses `63de2673bec7b6c1c4226a7909ec9614d5cc4a91`,
 including empty lifecycle-set definitions and remote Signal/Virtio waiter fixes.
-This is an explicit experimental lock, separate from the product's release pin.
+Its explicit candidate lock was promoted after the current-reference checks above.
 
 The configuration tool checks its selected build Python before creating output.
 It preserves the venv executable path rather than resolving its final symlink to
