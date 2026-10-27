@@ -28,18 +28,24 @@ promoting this source pin does not relabel older binaries.
 
 ## CRT and file-resize candidate
 
-Common core `a7c9dc7401cd1c4898385d9a4dbbf9cae6913ddb` is building as an
-isolated SMP candidate; the production source lock is unchanged. The distribution
-closure adds explicit stdc/stdcio/posixc modules and the pthread link library
-(87 requested targets). Packaging refuses missing CRT modules on either backend;
-the host closure regression passes. The already-running 83-target graph is
-followed by one incremental pass over that complete closure. The expanded
-runtime-context client compiles for AArch64 SMP and its exact-result host
-contract passes with seven rejected controls, including the former narrower
-success marker. It checks DOS shrink/regrow and exposed zeros on RAM and FAT
-before exercising CRT seek, metadata, sync and both resize widths on each.
-The full candidate build, link, guest execution and promotion are pending;
-compilation alone is not a runtime qualification.
+Common core `a7c9dc7401cd1c4898385d9a4dbbf9cae6913ddb` passes the isolated SMP
+runtime build (initial 83 targets in 744.66 seconds, expanded 87-target closure
+in 169.83 seconds), strict client link and image packaging. Explicit stdc,
+stdcio and posixc modules are required by packaging on both backends; the host
+closure regression passes. The exact client-result contract rejects seven
+controls, including the former narrower context-only success marker.
+
+The expanded two-CPU QEMU gate fails in 13.09 seconds. Independent LLDB
+register/memory/step/resume/interrupt preflight passes. Symbolic breakpoints
+identify stage 35 on RAM: native DOS growth and the preceding CRT checks pass,
+as do all positive wide seek/resize/stat calls. ftruncate64(-1) returns -1 but
+the caller's errno remains zero. Instruction breakpoints verify its negative
+argument, return and unchanged errno pointer/value. The client and shared stdc
+have separate errno-hook globals; shared error ownership needs correction.
+The diagnosis is recorded in `artifacts/consolidation-crt-resize/summary.json`.
+Diagnostic VMs are stopped. This candidate is not promoted; the production
+source lock and its previously qualified images retain their exact identities.
+FAT client cases follow the failed RAM case and have not executed.
 
 ## Shared DeviceTree host regression
 
