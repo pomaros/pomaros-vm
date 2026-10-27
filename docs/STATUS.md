@@ -47,6 +47,15 @@ Diagnostic VMs are stopped. This candidate is not promoted; the production
 source lock and its previously qualified images retain their exact identities.
 FAT client cases follow the failed RAM case and have not executed.
 
+Source correction `550f8a5a24e` introduces shared native task errno ownership,
+StdC worker admission, owner/binding close guards and program-entry reset.
+Scoped ASan/UBSan, TSan, pthread admission regressions and six AArch64 TUs pass.
+The public StdCBase layout changes; a fresh 87-target ABI cohort is building,
+and runtime plus Ferail/Zed/Chromium consumers must be rebuilt coherently.
+The correction has not yet passed the linked guest gate. The freestanding
+static bootstrap object compiles without shared imports; static threaded C is
+outside this qualification. No current product pin or binary is promoted.
+
 ## Shared DeviceTree host regression
 
 `tests/device-tree.py` delegates to the selected common core's
