@@ -173,18 +173,20 @@ native_failed:
 
 /* Native DOS CurrentDir remains authoritative when a CRT is loaded. NetDB
    temporarily selects its db directory before opening a relative include. */
-static int native_current_directory(void)
+static int native_current_directory(BOOL shared)
 {
     BPTR directory, old, file;
     LONG error;
     probe_stage = 100;
     directory = CreateDir((CONST_STRPTR)"RAM:RuntimeNativeDirectory");
     if (!directory) return -1;
-    /* CreateDir returns an exclusive lock, which DOS cannot duplicate.
-       Match NetDB's shared Lock before selecting the native directory. */
-    UnLock(directory);
-    directory = Lock((CONST_STRPTR)"RAM:RuntimeNativeDirectory", SHARED_LOCK);
-    if (!directory) return -1;
+    if (shared) {
+        /* Match NetDB's shared directory lock. The other case retains the
+           exclusive CreateDir lock and must run natively in its owner. */
+        UnLock(directory);
+        directory = Lock((CONST_STRPTR)"RAM:RuntimeNativeDirectory", SHARED_LOCK);
+        if (!directory) return -1;
+    }
     file = Open((CONST_STRPTR)"RAM:RuntimeNativeDirectory/marker", MODE_NEWFILE);
     if (!file) { UnLock(directory); return -1; }
     Close(file);
@@ -197,11 +199,13 @@ static int native_current_directory(void)
     DeleteFile((CONST_STRPTR)"RAM:RuntimeNativeDirectory/marker");
     DeleteFile((CONST_STRPTR)"RAM:RuntimeNativeDirectory");
     if (!file) {
-        mark("CRT_NATIVE_CWD FAIL: native CurrentDir ignored by relative DOS Open\n");
+        mark(shared ? "CRT_NATIVE_CWD FAIL: native CurrentDir ignored by relative DOS Open\n" :
+             "CRT_NATIVE_EXCLUSIVE FAIL: native exclusive CurrentDir cannot open relative file\n");
         SetIoErr(error);
         return -1;
     }
-    mark("CRT_NATIVE_CWD PASS: native CurrentDir selects relative DOS Open\n");
+    mark(shared ? "CRT_NATIVE_CWD PASS: native CurrentDir selects relative DOS Open\n" :
+         "CRT_NATIVE_EXCLUSIVE PASS: native exclusive CurrentDir selects relative DOS Open\n");
     return 0;
 }
 
@@ -234,7 +238,7 @@ int main(int argc, char **argv)
     probe_stage = 1;
     original_directory = getcwd(NULL, 0);
     if (!original_directory) goto failed;
-    if (native_current_directory()) goto failed;
+    if (native_current_directory(FALSE) || native_current_directory(TRUE)) goto failed;
     probe_stage = 2;
     directory = CreateDir((CONST_STRPTR)"RAM:RuntimeContextProbe");
     if (!directory) goto failed;

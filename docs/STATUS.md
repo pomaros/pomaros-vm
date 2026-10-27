@@ -1,5 +1,16 @@
 # Qualification status
 
+## Native exclusive-directory candidate
+
+Common candidate `8bbf3823f10` adds a version2 resolver acceptance policy.
+A native Process operation with an exclusive cwd runs directly in its owning
+Process; explicit POSIX scopes and ordinary Tasks remain mediated. A declined
+ordinary Task operation is refused before any Process-field access. Registry
+ownership stays active through policy and invocation. The actual DOS dispatch
+HOST gate passes six compiled mutation controls; the actual POSIX policy and
+owned-context gate passes five. Guest qualification and the fresh matching SDK
+are pending. The runtime-context client includes both native lock modes.
+
 ## Native CurrentDir correction and candidate desktop
 
 The complete desktop package from common core
