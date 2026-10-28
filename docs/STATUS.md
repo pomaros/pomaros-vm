@@ -1,8 +1,20 @@
 # Qualification status
 
+## Checked-release common reference
+
+`CORE.lock` selects common core `7b2453dfcb5a9584a666bf4efa60ea524785dc3c`.
+The complete87-target SMP SDK build passes. The signed production VZ app
+passes captured desktop and graceful quiescence in13.50s; matching-SDK stage6
+passes transport cut/reopen, file/clipboard exchange, JPEG and clean equal
+FAT copies in11.12s. Strict guest crash rejection applies through shutdown.
+Evidence: `artifacts/consolidation-release-reference/{vz-production,stage6}/`.
+This core changes the kernel memory diagnostic to verify each owned page
+release directly; live desktop allocator totals remain observational.
+QEMU product acceptance and rebuilt application qualification are separate.
+
 ## Volume-removal corrected reference
 
-`CORE.lock` selects common core `a5e081f74550b178c7680385115b17523925df8a`.
+The preceding reference selects common core `a5e081f74550b178c7680385115b17523925df8a`.
 The fresh complete SMP runtime build passes. The exact signed VZ production
 app passes desktop, captured nonblank viewport and graceful volume quiescence
 in12.70s; matching-SDK stage6 passes forced cut/reopen, file/clipboard exchange,
@@ -18,8 +30,8 @@ launcher exit normally. Evidence:
 `artifacts/consolidation-volume-name-reference/qemu-volume-debug/`.
 This closes the debugger-confirmed NULL-filename regression. It does not claim
 an explanation for the earlier intermittent pre-desktop timeout or native
-hardware acceptance. Full QEMU product, native cohort and managed Rust SDK
-alignment remain pending.
+hardware acceptance. These records qualify that volume-removal regression; subsequent cohort
+alignment is recorded separately above.
 
 ## Earlier native path candidate
 
