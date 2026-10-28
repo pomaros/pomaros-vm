@@ -12,6 +12,14 @@ def cpu_widget_ready_matches(text, cpus):
     return len(rows) == 1 and tuple(map(int, rows[0])) == (cpus, cpus, cpus)
 
 
+def require_guest_no_crash(text):
+    """A successful host shutdown cannot hide a suspended guest task."""
+    for line in text.splitlines():
+        if line.startswith(('[KI] task crashed and suspended:', '[TRAP] task=',
+                            '[KI] crash fault:')):
+            raise ValueError("guest task crash: " + line)
+
+
 def production_desktop_ready(text):
     return cpu_widget_ready_matches(text, 1) and all(text.count(marker) == 1 for marker in (
         '[KI] desktop stable', '[KI] desktop accepted', '[VM] desktop two HID bindings PASS'))

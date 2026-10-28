@@ -7,6 +7,7 @@ import hashlib,json,os,re,shutil,struct,subprocess,time,sys
 root=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(root/'tools'))
 from host_display import keep_display_awake
+from desktop_contract import require_guest_no_crash
 parser=argparse.ArgumentParser(description="Bounded VZ image, forced stream cut and window close qualification")
 parser.add_argument('--app',type=Path,default=root/'artifacts/stage6-release/PomAROS VM.app')
 parser.add_argument('--output',type=Path,required=True)
@@ -85,6 +86,7 @@ try:
     (state/'window-close.request').write_text('close\n')
     assert proc.wait(timeout=20)==0
   data=log.read_text(errors='replace')
+  require_guest_no_crash(data)
   assert data.count('[HOST] test window close dispatched')==1
   assert data.count('[HOST] guest shutdown requested')==1
   assert data.count('[VMSync] volume quiesced PASS')==1

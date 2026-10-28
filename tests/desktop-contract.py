@@ -10,9 +10,18 @@ import tempfile
 import unittest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
-from desktop_contract import require_desktop_residents, cpu_widget_ready_matches, production_desktop_ready, require_nonuniform_guest_viewport
+from desktop_contract import require_guest_no_crash, require_desktop_residents, cpu_widget_ready_matches, production_desktop_ready, require_nonuniform_guest_viewport
 
 class Desktop(unittest.TestCase):
+    def test_shutdown_success_does_not_hide_guest_crash(self):
+        clean = '[HOST] guest shutdown requested\n[VMSync] volume quiesced PASS\n[HOST] guest volume quiesced PASS\n'
+        require_guest_no_crash(clean)
+        for crash in ('[KI] task crashed and suspended: Wanderer task=0x700a6530',
+                      '[TRAP] task=Wanderer code=2 esr=0x92000006',
+                      '[KI] crash fault: data read through NULL+0x0'):
+            with self.subTest(crash=crash), self.assertRaisesRegex(ValueError, 'guest task crash'):
+                require_guest_no_crash(clean + crash + '\r\n')
+
     def test_host_chrome_does_not_qualify_a_blank_guest(self):
         width, top = 1024, 32
         toolbar = bytes(value for x in range(width) for value in (x % 256, 255, 255))

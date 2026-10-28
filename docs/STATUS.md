@@ -2,6 +2,19 @@
 
 ## Native path candidate
 
+Candidate promotion is withheld. Two further runs complete graceful volume
+quiescence in about 11s, but both contain a suspended Wanderer NULL-read crash
+while handling shutdown. Their original PASS verdicts are withdrawn by
+`acceptance-review.json` beside the original logs in
+`artifacts/consolidation-native-path-reference/stage6-current/` and
+`vz-production-after-stage6/`. Both acceptance tools reject guest task crashes,
+including crashes after window close; nine desktop-contract regressions pass.
+The initial 67.48s failure first timed out waiting for desktop readiness;
+its close request was cleanup, not a successful desktop followed by shutdown.
+The same immutable launcher/seed can reach the desktop and quiesce, so neither
+an unconditional VMSync transport failure nor a disk-flush defect is established.
+The recorded Wanderer crash requires debugger reproduction before promotion.
+
 Common candidate `7bc6a38c6c2` completes the fresh 87-target SMP SDK build.
 The SDK-linked client passes native exclusive and shared CurrentDir, the
 CRT worker/errno cases, RAM/FAT resize and two-CPU SMP in 40.81s, following an
@@ -25,8 +38,8 @@ existing service payload and refuses missing inputs; no stack/driver rewrite
 was made. The raw VZ bundle inspected under QEMU stopped at its bootstrap
 contract before the desktop workload, so it is not a DHCP reproduction.
 
-The full signed VZ production attempt reaches the desktop and dispatches its
-normal window close, but never receives volume-quiescence acknowledgement;
+The first full signed VZ production attempt times out before desktop readiness.
+Its cleanup dispatches window close but receives no quiescence acknowledgement;
 forced cleanup ends the run after 67.48s. This is FAIL, not reference promotion.
 Evidence: `artifacts/consolidation-native-path-reference/vz-production/`.
 The source of the missing shutdown reply is under investigation; neither a

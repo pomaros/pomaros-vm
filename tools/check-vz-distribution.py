@@ -5,7 +5,7 @@
 from pathlib import Path
 from contextlib import ExitStack
 import argparse,hashlib,json,runpy,shutil,subprocess,sys,time
-from desktop_contract import production_desktop_ready, require_nonuniform_guest_viewport
+from desktop_contract import production_desktop_ready, require_nonuniform_guest_viewport, require_guest_no_crash
 from host_display import keep_display_awake
 
 parser=argparse.ArgumentParser(description=__doc__)
@@ -52,6 +52,7 @@ try:
         (state/'window-close.request').write_text('close\n')
         assert process.wait(timeout=20)==0
         text=log.read_text(errors='replace')
+        require_guest_no_crash(text)
         assert '[HOST] guest volume quiesced PASS' in text
         assert text.count('[HOST] guest shutdown requested')==1
         assert text.count('[VMSync] volume quiesced PASS')==1
