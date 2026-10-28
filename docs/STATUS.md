@@ -1,6 +1,27 @@
 # Qualification status
 
-## Native path candidate
+## Volume-removal corrected reference
+
+`CORE.lock` selects common core `a5e081f74550b178c7680385115b17523925df8a`.
+The fresh complete SMP runtime build passes. The exact signed VZ production
+app passes desktop, captured nonblank viewport and graceful volume quiescence
+in12.70s; matching-SDK stage6 passes forced cut/reopen, file/clipboard exchange,
+JPEG rendering and clean equal FAT copies in11.28s. Both use the strict guest
+crash rejection added after discovering false-positive earlier verdicts.
+Evidence: `artifacts/consolidation-volume-name-reference/{vz-production,stage6}/`.
+
+The same delayed-Inhibit reproduction sources, linked against this SDK, pass
+under the full QEMU TCG runtime: desktop/widget ready, volume removed, continued
+kernel ticks and no task crash. Independent LLDB registers, memory, single-step
+before boot and interruption after Inhibit pass. QMP quit and the owned QEMU
+launcher exit normally. Evidence:
+`artifacts/consolidation-volume-name-reference/qemu-volume-debug/`.
+This closes the debugger-confirmed NULL-filename regression. It does not claim
+an explanation for the earlier intermittent pre-desktop timeout or native
+hardware acceptance. Full QEMU product, native cohort and managed Rust SDK
+alignment remain pending.
+
+## Earlier native path candidate
 
 The shutdown crash is reproduced under QEMU TCG with the full runtime and an
 isolated delayed-Inhibit command. LLDB reads the live fault instruction and
@@ -10,9 +31,8 @@ device name; IconVolumeList selected the absent device name for a volume not
 marked offline. Common commit `a5e081f7455` uses the known volume name in that
 case, for both entry creation and update. Evidence:
 `artifacts/consolidation-native-path-reference/qemu-distribution-debug/`.
-A fresh source-bound SMP runtime build is running in
-`../Build/pomaros-vm-volume-name-reference`; configure passes. Correction
-acceptance is pending; old failing binaries and debugger records are retained.
+The corrected build and runtime acceptance are recorded above; the earlier
+failing reproduction and debugger records are retained.
 
 
 Candidate promotion is withheld. Two further runs complete graceful volume
@@ -72,8 +92,8 @@ A direct VZ GDB attempt confirms that the private stub configuration exists
 but the VM cannot start under the ordinary signing entitlements. The attempted
 host code was discarded and the normal launcher rebuilt; no host security or
 entitlement settings changed. QEMU remains the independent guest debugger.
-Matching-SDK stage6, shutdown correction and coordinated product/native alignment
-remain open. `CORE.lock` retains the preceding reference.
+This cohort was not promoted. The corrected reference and its remaining
+product/native alignment are recorded above.
 
 ## Native CurrentDir correction and candidate desktop
 
