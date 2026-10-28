@@ -33,6 +33,15 @@ The source of the missing shutdown reply is under investigation; neither a
 network-service cause nor an Inhibit cause is established by the timeout.
 The host sample does not show an active blocked host-service worker.
 
+The existing standalone desktop-work probe passes on QEMU TCG using the actual
+product machine/device configuration and this candidate SDK: 64KiB write/Flush,
+volume Inhibit, virtio CMD_UPDATE and remount. The existing network stack starts
+in the same guest. Independent LLDB registers/memory/single-step before boot
+and interruption after the workload pass; QMP terminates the owned guest cleanly.
+Evidence: `artifacts/consolidation-native-path-reference/qemu-volume-debug/`.
+This narrows the investigation to the VMSync task/host-service context; it does
+not prove VZ shutdown works or that Inhibit cannot fail in that context.
+
 A direct VZ GDB attempt confirms that the private stub configuration exists
 but the VM cannot start under the ordinary signing entitlements. The attempted
 host code was discarded and the normal launcher rebuilt; no host security or
