@@ -132,8 +132,21 @@ lane; it never substitutes for an HVF failure.
 `build/pomaros-vm DISK_IMAGE STATE_DIRECTORY [--headless]` launches the
 Virtualization.framework application. The image must be a writable private
 copy. Firmware state lives separately in `STATE_DIRECTORY`. The automated VZ qualification lane
-is headless: `tools/run-vz.py --disk IMAGE --output NEW_DIR`. The VZ display
-requires a virtio GPU driver. See [guest build instructions](docs/BUILD.md).
+for bounded B2 diagnostic images is `tools/run-vz.py --disk IMAGE --output NEW_DIR`.
+Persistent production images use `tools/check-vz-distribution.py --app APP --output NEW_DIR`:
+they finish by window close and graceful volume quiescence, not the diagnostic
+`hold complete` marker. Both protocols retain strict guest crash rejection.
+The diagnostic runner's `--network` and `--host-services` expose devices without
+claiming their diagnostic protocols passed. The VZ display requires a virtio
+GPU driver. See [guest build instructions](docs/BUILD.md).
+
+Application fixtures use the production checker with `--fixture-disk IMAGE`
+and `--fixture-manifest JSON`. The manifest has `schema: 1`,
+`kind: "aros-guest-fixture-v1"`, the baseline's `source_revision`,
+`base_seed_sha256` of the signed app's seed and `disk_sha256` of the fixture.
+All identities must agree before boot. The verdict explicitly records
+`guest_probe_injected: true`; it retains desktop capture, crash rejection and
+graceful quiescence, and does not qualify an unmodified distribution.
 
 The [host services transport](docs/VSOCK.md) documents the vsock packet API
 and bounded stream qualification.

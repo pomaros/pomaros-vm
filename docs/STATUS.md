@@ -1,8 +1,26 @@
 # Qualification status
 
-## Checked-release common reference
+## Native entry metadata reference
 
-`CORE.lock` selects common core `7b2453dfcb5a9584a666bf4efa60ea524785dc3c`.
+`CORE.lock` selects common core `c8c0f2670ba2e84afed4f7703dd4cdb86a494bfc`.
+The complete87-target SDK build passes; the signed unmodified production app
+passes desktop/capture/quiescence in12.69s and matching-SDK stage6 passes
+cut/reopen, file/clipboard/JPEG and clean equal FAT copies in11.24s. Evidence:
+`artifacts/consolidation-entry-metadata-reference/{vz-production,stage6}/`.
+The CRT resolves each parent normally and uses native final-entry lookup
+without following a final symbolic link; its enumeration fallback owns one
+path allocation. A separate explicit guest fixture passes production-mode
+desktop/capture/quiescence in11.36s. Its verdict declares injection and binds
+the exact signed baseline, source revision and disk hash; wrong-source
+admission is rejected before boot. Ten desktop-contract tests pass.
+Evidence: `artifacts/consolidation-entry-metadata-reference/fixture-runtime-verdict.json`.
+The bounded B2 runner is a different protocol; its end markers are not a
+completion oracle for persistent production images. QEMU/native product and
+application GUI acceptance remain separate.
+
+## Earlier checked-release common reference
+
+The preceding pin selects common core `7b2453dfcb5a9584a666bf4efa60ea524785dc3c`.
 The complete87-target SMP SDK build passes. The signed production VZ app
 passes captured desktop and graceful quiescence in13.50s; matching-SDK stage6
 passes transport cut/reopen, file/clipboard exchange, JPEG and clean equal

@@ -1,26 +1,41 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 John Knipper
-"""Bounded windowed acceptance of an exact signed VM distribution, with no guest probe."""
+"""Bounded signed-production desktop acceptance, optionally with an explicit guest fixture."""
 from pathlib import Path
 from contextlib import ExitStack
 import argparse,hashlib,json,runpy,shutil,subprocess,sys,time
-from desktop_contract import production_desktop_ready, require_nonuniform_guest_viewport, require_guest_no_crash
+from desktop_contract import production_desktop_ready, require_nonuniform_guest_viewport, require_guest_no_crash, require_fixture_identity
 from host_display import keep_display_awake
 
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--app',type=Path,required=True);parser.add_argument('--output',type=Path,required=True)
+parser.add_argument('--fixture-disk',type=Path,help='isolated production-mode guest fixture; requires --fixture-manifest')
+parser.add_argument('--fixture-manifest',type=Path,help='exact baseline/source/disk identity of the guest fixture')
 a=parser.parse_args();app=a.app.resolve();out=a.output.resolve()
 if out.exists():parser.error('output must be new')
+if bool(a.fixture_disk)!=bool(a.fixture_manifest):parser.error('both fixture inputs are required')
 subprocess.run(['codesign','--verify','--strict',str(app)],check=True)
+seed=app/'Contents/Resources/System.img'
+guest=json.loads((app/'Contents/Resources/provenance.json').read_text())['guest']
+seed_sha=hashlib.sha256(seed.read_bytes()).hexdigest()
+input_disk=a.fixture_disk.resolve() if a.fixture_disk else seed
+input_sha=hashlib.sha256(input_disk.read_bytes()).hexdigest()
+if a.fixture_manifest:
+    fixture=json.loads(a.fixture_manifest.read_text())
+    try:require_fixture_identity(fixture,guest['source_revision'],seed_sha,input_sha)
+    except ValueError as error:parser.error(str(error))
 out.mkdir()
-state=out/'state';state.mkdir();seed=app/'Contents/Resources/System.img'
-disk=state/'system.img';shutil.copyfile(seed,disk)
-launcher=app/'Contents/MacOS/PomAROSVM';guest=json.loads((app/'Contents/Resources/provenance.json').read_text())['guest']
+state=out/'state';state.mkdir()
+disk=state/'system.img';shutil.copyfile(input_disk,disk)
+if hashlib.sha256(disk.read_bytes()).hexdigest()!=input_sha:parser.error('copied guest disk differs from admitted input')
+if a.fixture_manifest:(out/'fixture-manifest.json').write_text(json.dumps(fixture,indent=2)+'\n')
+launcher=app/'Contents/MacOS/PomAROSVM'
 command=[str(launcher),str(disk),str(state),'--headless','--gpu','--gpu-window','--usb-input','--network','--host-services','--clipboard-test','--window-close-test']
 (out/'command.json').write_text(json.dumps(command,indent=2)+'\n')
-verdict={'result':'FAIL','windowed':True,'guest_probe_injected':False,'source_revision':guest['source_revision'],
-         'seed_sha256':hashlib.sha256(seed.read_bytes()).hexdigest(),'launcher_sha256':hashlib.sha256(launcher.read_bytes()).hexdigest()}
+verdict={'result':'FAIL','windowed':True,'guest_probe_injected':bool(a.fixture_disk),'source_revision':guest['source_revision'],
+         'seed_sha256':seed_sha,'input_disk_sha256':input_sha,'launcher_sha256':hashlib.sha256(launcher.read_bytes()).hexdigest()}
+if a.fixture_manifest:verdict['fixture_manifest_sha256']=hashlib.sha256(a.fixture_manifest.read_bytes()).hexdigest()
 process=None;start=time.monotonic();log=out/'console.log';resources=ExitStack()
 try:
     with log.open('wb') as output:
@@ -58,7 +73,8 @@ try:
         assert text.count('[VMSync] volume quiesced PASS')==1
         assert '[VM] virtio graphics IRQ completion PASS' in text
         assert hashlib.sha256(seed.read_bytes()).hexdigest()==verdict['seed_sha256']
-        verdict.update(result='PASS',reason='real-signed-production-desktop-graceful-quiesce',seed_unchanged=True)
+        assert hashlib.sha256(input_disk.read_bytes()).hexdigest()==input_sha
+        verdict.update(result='PASS',reason=('signed-production-launcher-guest-fixture-desktop-graceful-quiesce' if a.fixture_disk else 'real-signed-production-desktop-graceful-quiesce'),seed_unchanged=True,input_disk_unchanged=True)
 except Exception as error:verdict['reason']=repr(error)
 finally:
     if process and process.poll() is None:

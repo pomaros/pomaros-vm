@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 John Knipper
-"""Qualify actual headless AROS boot under Virtualization.framework."""
+"""Qualify bounded B2 diagnostic images under VZ; persistent distributions use check-vz-distribution.py."""
 from vz_contract import expected_markers, markers_match, tcp_cycles_match
 from cpu_probe_contract import cpu_probe_matches
 from exec_smp_contract import exec_smp_matches
@@ -20,6 +20,7 @@ p.add_argument('--windowed',action='store_true',help='normal host firmware/GPU w
 p.add_argument('--require-desktop-session',type=int,metavar='SECONDS')
 p.add_argument('--require-host-services',action='store_true')
 p.add_argument('--host-services',action='store_true',help='expose the normal file/clipboard provider without selecting its diagnostic probe')
+p.add_argument('--network',action='store_true',help='expose the normal NAT adapter without selecting a network diagnostic')
 p.add_argument('--require-desktop-clipboard',action='store_true')
 p.add_argument('--require-clipboard-sync',action='store_true')
 p.add_argument('--require-file-commands',action='store_true')
@@ -129,7 +130,7 @@ pixels_verified=False
 capture_count=0
 passed=False;reason='timeout';start=time.monotonic()
 with log.open('w') as out:
-    proc=subprocess.Popen([str(root/'build/pomaros-vm'),str(disk),str(a.output/'state'),'--headless','--force-stop',f'--cpus={a.cpus}',f'--memory={a.memory}']+(['--gpu-window'] if a.windowed or a.require_gpu_scanout or a.require_input else ['--gpu'] if a.require_gpu or a.desktop_startup else [])+(['--window-capture'] if a.windowed and a.require_exec_smp else [])+(['--usb-input'] if a.usb_input else [])+(['--input-probe'] if a.require_input else [])+(['--network'] if a.require_network_config or a.require_desktop_network else [])+(['--vsock-probe'] if a.require_vsock else [])+(['--host-services'] if a.host_services or a.require_host_services or a.require_desktop_clipboard or a.require_desktop_work else [])+(['--clipboard-test'] if a.require_clipboard_sync or a.require_desktop_clipboard or a.require_desktop_work else []),stdout=out,stderr=subprocess.STDOUT)
+    proc=subprocess.Popen([str(root/'build/pomaros-vm'),str(disk),str(a.output/'state'),'--headless','--force-stop',f'--cpus={a.cpus}',f'--memory={a.memory}']+(['--gpu-window'] if a.windowed or a.require_gpu_scanout or a.require_input else ['--gpu'] if a.require_gpu or a.desktop_startup else [])+(['--window-capture'] if a.windowed and a.require_exec_smp else [])+(['--usb-input'] if a.usb_input else [])+(['--input-probe'] if a.require_input else [])+(['--network'] if a.network or a.require_network_config or a.require_desktop_network else [])+(['--vsock-probe'] if a.require_vsock else [])+(['--host-services'] if a.host_services or a.require_host_services or a.require_desktop_clipboard or a.require_desktop_work else [])+(['--clipboard-test'] if a.require_clipboard_sync or a.require_desktop_clipboard or a.require_desktop_work else []),stdout=out,stderr=subprocess.STDOUT)
     try:
         while time.monotonic()-start<a.timeout:
             text=log.read_text(errors='replace')

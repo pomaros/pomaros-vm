@@ -5,6 +5,18 @@ from pathlib import Path
 import re
 
 
+def require_fixture_identity(manifest, source_revision, base_seed_sha256, disk_sha256):
+    """An injected guest must name its exact signed baseline and actual bytes."""
+    expected = dict(schema=1, kind='aros-guest-fixture-v1',
+                    source_revision=source_revision, base_seed_sha256=base_seed_sha256,
+                    disk_sha256=disk_sha256)
+    if not isinstance(manifest, dict) or type(manifest.get('schema')) is not int:
+        raise ValueError('invalid guest fixture schema')
+    for name, value in expected.items():
+        if manifest.get(name) != value:
+            raise ValueError('guest fixture identity mismatch: ' + name)
+
+
 def cpu_widget_ready_matches(text, cpus):
     if not 1 <= cpus <= 64 or text.count('[VM] CPU widget ready') != 1:
         return False

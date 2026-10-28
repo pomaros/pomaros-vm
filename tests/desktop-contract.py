@@ -10,9 +10,22 @@ import tempfile
 import unittest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
-from desktop_contract import require_guest_no_crash, require_desktop_residents, cpu_widget_ready_matches, production_desktop_ready, require_nonuniform_guest_viewport
+from desktop_contract import require_guest_no_crash, require_desktop_residents, cpu_widget_ready_matches, production_desktop_ready, require_nonuniform_guest_viewport, require_fixture_identity
 
 class Desktop(unittest.TestCase):
+    def test_guest_fixture_identity(self):
+        fixture=dict(schema=1,kind='aros-guest-fixture-v1',source_revision='a'*40,
+                     base_seed_sha256='b'*64,disk_sha256='c'*64)
+        require_fixture_identity(fixture,'a'*40,'b'*64,'c'*64)
+        for name in fixture:
+            changed=dict(fixture);changed[name]=False
+            with self.subTest(name=name),self.assertRaises(ValueError):
+                require_fixture_identity(changed,'a'*40,'b'*64,'c'*64)
+        for missing in ('source_revision','base_seed_sha256','disk_sha256'):
+            changed=dict(fixture);del changed[missing]
+            with self.subTest(missing=missing),self.assertRaises(ValueError):
+                require_fixture_identity(changed,'a'*40,'b'*64,'c'*64)
+
     def test_shutdown_success_does_not_hide_guest_crash(self):
         clean = '[HOST] guest shutdown requested\n[VMSync] volume quiesced PASS\n[HOST] guest volume quiesced PASS\n'
         require_guest_no_crash(clean)
