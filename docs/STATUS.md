@@ -2,6 +2,19 @@
 
 ## Native path candidate
 
+The shutdown crash is reproduced under QEMU TCG with the full runtime and an
+isolated delayed-Inhibit command. LLDB reads the live fault instruction and
+call site: `IconList__MUIM_IconList_UpdateEntry` invokes `strcmp` with a NULL
+filename. A volume/device snapshot can retain a volume name without a matching
+device name; IconVolumeList selected the absent device name for a volume not
+marked offline. Common commit `a5e081f7455` uses the known volume name in that
+case, for both entry creation and update. Evidence:
+`artifacts/consolidation-native-path-reference/qemu-distribution-debug/`.
+A fresh source-bound SMP runtime build is running in
+`../Build/pomaros-vm-volume-name-reference`; configure passes. Correction
+acceptance is pending; old failing binaries and debugger records are retained.
+
+
 Candidate promotion is withheld. Two further runs complete graceful volume
 quiescence in about 11s, but both contain a suspended Wanderer NULL-read crash
 while handling shutdown. Their original PASS verdicts are withdrawn by
