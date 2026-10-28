@@ -2,9 +2,9 @@
 
 ## Native path candidate
 
-Common candidate `7bc6a38c6c2` completes the fresh87-target SMP SDK build.
+Common candidate `7bc6a38c6c2` completes the fresh 87-target SMP SDK build.
 The SDK-linked client passes native exclusive and shared CurrentDir, the
-CRT worker/errno cases, RAM/FAT resize and two-CPU SMP in40.81s, following an
+CRT worker/errno cases, RAM/FAT resize and two-CPU SMP in 40.81s, following an
 independent LLDB register/memory/step/resume-interrupt preflight. Evidence:
 `artifacts/consolidation-native-path-reference/qemu/`.
 
@@ -16,7 +16,7 @@ passes. Full native hardware acceptance is separate.
 
 The real VZ network gate passes DHCP, DHCP-provided DNS and three checked
 64KiB bidirectional TCP transactions with both guest and host-peer acceptance
-in23.71s, alongside desktop/HID/GPU IRQ. The live host NAT endpoint is verified.
+in 23.71s, alongside desktop/HID/GPU IRQ. The live host NAT endpoint is verified.
 Evidence: `artifacts/consolidation-native-path-reference/network-complete/`.
 The preceding diagnostic package omitted the SDK's DHCP service executable
 and service definitions; its DHCP failure remains under `network/`. The complete
@@ -25,8 +25,20 @@ existing service payload and refuses missing inputs; no stack/driver rewrite
 was made. The raw VZ bundle inspected under QEMU stopped at its bootstrap
 contract before the desktop workload, so it is not a DHCP reproduction.
 
-Full signed VZ production, matching-SDK stage6 and coordinated product pin/native
-build alignment remain pending. `CORE.lock` retains the preceding reference.
+The full signed VZ production attempt reaches the desktop and dispatches its
+normal window close, but never receives volume-quiescence acknowledgement;
+forced cleanup ends the run after 67.48s. This is FAIL, not reference promotion.
+Evidence: `artifacts/consolidation-native-path-reference/vz-production/`.
+The source of the missing shutdown reply is under investigation; neither a
+network-service cause nor an Inhibit cause is established by the timeout.
+The host sample does not show an active blocked host-service worker.
+
+A direct VZ GDB attempt confirms that the private stub configuration exists
+but the VM cannot start under the ordinary signing entitlements. The attempted
+host code was discarded and the normal launcher rebuilt; no host security or
+entitlement settings changed. QEMU remains the independent guest debugger.
+Matching-SDK stage6, shutdown correction and coordinated product/native alignment
+remain open. `CORE.lock` retains the preceding reference.
 
 ## Native CurrentDir correction and candidate desktop
 
