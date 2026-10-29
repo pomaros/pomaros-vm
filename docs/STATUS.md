@@ -9,8 +9,9 @@ reference passes desktop/capture/graceful quiescence in13.09s; Zed itself is
 refused with `bad loadfile hunk`. At the default512MiB it is refused for lack of
 memory. These desktop passes are not application acceptance. The runtime ELF
 contains92,431 same-section CALL26/JUMP26 relocations outside the signed128MiB
-branch range; live rejection-site inspection and a proper large-text solution
-remain open. Private integration receipts are not public dependencies.
+branch range; independent LLDB inspection confirms rejection at the exact branch-range
+overflow, with displacement146,836,156 bytes matching the static relocation.
+A proper large-text solution remains open. Private integration receipts are not public dependencies.
 
 ## Native entry metadata reference
 
