@@ -5,12 +5,13 @@
 from pathlib import Path
 from contextlib import ExitStack
 import argparse,hashlib,json,runpy,shutil,subprocess,sys,time
-from desktop_contract import production_desktop_ready, require_nonuniform_guest_viewport, require_guest_no_crash, require_fixture_identity
+from desktop_contract import require_application_viewport, production_desktop_ready, require_nonuniform_guest_viewport, require_guest_no_crash, require_fixture_identity
 from host_display import keep_display_awake
 
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--app',type=Path,required=True);parser.add_argument('--output',type=Path,required=True)
 parser.add_argument('--settle-seconds',type=float,default=2,help='observe after desktop readiness before capture, 0..60 seconds')
+parser.add_argument('--application-region',type=int,nargs=4,metavar=('LEFT','TOP','RIGHT','BOTTOM'),help='fixture-only client capture bounds in 1024x768 guest coordinates; scenario acceptance is separate')
 parser.add_argument('--memory',type=int,help='guest RAM in MiB; launcher validates platform bounds')
 parser.add_argument('--fixture-disk',type=Path,help='isolated production-mode guest fixture; requires --fixture-manifest')
 parser.add_argument('--fixture-manifest',type=Path,help='exact baseline/source/disk identity of the guest fixture')
@@ -19,6 +20,7 @@ if out.exists():parser.error('output must be new')
 if not 0 <= a.settle_seconds <= 60:parser.error('--settle-seconds requires 0..60')
 if a.memory is not None and a.memory <= 0:parser.error('--memory must be positive')
 if bool(a.fixture_disk)!=bool(a.fixture_manifest):parser.error('both fixture inputs are required')
+if a.application_region and not a.fixture_disk:parser.error('--application-region requires an identified guest fixture')
 subprocess.run(['codesign','--verify','--strict',str(app)],check=True)
 seed=app/'Contents/Resources/System.img'
 guest=json.loads((app/'Contents/Resources/provenance.json').read_text())['guest']
@@ -43,6 +45,7 @@ verdict={'result':'FAIL','windowed':True,'guest_probe_injected':bool(a.fixture_d
 if a.fixture_manifest:verdict['fixture_manifest_sha256']=hashlib.sha256(a.fixture_manifest.read_bytes()).hexdigest()
 verdict['memory_mib']=a.memory if a.memory is not None else 512
 verdict['settle_seconds']=a.settle_seconds
+verdict['frame_profile']='application-client' if a.application_region else 'production-desktop'
 process=None;start=time.monotonic();log=out/'console.log';resources=ExitStack()
 try:
     with log.open('wb') as output:
@@ -71,7 +74,8 @@ try:
         if verdict['host_window_capture']:
             shutil.copyfile(state/'desktop-window.png',out/'desktop-window.png')
             frame=runpy.run_path(str(Path(__file__).resolve().parents[1]/'tests/check-aros-render-frame.py'))
-            verdict['guest_viewport']=require_nonuniform_guest_viewport(*frame['decode'](out/'desktop-window.png'))
+            decoded=frame['decode'](out/'desktop-window.png')
+            verdict['guest_viewport']=(require_application_viewport(*decoded,a.application_region) if a.application_region else require_nonuniform_guest_viewport(*decoded))
         else:
             error=(state/'screenshot.error').read_text() if (state/'screenshot.error').exists() else 'owned-window-capture-timeout'
             verdict['capture_error']=error

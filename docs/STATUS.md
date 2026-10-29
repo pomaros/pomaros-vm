@@ -7,6 +7,18 @@ long-branch veneers and synchronous signal metadata. Source selection is WIP
 until the complete SDK and product are rebuilt and qualified. Existing signed
 references retain their recorded earlier source and binary identities.
 
+## Application client capture
+
+Identified fixtures can select `--application-region LEFT TOP RIGHT BOTTOM`.
+The capture must contain contrasting client detail within those guest-coordinate
+bounds; host chrome and guest title bars cannot qualify a blank client. The
+production desktop profile remains the default. Eleven desktop-contract checks
+pass, including blank-client rejection and flat editor text at backing scales1/2.
+The Zed single-file scenario on the retained ee52bb3 signed baseline passes
+client capture, no-crash checks and graceful quiescence in31.75s. The scenario
+also verifies logical-key delivery and saved FAT bytes independently; rendering
+uses the CPU. This is component evidence, not the selected9b25c24 cohort.
+
 ## Earlier bounded application observation
 
 The production checker accepts `--settle-seconds 0..60` (default2) and records

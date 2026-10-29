@@ -152,6 +152,14 @@ crash rejection throughout; it does not by itself qualify an application. All id
 `guest_probe_injected: true`; it retains desktop capture, crash rejection and
 graceful quiescence, and does not qualify an unmodified distribution.
 
+For an application covering the desktop, use `--application-region LEFT TOP RIGHT BOTTOM`
+with bounds inside its client content in 1024×768 guest coordinates. This option
+requires an identified fixture and records an `application-client` frame profile.
+It requires contrasting detail inside that region, excluding host chrome and
+guest title bars; it does not require the production wallpaper behind an opaque
+application. The default production desktop frame check is unchanged. Window
+identity, meaningful input and saved output require separate scenario assertions.
+
 GUI application fixtures must launch their interactive windows after kernel
 desktop acceptance. Start a bounded background worker from the startup hook,
 let the Initial CLI finish normally, and have the worker wait for the global

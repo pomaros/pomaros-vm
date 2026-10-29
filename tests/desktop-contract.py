@@ -10,7 +10,7 @@ import tempfile
 import unittest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
-from desktop_contract import require_guest_no_crash, require_desktop_residents, cpu_widget_ready_matches, production_desktop_ready, require_nonuniform_guest_viewport, require_fixture_identity
+from desktop_contract import require_application_viewport, require_guest_no_crash, require_desktop_residents, cpu_widget_ready_matches, production_desktop_ready, require_nonuniform_guest_viewport, require_fixture_identity
 
 class Desktop(unittest.TestCase):
     def test_guest_fixture_identity(self):
@@ -42,6 +42,31 @@ class Desktop(unittest.TestCase):
             rows = [toolbar] * top + [bytes(color) * width] * 768
             with self.subTest(color=color), self.assertRaisesRegex(ValueError, 'guest viewport'):
                 require_nonuniform_guest_viewport(width, top + 768, rows)
+
+    def test_application_client_detail_excludes_chrome(self):
+        for scale in (1, 2):
+            width, top = 1024*scale, 32*scale
+            chrome = bytes(v for x in range(width) for v in (x%256, 80, 90))
+            rows = [chrome]*top + [bytes((245,245,245))*width]* (768*scale)
+            # A colorful host title bar and guest window borders are insufficient.
+            for y in range(64*scale):
+                rows[top+y] = chrome
+            with self.assertRaisesRegex(ValueError, 'lacks visible detail'):
+                require_application_viewport(width,len(rows),rows,[96,96,256,160])
+            # Flat editor background with a small glyph, rather than wallpaper.
+            for y in range(110*scale,126*scale):
+                row=bytearray(rows[top+y])
+                for x in (110,114,118):
+                    row[x*scale*3:(x+1)*scale*3]=bytes((30,30,30))*scale
+                rows[top+y]=bytes(row)
+            self.assertGreaterEqual(require_application_viewport(
+                width,len(rows),rows,[96,96,256,160])['contrasting_client_edges'],32)
+            with self.assertRaises(ValueError):
+                require_nonuniform_guest_viewport(width,len(rows),rows)
+        for region in ([0,0,1024,768],[32,32,992,736],[96,96,97,97],
+                       [96,96,256,True],None):
+            with self.subTest(region=region),self.assertRaises(ValueError):
+                require_application_viewport(width,len(rows),rows,region)
 
     def test_invalid_capture_geometry_refused(self):
         for width, height, rows in ((1023, 800, []), (1024, 700, []), (1024, 800, [b''])):

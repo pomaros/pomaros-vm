@@ -37,17 +37,52 @@ def production_desktop_ready(text):
         '[KI] desktop stable', '[KI] desktop accepted', '[VM] desktop two HID bindings PASS'))
 
 
-def require_nonuniform_guest_viewport(width, height, rows):
-    """Refuse empty fixed-size VZ desktops, excluding the macOS title bar.
-
-    This does not replace the QEMU pixel-exact wallpaper/widget oracle.
-    """
+def _guest_geometry(width, height, rows):
     scale = width // 1024
     top = height - 768 * scale
     if (scale not in (1, 2, 3, 4) or width != 1024 * scale
             or not 0 <= top <= 128 * scale or len(rows) != height
             or any(len(row) != width * 3 for row in rows)):
         raise ValueError('unsupported fixed-size VZ window capture geometry')
+    return scale, top
+
+
+def require_application_viewport(width, height, rows, region):
+    """Require visible detail in a fixture-declared client region, not chrome.
+
+    This checks capture liveness only. The scenario must separately verify its
+    window identity, input response and application output.
+    """
+    scale, top = _guest_geometry(width, height, rows)
+    if (not isinstance(region, list) or len(region) != 4
+            or any(type(v) is not int for v in region)):
+        raise ValueError('application region requires four integer bounds')
+    left, upper, right, bottom = region
+    if not (32 <= left < right <= 992 and 64 <= upper < bottom <= 736
+            and right-left >= 32 and bottom-upper >= 32):
+        raise ValueError('application region must exclude window borders and title bars')
+    edges = 0
+    for y in range(upper, bottom):
+        row = rows[top + y * scale]
+        previous = None
+        for x in range(left, right):
+            offset = x * scale * 3
+            pixel = row[offset:offset+3]
+            if previous is not None and max(abs(a-b) for a,b in zip(pixel,previous)) >= 48:
+                edges += 1
+            previous = pixel
+    if edges < 32:
+        raise ValueError('application client region lacks visible detail')
+    return dict(backing_scale=scale, titlebar_pixel_rows=top,
+                application_region=region, contrasting_client_edges=edges)
+
+
+def require_nonuniform_guest_viewport(width, height, rows):
+    """Refuse empty fixed-size VZ desktops, excluding the macOS title bar.
+
+    This does not replace the QEMU pixel-exact wallpaper/widget oracle.
+    """
+    scale, top = _guest_geometry(width, height, rows)
     colors = {tuple(rows[top + y * scale][x * scale * 3:x * scale * 3 + 3])
               for y in range(64, 704, 16) for x in range(64, 960, 16)}
     if len(colors) < 16:
