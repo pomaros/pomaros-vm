@@ -152,6 +152,19 @@ crash rejection throughout; it does not by itself qualify an application. All id
 `guest_probe_injected: true`; it retains desktop capture, crash rejection and
 graceful quiescence, and does not qualify an unmodified distribution.
 
+GUI application fixtures must launch their interactive windows after kernel
+desktop acceptance. Start a bounded background worker from the startup hook,
+let the Initial CLI finish normally, and have the worker wait for the global
+DOS variable `Sys/DesktopAccepted` (`ENV:Sys/DesktopAccepted`) before launching
+the GUI. Opening an application earlier can take the foreground from the
+kernel's CPU-widget preflight and correctly fail startup. Do not relax that
+preflight or substitute an arbitrary sleep for the readiness condition.
+
+The production checker validates the desktop, crash rejection, capture and
+shutdown. Application acceptance additionally requires evidence for the named
+application's visible window and requested operations; its success cannot be
+inferred from a passing desktop verdict.
+
 The [host services transport](docs/VSOCK.md) documents the vsock packet API
 and bounded stream qualification.
 
