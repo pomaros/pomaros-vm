@@ -144,7 +144,9 @@ Application fixtures use the production checker with `--fixture-disk IMAGE`
 and `--fixture-manifest JSON`. The manifest has `schema: 1`,
 `kind: "aros-guest-fixture-v1"`, the baseline's `source_revision`,
 `base_seed_sha256` of the signed app's seed and `disk_sha256` of the fixture.
-All identities must agree before boot. The verdict explicitly records
+Use `--memory MIB` when an application needs more than the default 512 MiB;
+the signed launcher validates the requested size against platform bounds.
+The command and verdict retain that size. All identities must agree before boot. The verdict explicitly records
 `guest_probe_injected: true`; it retains desktop capture, crash rejection and
 graceful quiescence, and does not qualify an unmodified distribution.
 

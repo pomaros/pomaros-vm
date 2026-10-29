@@ -1,8 +1,20 @@
 # Qualification status
 
+## Application-fixture memory selection
+
+The production checker accepts `--memory MIB`, forwards it to the signed launcher
+and records the size in the verdict. The launcher's platform-bound validation is
+unchanged. A 4096-MiB isolated Zed fixture on the signed common-core ee52bb3
+reference passes desktop/capture/graceful quiescence in13.09s; Zed itself is
+refused with `bad loadfile hunk`. At the default512MiB it is refused for lack of
+memory. These desktop passes are not application acceptance. The runtime ELF
+contains92,431 same-section CALL26/JUMP26 relocations outside the signed128MiB
+branch range; live rejection-site inspection and a proper large-text solution
+remain open. Private integration receipts are not public dependencies.
+
 ## Native entry metadata reference
 
-`CORE.lock` selects common core `c8c0f2670ba2e84afed4f7703dd4cdb86a494bfc`.
+This preceding reference used common core `c8c0f2670ba2e84afed4f7703dd4cdb86a494bfc`.
 The complete87-target SDK build passes; the signed unmodified production app
 passes desktop/capture/quiescence in12.69s and matching-SDK stage6 passes
 cut/reopen, file/clipboard/JPEG and clean equal FAT copies in11.24s. Evidence:

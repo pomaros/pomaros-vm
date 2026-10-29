@@ -10,10 +10,12 @@ from host_display import keep_display_awake
 
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--app',type=Path,required=True);parser.add_argument('--output',type=Path,required=True)
+parser.add_argument('--memory',type=int,help='guest RAM in MiB; launcher validates platform bounds')
 parser.add_argument('--fixture-disk',type=Path,help='isolated production-mode guest fixture; requires --fixture-manifest')
 parser.add_argument('--fixture-manifest',type=Path,help='exact baseline/source/disk identity of the guest fixture')
 a=parser.parse_args();app=a.app.resolve();out=a.output.resolve()
 if out.exists():parser.error('output must be new')
+if a.memory is not None and a.memory <= 0:parser.error('--memory must be positive')
 if bool(a.fixture_disk)!=bool(a.fixture_manifest):parser.error('both fixture inputs are required')
 subprocess.run(['codesign','--verify','--strict',str(app)],check=True)
 seed=app/'Contents/Resources/System.img'
@@ -32,10 +34,12 @@ if hashlib.sha256(disk.read_bytes()).hexdigest()!=input_sha:parser.error('copied
 if a.fixture_manifest:(out/'fixture-manifest.json').write_text(json.dumps(fixture,indent=2)+'\n')
 launcher=app/'Contents/MacOS/PomAROSVM'
 command=[str(launcher),str(disk),str(state),'--headless','--gpu','--gpu-window','--usb-input','--network','--host-services','--clipboard-test','--window-close-test']
+if a.memory is not None:command.append('--memory='+str(a.memory))
 (out/'command.json').write_text(json.dumps(command,indent=2)+'\n')
 verdict={'result':'FAIL','windowed':True,'guest_probe_injected':bool(a.fixture_disk),'source_revision':guest['source_revision'],
          'seed_sha256':seed_sha,'input_disk_sha256':input_sha,'launcher_sha256':hashlib.sha256(launcher.read_bytes()).hexdigest()}
 if a.fixture_manifest:verdict['fixture_manifest_sha256']=hashlib.sha256(a.fixture_manifest.read_bytes()).hexdigest()
+verdict['memory_mib']=a.memory if a.memory is not None else 512
 process=None;start=time.monotonic();log=out/'console.log';resources=ExitStack()
 try:
     with log.open('wb') as output:
