@@ -3,9 +3,14 @@
 ## Selected source cohort
 
 CORE.lock selects common core `9b25c2456d74a3970dd8c3829849a0f9064bf056`, including bounded AArch64
-long-branch veneers and synchronous signal metadata. Source selection is WIP
-until the complete SDK and product are rebuilt and qualified. Existing signed
-references retain their recorded earlier source and binary identities.
+long-branch veneers and synchronous signal metadata. The complete public runtime
+build passes853.82s with identical initial/final source revision. The fresh
+signed production package passes default desktop capture, crash rejection and
+graceful quiescence in13.19s; its seed is unchanged. Evidence:
+`artifacts/consolidation-common-reference/build-result.json` and
+`artifacts/consolidation-common-reference/vz/verdict.json`. The same SDK supplies
+the separately qualified QEMU backend. Physical native and application evidence
+have their own scope; earlier references retain their recorded identities.
 
 ## Application client capture
 
