@@ -1,5 +1,15 @@
 # Qualification status
 
+## Bounded application observation
+
+The production checker accepts `--settle-seconds 0..60` (default2) and records
+that interval. Guest exits, crash records and explicit failure markers remain
+refused throughout observation. The signed common-core fixture running Zed help
+passes captured desktop and graceful quiescence in11.71s with0.2s observation.
+The first GUI fixture opens a Caught Signal requester before desktop acceptance;
+it is refused and cleaned up, not reported as working GUI. The signal number
+and application call stack require independent debugger inspection.
+
 ## Application-fixture memory selection
 
 The production checker accepts `--memory MIB`, forwards it to the signed launcher

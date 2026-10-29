@@ -10,11 +10,13 @@ from host_display import keep_display_awake
 
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--app',type=Path,required=True);parser.add_argument('--output',type=Path,required=True)
+parser.add_argument('--settle-seconds',type=float,default=2,help='observe after desktop readiness before capture, 0..60 seconds')
 parser.add_argument('--memory',type=int,help='guest RAM in MiB; launcher validates platform bounds')
 parser.add_argument('--fixture-disk',type=Path,help='isolated production-mode guest fixture; requires --fixture-manifest')
 parser.add_argument('--fixture-manifest',type=Path,help='exact baseline/source/disk identity of the guest fixture')
 a=parser.parse_args();app=a.app.resolve();out=a.output.resolve()
 if out.exists():parser.error('output must be new')
+if not 0 <= a.settle_seconds <= 60:parser.error('--settle-seconds requires 0..60')
 if a.memory is not None and a.memory <= 0:parser.error('--memory must be positive')
 if bool(a.fixture_disk)!=bool(a.fixture_manifest):parser.error('both fixture inputs are required')
 subprocess.run(['codesign','--verify','--strict',str(app)],check=True)
@@ -40,6 +42,7 @@ verdict={'result':'FAIL','windowed':True,'guest_probe_injected':bool(a.fixture_d
          'seed_sha256':seed_sha,'input_disk_sha256':input_sha,'launcher_sha256':hashlib.sha256(launcher.read_bytes()).hexdigest()}
 if a.fixture_manifest:verdict['fixture_manifest_sha256']=hashlib.sha256(a.fixture_manifest.read_bytes()).hexdigest()
 verdict['memory_mib']=a.memory if a.memory is not None else 512
+verdict['settle_seconds']=a.settle_seconds
 process=None;start=time.monotonic();log=out/'console.log';resources=ExitStack()
 try:
     with log.open('wb') as output:
@@ -52,7 +55,13 @@ try:
             if production_desktop_ready(text):break
             time.sleep(.1)
         else:raise RuntimeError('desktop-timeout')
-        time.sleep(2)
+        deadline=time.monotonic()+a.settle_seconds
+        while time.monotonic()<deadline:
+            if process.poll() is not None:raise RuntimeError('guest-exit-during-observation')
+            text=log.read_text(errors='replace')
+            if 'FAIL:' in text or '[B2Q] FAIL' in text:raise RuntimeError('guest-failure-during-observation')
+            require_guest_no_crash(text)
+            time.sleep(min(.1,max(0,deadline-time.monotonic())))
         (state/'screenshot.request').write_text('capture\n')
         deadline=time.monotonic()+10
         while time.monotonic()<deadline:
