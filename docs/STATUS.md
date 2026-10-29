@@ -1,16 +1,23 @@
 # Qualification status
 
-## Bounded application observation
+## Selected source cohort
+
+CORE.lock selects common core `9b25c2456d74a3970dd8c3829849a0f9064bf056`, including bounded AArch64
+long-branch veneers and synchronous signal metadata. Source selection is WIP
+until the complete SDK and product are rebuilt and qualified. Existing signed
+references retain their recorded earlier source and binary identities.
+
+## Earlier bounded application observation
 
 The production checker accepts `--settle-seconds 0..60` (default2) and records
 that interval. Guest exits, crash records and explicit failure markers remain
 refused throughout observation. The signed common-core fixture running Zed help
 passes captured desktop and graceful quiescence in11.71s with0.2s observation.
 The first GUI fixture opens a Caught Signal requester before desktop acceptance;
-it is refused and cleaned up, not reported as working GUI. The signal number
-and application call stack require independent debugger inspection.
+it is refused and cleaned up, not reported as working GUI. Subsequent independent debugger inspection identified a Tokio Unix-socket
+notification assumption; the native reactor adapter is maintained in rust-aros.
 
-## Application-fixture memory selection
+## Earlier application-fixture memory selection
 
 The production checker accepts `--memory MIB`, forwards it to the signed launcher
 and records the size in the verdict. The launcher's platform-bound validation is
@@ -21,7 +28,8 @@ memory. These desktop passes are not application acceptance. The runtime ELF
 contains92,431 same-section CALL26/JUMP26 relocations outside the signed128MiB
 branch range; independent LLDB inspection confirms rejection at the exact branch-range
 overflow, with displacement146,836,156 bytes matching the static relocation.
-A proper large-text solution remains open. Private integration receipts are not public dependencies.
+A bounded long-branch solution and producer function metadata are integrated
+in the selected common-source/app dependency inputs. Private integration receipts are not public dependencies.
 
 ## Native entry metadata reference
 
